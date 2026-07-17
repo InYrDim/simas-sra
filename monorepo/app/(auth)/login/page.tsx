@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field, FieldLabel, FieldGroup, FieldError } from "@/components/ui/field";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowRight, Loader2 } from "lucide-react";
 
@@ -42,36 +42,34 @@ export default function LoginPage() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
-              {error}
-            </div>
-          )}
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" name="email" type="email" placeholder="admin@sekolah.sch.id" required />
-          </div>
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password">Kata Sandi</Label>
-              <Link href="/forgot-password" className="text-xs text-primary hover:underline font-medium">
-                Lupa kata sandi?
-              </Link>
-            </div>
-            <Input id="password" name="password" type="password" required />
-          </div>
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? (
-              <>
-                <Loader2 className="mr-2 size-4 animate-spin" /> Memproses...
-              </>
-            ) : (
-              <>
-                Masuk <ArrowRight className="ml-2 size-4" />
-              </>
-            )}
-          </Button>
+        <form onSubmit={handleSubmit}>
+          <FieldGroup>
+            {error && <FieldError errors={[{ message: error }]} className="p-3 text-sm text-destructive bg-destructive/10 rounded-md" />}
+            <Field>
+              <FieldLabel htmlFor="email">Email</FieldLabel>
+              <Input id="email" name="email" type="email" placeholder="admin@sekolah.sch.id" required />
+            </Field>
+            <Field>
+              <div className="flex items-center justify-between w-full">
+                <FieldLabel htmlFor="password">Kata Sandi</FieldLabel>
+                <Link href="/forgot-password" className="text-xs text-primary hover:underline font-medium">
+                  Lupa kata sandi?
+                </Link>
+              </div>
+              <Input id="password" name="password" type="password" required />
+            </Field>
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 size-4 animate-spin" /> Memproses...
+                </>
+              ) : (
+                <>
+                  Masuk <ArrowRight className="ml-2 size-4" />
+                </>
+              )}
+            </Button>
+          </FieldGroup>
         </form>
       </CardContent>
       <CardFooter className="flex justify-center border-t border-border/50 pt-6">

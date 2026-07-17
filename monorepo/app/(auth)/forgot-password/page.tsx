@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field, FieldLabel, FieldGroup } from "@/components/ui/field";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
 
@@ -41,14 +41,16 @@ export default function ForgotPasswordPage() {
             </p>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Terdaftar</Label>
-              <Input id="email" name="email" type="email" placeholder="admin@sekolah.sch.id" required />
-            </div>
-            <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? <Loader2 className="mr-2 size-4 animate-spin" /> : "Kirim Tautan Pemulihan"}
-            </Button>
+          <form onSubmit={handleSubmit}>
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="email">Email Terdaftar</FieldLabel>
+                <Input id="email" name="email" type="email" placeholder="admin@sekolah.sch.id" required />
+              </Field>
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? <Loader2 className="mr-2 size-4 animate-spin" /> : "Kirim Tautan Pemulihan"}
+              </Button>
+            </FieldGroup>
           </form>
         )}
       </CardContent>

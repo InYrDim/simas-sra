@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field, FieldLabel, FieldGroup, FieldError } from "@/components/ui/field";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 
@@ -41,31 +41,29 @@ export default function RegisterPage() {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="p-3 text-sm text-destructive bg-destructive/10 rounded-md">
-              {error}
-            </div>
-          )}
-          <div className="space-y-2">
-            <Label htmlFor="name">Nama Lengkap</Label>
-            <Input id="name" name="name" type="text" placeholder="Budi Santoso" required />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" name="email" type="email" placeholder="budi@sekolah.sch.id" required />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Kata Sandi</Label>
-            <Input id="password" name="password" type="password" required />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Konfirmasi Kata Sandi</Label>
-            <Input id="confirmPassword" name="confirmPassword" type="password" required />
-          </div>
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? <Loader2 className="mr-2 size-4 animate-spin" /> : "Daftar Akun"}
-          </Button>
+        <form onSubmit={handleSubmit}>
+          <FieldGroup>
+            {error && <FieldError errors={[{ message: error }]} className="p-3 text-sm text-destructive bg-destructive/10 rounded-md" />}
+            <Field>
+              <FieldLabel htmlFor="name">Nama Lengkap</FieldLabel>
+              <Input id="name" name="name" type="text" placeholder="Budi Santoso" required />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="email">Email</FieldLabel>
+              <Input id="email" name="email" type="email" placeholder="budi@sekolah.sch.id" required />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="password">Kata Sandi</FieldLabel>
+              <Input id="password" name="password" type="password" required />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="confirmPassword">Konfirmasi Kata Sandi</FieldLabel>
+              <Input id="confirmPassword" name="confirmPassword" type="password" required />
+            </Field>
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? <Loader2 className="mr-2 size-4 animate-spin" /> : "Daftar Akun"}
+            </Button>
+          </FieldGroup>
         </form>
       </CardContent>
       <CardFooter className="flex justify-center border-t border-border/50 pt-6">
