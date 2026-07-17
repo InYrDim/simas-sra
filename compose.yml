@@ -1,0 +1,4 @@
+# This wil contain two services.
+#
+# 1. monorep (the fullstack nextjs app)
+# 2. database (the mysql db)
