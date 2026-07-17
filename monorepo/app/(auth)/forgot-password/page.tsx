@@ -1,0 +1,63 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
+
+export default function ForgotPasswordPage() {
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsLoading(true);
+    // Simulate API call
+    setTimeout(() => {
+      setIsLoading(false);
+      setIsSubmitted(true);
+    }, 1000);
+  };
+
+  return (
+    <Card className="shadow-2xl shadow-primary/5">
+      <CardHeader className="space-y-1 pb-6">
+        <CardTitle className="text-2xl font-bold text-center">Lupa Kata Sandi</CardTitle>
+        <CardDescription className="text-center">
+          Masukkan email Anda dan kami akan mengirimkan tautan untuk mengatur ulang kata sandi.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isSubmitted ? (
+          <div className="flex flex-col items-center justify-center space-y-4 py-4">
+            <div className="size-12 rounded-full bg-primary/10 flex items-center justify-center">
+              <CheckCircle2 className="size-6 text-primary" />
+            </div>
+            <p className="text-center text-sm text-muted-foreground">
+              Jika email tersebut terdaftar, instruksi pemulihan telah dikirim. Silakan periksa kotak masuk Anda.
+            </p>
+          </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="email">Email Terdaftar</Label>
+              <Input id="email" name="email" type="email" placeholder="admin@sekolah.sch.id" required />
+            </div>
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? <Loader2 className="mr-2 size-4 animate-spin" /> : "Kirim Tautan Pemulihan"}
+            </Button>
+          </form>
+        )}
+      </CardContent>
+      <CardFooter className="flex justify-center border-t border-border/50 pt-6">
+        <Link href="/login" className="text-sm text-muted-foreground hover:text-foreground flex items-center transition-colors">
+          <ArrowLeft className="mr-2 size-4" />
+          Kembali ke halaman masuk
+        </Link>
+      </CardFooter>
+    </Card>
+  );
+}
