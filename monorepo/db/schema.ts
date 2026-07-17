@@ -4,6 +4,7 @@ export const tenant = mysqlTable("tenant", {
   id: varchar("id", { length: 36 }).primaryKey(),
   name: varchar("name", { length: 255 }).notNull(),
   domain: varchar("domain", { length: 255 }).notNull().unique(),
+  trialEndsAt: timestamp("trial_ends_at", { fsp: 3 }),
   settings: json("settings"),
   createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { fsp: 3 })

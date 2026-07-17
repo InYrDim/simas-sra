@@ -1,4 +1,5 @@
 import * as React from 'react';
+import Link from 'next/link';
 import { db } from '@/db';
 import { tenant } from '@/db/schema';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -16,9 +17,11 @@ export default async function ProviderDashboardPage() {
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Provider Dashboard</h2>
         <div className="flex items-center space-x-2">
-          <Button>
-            <Plus className="mr-2 h-4 w-4" /> Tambah Tenant
-          </Button>
+          <Link href="/dashboard/onboarding">
+            <Button>
+              <Plus className="mr-2 h-4 w-4" /> Tambah Tenant
+            </Button>
+          </Link>
         </div>
       </div>
 

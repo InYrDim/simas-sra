@@ -4,8 +4,8 @@
 
 **Blocked by:** 03 — Provider Dashboard, 04 — Auth & Tenant Association
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Terdapat halaman form registrasi di rute provider.
-- [ ] Submit form akan memicu transaksi database: insert `tenant` (set trial_ends_at = 1 bulan dari sekarang) dan insert `user`.
-- [ ] Setelah berhasil, browser di-redirect ke subdomain milik tenant tersebut.
+- [x] Terdapat halaman form registrasi di rute provider.
+- [x] Submit form akan memicu transaksi database: insert `tenant` (set trial_ends_at = 1 bulan dari sekarang) dan insert `user`.
+- [x] Setelah berhasil, browser di-redirect ke subdomain milik tenant tersebut.
