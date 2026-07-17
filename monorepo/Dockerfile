@@ -25,6 +25,10 @@ COPY . .
 # Uncomment the following line in case you want to disable telemetry during the build.
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# dummy value to ensure build succed
+ENV BETTER_AUTH_SECRET="dummy_secret_for_build"
+ENV BETTER_AUTH_URL="http://dummy:3000"
+
 RUN pnpm run build
 
 # Production image, copy all the files and run next
