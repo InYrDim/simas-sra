@@ -34,7 +34,7 @@ export default function LoginPage() {
   };
 
   return (
-    <Card className="shadow-2xl shadow-primary/5">
+    <Card className="border-none shadow-none bg-transparent">
       <CardHeader className="space-y-1 pb-6">
         <CardTitle className="text-2xl font-bold text-center">Masuk ke SIMAS</CardTitle>
         <CardDescription className="text-center">

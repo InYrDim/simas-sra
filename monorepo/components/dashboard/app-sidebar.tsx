@@ -9,45 +9,12 @@ import {
   SidebarMenuItem,
   SidebarFooter
 } from "@/components/ui/sidebar"
-import { Home, Users, Settings, BookOpen, LogOut } from "lucide-react"
+import { BookOpen, LogOut } from "lucide-react"
 import Link from "next/link"
-import { NavMenu, type NavItem } from "@/components/nav-menu"
+import { NavMenu } from "@/components/nav-menu"
+import { menuItems } from "@/components/nav-menu/config"
 
-export type Role = "superadmin" | "pimpinan" | "staff" | "guru" | "siswa"
-
-const menuItems: NavItem[] = [
-  {
-    title: "Dasbor",
-    icon: Home,
-    url: "/",
-    roles: ["superadmin", "pimpinan", "staff", "guru", "siswa"]
-  },
-  {
-    title: "Data Siswa",
-    icon: Users,
-    url: "/siswa",
-    roles: ["staff", "guru", "pimpinan"]
-  },
-  {
-    title: "Akademik",
-    icon: BookOpen,
-    roles: ["staff", "guru", "siswa", "pimpinan"],
-    items: [
-      { title: "Jadwal Pelajaran", url: "/akademik/jadwal", roles: ["staff", "guru", "siswa", "pimpinan"] },
-      { title: "Penilaian & Rapor", url: "/akademik/nilai", roles: ["guru", "siswa", "pimpinan"] }
-    ]
-  },
-  {
-    title: "Pengaturan",
-    icon: Settings,
-    roles: ["superadmin"],
-    group: "Sistem & Keamanan",
-    items: [
-      { title: "Manajemen Pengguna", url: "/users", roles: ["superadmin"] },
-      { title: "Pengaturan Sistem", url: "/settings", roles: ["superadmin"] }
-    ]
-  },
-]
+import { Role } from "@/types/Role"
 
 export function AppSidebar({ role }: { role: Role }) {
   return (

@@ -20,16 +20,9 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
-import type { Role } from "../dashboard/app-sidebar"
 
-export type NavItem = {
-  title: string
-  url?: string
-  icon?: LucideIcon
-  roles: Role[]
-  group?: string
-  items?: Omit<NavItem, "icon" | "group">[]
-}
+import { Role } from "@/types/Role"
+import { NavItem } from "@/types/components/NavItem"
 
 function NavCollapsibleItem({ item, role, pathname }: { item: NavItem, role: Role, pathname: string }) {
   const filteredSubItems = item.items!.filter((subItem) => subItem.roles.includes(role))
