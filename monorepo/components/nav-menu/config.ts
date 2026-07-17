@@ -1,4 +1,4 @@
-import { Home, Database, Calendar, ClipboardCheck, Library, Mail, Settings } from "lucide-react"
+import { Home, Database, Calendar, ClipboardCheck, Library, Mail, Settings, UserPlus } from "lucide-react"
 import { NavItem } from "@/types/components/NavItem"
 
 export const menuItems: NavItem[] = [
@@ -27,6 +27,13 @@ export const menuItems: NavItem[] = [
     roles: ["*"]
   },
   {
+    title: "PPDB",
+    icon: UserPlus,
+    url: "/ppdb",
+    roles: ["*"],
+    group: "Pendaftaran"
+  },
+  {
     title: "Penjadwalan",
     icon: Calendar,
     roles: ["*"],
@@ -41,10 +48,13 @@ export const menuItems: NavItem[] = [
     roles: ["*"],
     group: "Administrasi",
     items: [
+      { title: "Profil Sekolah", url: "/master/profil", roles: ["*"] },
       { title: "Siswa", url: "/master/siswa", roles: ["*"] },
       { title: "Guru", url: "/master/guru", roles: ["*"] },
       { title: "Staf", url: "/master/staf", roles: ["*"] },
       { title: "Mata Pelajaran", url: "/master/mapel", roles: ["*"] },
+      { title: "Rombongan Belajar", url: "/master/rombel", roles: ["*"] },
+      { title: "Sarana & Prasarana", url: "/master/sarpras", roles: ["*"] },
       { title: "Organisasi", url: "/master/organisasi", roles: ["*"] }
     ]
   },
