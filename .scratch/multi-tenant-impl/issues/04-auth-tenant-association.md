@@ -4,8 +4,8 @@
 
 **Blocked by:** 02 — Tenant Database Integration
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Kolom `tenantId` (foreign key) ditambahkan ke tabel `user` (atau relasi yang sesuai).
-- [ ] User seed dummy dibuat dan terikat dengan sebuah tenant.
-- [ ] Komponen UI sederhana menampilkan nama user dan ID/nama tenant-nya setelah login.
+- [x] Kolom `tenantId` (foreign key) ditambahkan ke tabel `user` (atau relasi yang sesuai).
+- [x] User seed dummy dibuat dan terikat dengan sebuah tenant.
+- [x] Komponen UI sederhana menampilkan nama user dan ID/nama tenant-nya setelah login.

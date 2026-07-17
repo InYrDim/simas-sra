@@ -4,8 +4,8 @@
 
 **Blocked by:** 02 — Tenant Database Integration
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Kolom `settings` (tipe JSONB) ditambahkan pada skema `tenant`.
-- [ ] Fungsi pembantu `hasFeature(tenantId, featureName)` dibuat.
-- [ ] Komponen UI dummy (contoh "Advanced Analytics") yang hanya di-render jika fungsi `hasFeature` mereturn true.
+- [x] Kolom `settings` (tipe JSONB) ditambahkan pada skema `tenant`.
+- [x] Fungsi pembantu `hasFeature(tenantId, featureName)` dibuat.
+- [x] Komponen UI dummy (contoh "Advanced Analytics") yang hanya di-render jika fungsi `hasFeature` mereturn true.
