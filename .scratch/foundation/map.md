@@ -13,6 +13,9 @@ Fondasi Auth & Shell Aplikasi (Landing Page, Alur Auth UI, Layout Dashboard, dan
 
 ## Decisions so far
 
+- [Bagaimana layout *Shell/Dashboard* utama (Sidebar, Header, Navigasi) diatur...](./issues/03-dashboard-layout.md) — Menggunakan Route Group `(authenticated)` agar semua halaman internal mendapat layout Sidebar tanpa prefix `/dashboard`.
+- [Bagaimana konfigurasi menu dan UI detail dari *App Sidebar*...](./issues/04-sidebar-menus.md) — Ditetapkan menu dinamis berdasarkan 5 role, diuji dengan Role Switcher di header.
+- [Membuat halaman *placeholder* (stub) untuk setiap menu di Sidebar...](./issues/05-placeholders.md) — Dibuat halaman sementara untuk mencegah 404 saat bernavigasi.
 
 ## Not yet specified
 

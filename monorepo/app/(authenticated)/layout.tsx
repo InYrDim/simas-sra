@@ -6,14 +6,7 @@ import { AppSidebar, Role } from "@/components/dashboard/app-sidebar"
 import { Button } from "@/components/ui/button"
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const [role, setRole] = useState<Role>("admin");
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) return null; // Avoid hydration mismatch on sidebar state
+  const [role, setRole] = useState<Role>("staff");
 
   return (
     <SidebarProvider>
@@ -30,8 +23,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <span className="text-xs font-medium text-muted-foreground mr-2 hidden sm:inline-block">
                 Tampilan Role:
               </span>
-              <Button size="xs" variant={role === "admin" ? "default" : "outline"} onClick={() => setRole("admin")}>
-                Admin
+              <Button size="xs" variant={role === "superadmin" ? "default" : "outline"} onClick={() => setRole("superadmin")}>
+                Superadmin
+              </Button>
+              <Button size="xs" variant={role === "pimpinan" ? "default" : "outline"} onClick={() => setRole("pimpinan")}>
+                Pimpinan
+              </Button>
+              <Button size="xs" variant={role === "staff" ? "default" : "outline"} onClick={() => setRole("staff")}>
+                Staff
               </Button>
               <Button size="xs" variant={role === "guru" ? "default" : "outline"} onClick={() => setRole("guru")}>
                 Guru

@@ -3,32 +3,53 @@
 import {
   Sidebar,
   SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarFooter
 } from "@/components/ui/sidebar"
-import { Home, Users, Settings, BookOpen, GraduationCap, DollarSign, LogOut } from "lucide-react"
+import { Home, Users, Settings, BookOpen, LogOut } from "lucide-react"
 import Link from "next/link"
+import { NavMenu, type NavItem } from "@/components/nav-menu"
 
-export type Role = "admin" | "guru" | "siswa"
+export type Role = "superadmin" | "pimpinan" | "staff" | "guru" | "siswa"
 
-const menuItems = [
-  { title: "Dasbor", icon: Home, url: "/dashboard", roles: ["admin", "guru", "siswa"] },
-  { title: "Data Siswa", icon: Users, url: "/dashboard/siswa", roles: ["admin", "guru"] },
-  { title: "Mata Pelajaran", icon: BookOpen, url: "/dashboard/mapel", roles: ["admin", "guru", "siswa"] },
-  { title: "Penilaian", icon: GraduationCap, url: "/dashboard/nilai", roles: ["guru", "siswa"] },
-  { title: "Keuangan", icon: DollarSign, url: "/dashboard/keuangan", roles: ["admin"] },
-  { title: "Pengaturan", icon: Settings, url: "/dashboard/settings", roles: ["admin"] },
+const menuItems: NavItem[] = [
+  {
+    title: "Dasbor",
+    icon: Home,
+    url: "/",
+    roles: ["superadmin", "pimpinan", "staff", "guru", "siswa"]
+  },
+  {
+    title: "Data Siswa",
+    icon: Users,
+    url: "/siswa",
+    roles: ["staff", "guru", "pimpinan"]
+  },
+  {
+    title: "Akademik",
+    icon: BookOpen,
+    roles: ["staff", "guru", "siswa", "pimpinan"],
+    items: [
+      { title: "Jadwal Pelajaran", url: "/akademik/jadwal", roles: ["staff", "guru", "siswa", "pimpinan"] },
+      { title: "Penilaian & Rapor", url: "/akademik/nilai", roles: ["guru", "siswa", "pimpinan"] }
+    ]
+  },
+  {
+    title: "Pengaturan",
+    icon: Settings,
+    roles: ["superadmin"],
+    group: "Sistem & Keamanan",
+    items: [
+      { title: "Manajemen Pengguna", url: "/users", roles: ["superadmin"] },
+      { title: "Pengaturan Sistem", url: "/settings", roles: ["superadmin"] }
+    ]
+  },
 ]
 
 export function AppSidebar({ role }: { role: Role }) {
-  const filteredItems = menuItems.filter(item => item.roles.includes(role));
-
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader className="h-16 flex items-center justify-center border-b border-sidebar-border">
@@ -39,23 +60,9 @@ export function AppSidebar({ role }: { role: Role }) {
           <span className="font-bold tracking-tight truncate group-data-[collapsible=icon]:hidden">SIMAS</span>
         </div>
       </SidebarHeader>
-      
+
       <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel>Menu Utama</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {filteredItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton render={<Link href={item.url} />} tooltip={item.title}>
-                    <item.icon />
-                    <span>{item.title}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        <NavMenu items={menuItems} role={role} />
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border p-4">
