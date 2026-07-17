@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "db:gen:better-auth": "npx auth@latest generate"
+    "db:gen:better-auth": "pnpm dlx auth@latest generate",
+    "db:mig:better-auth": "pnpm dlx auth@latest migrate"
   },
   "dependencies": {
     "better-auth": "^1.6.23",
