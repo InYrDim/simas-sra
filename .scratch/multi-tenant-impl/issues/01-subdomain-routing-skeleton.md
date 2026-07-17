@@ -4,9 +4,13 @@
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** resolved
 
-- [ ] File `middleware.ts` dibuat dan mampu mem-parsing hostname (localhost:3000 atau domain produksi).
-- [ ] Terdapat struktur folder `app/(tenant)/[domain]/page.tsx`.
-- [ ] Akses ke `sekolah-a.localhost:3000` berhasil di-rewrite secara internal ke route `(tenant)/sekolah-a` tanpa mengubah URL di browser.
-- [ ] Halaman menampilkan param `[domain]` di layar.
+- [x] File `middleware.ts` dibuat dan mampu mem-parsing hostname (localhost:3000 atau domain produksi).
+- [x] Terdapat struktur folder `app/(tenant)/[domain]/page.tsx`.
+- [x] Akses ke `sekolah-a.localhost:3000` berhasil di-rewrite secara internal ke route `(tenant)/sekolah-a` tanpa mengubah URL di browser.
+- [x] Halaman menampilkan param `[domain]` di layar.
+
+## Answer
+
+Implemented middleware at `monorepo/middleware.ts` to parse hostname and rewrite requests with subdomains to `/[domain]${path}`. The folder `monorepo/app/(tenant)/[domain]/page.tsx` was created to handle the rewritten requests and display the domain parameter.

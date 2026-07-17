@@ -12,4 +12,3 @@ if (!(poolConnection as PoolWithConfig).config) {
 }
 
 export const db = drizzle({ client: poolConnection });
-
