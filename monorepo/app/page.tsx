@@ -16,8 +16,6 @@ export default function Home() {
           </div>
           <nav className="hidden md:flex items-center gap-6 text-sm font-medium text-muted-foreground">
             <Link href="#fitur" className="hover:text-foreground transition-colors">Fitur</Link>
-            <Link href="#tentang" className="hover:text-foreground transition-colors">Tentang</Link>
-            <Link href="#kontak" className="hover:text-foreground transition-colors">Kontak</Link>
           </nav>
           <div className="flex items-center gap-4">
             <Link href="/login" className={buttonVariants({ variant: "ghost", className: "hidden sm:inline-flex" })}>
