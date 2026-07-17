@@ -25,7 +25,7 @@ import { Role } from "@/types/Role"
 import { NavItem } from "@/types/components/NavItem"
 
 function NavCollapsibleItem({ item, role, pathname }: { item: NavItem, role: Role, pathname: string }) {
-  const filteredSubItems = item.items!.filter((subItem) => subItem.roles.includes(role))
+  const filteredSubItems = item.items!.filter((subItem) => subItem.roles.includes(role) || subItem.roles.includes("*"))
   const isActive = filteredSubItems.some((subItem) => pathname === subItem.url)
 
   const [isOpen, setIsOpen] = React.useState(isActive)
@@ -84,7 +84,7 @@ export function NavMenu({
   const pathname = usePathname()
 
   // Filter root items by role
-  const filteredItems = items.filter((item) => item.roles.includes(role))
+  const filteredItems = items.filter((item) => item.roles.includes(role) || item.roles.includes("*"))
 
   // Group items by their "group" property, default to "Menu Utama"
   const groupedItems = filteredItems.reduce((acc, item) => {

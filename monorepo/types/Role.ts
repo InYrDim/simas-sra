@@ -1,1 +1,1 @@
-export type Role = "superadmin" | "pimpinan" | "staff" | "guru" | "siswa"
+export type Role = "superadmin" | "pimpinan" | "staff" | "guru" | "siswa" | "guest" | "*"

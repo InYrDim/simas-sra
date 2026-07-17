@@ -1,36 +1,61 @@
-import { Home, Users, Settings, BookOpen } from "lucide-react"
+import { Home, Database, Calendar, ClipboardCheck, Library, Mail, Settings } from "lucide-react"
 import { NavItem } from "@/types/components/NavItem"
 
 export const menuItems: NavItem[] = [
   {
     title: "Dasbor",
     icon: Home,
-    url: "/",
-    roles: ["superadmin", "pimpinan", "staff", "guru", "siswa"]
+    url: "/dashboard",
+    roles: ["*"]
   },
   {
-    title: "Data Siswa",
-    icon: Users,
-    url: "/siswa",
-    roles: ["staff", "guru", "pimpinan"]
+    title: "Absensi",
+    icon: ClipboardCheck,
+    url: "/absensi",
+    roles: ["*"]
   },
   {
-    title: "Akademik",
-    icon: BookOpen,
-    roles: ["staff", "guru", "siswa", "pimpinan"],
+    title: "E-Library",
+    icon: Library,
+    url: "/e-library",
+    roles: ["*"]
+  },
+  {
+    title: "Persuratan",
+    icon: Mail,
+    url: "/persuratan",
+    roles: ["*"]
+  },
+  {
+    title: "Penjadwalan",
+    icon: Calendar,
+    roles: ["*"],
     items: [
-      { title: "Jadwal Pelajaran", url: "/akademik/jadwal", roles: ["staff", "guru", "siswa", "pimpinan"] },
-      { title: "Penilaian & Rapor", url: "/akademik/nilai", roles: ["guru", "siswa", "pimpinan"] }
+      { title: "Jadwal Mengajar", url: "/jadwal/mengajar", roles: ["*"] },
+      { title: "Events", url: "/jadwal/events", roles: ["*"] }
     ]
   },
   {
-    title: "Pengaturan",
+    title: "Master Data",
+    icon: Database,
+    roles: ["*"],
+    group: "Administrasi",
+    items: [
+      { title: "Siswa", url: "/master/siswa", roles: ["*"] },
+      { title: "Guru", url: "/master/guru", roles: ["*"] },
+      { title: "Staf", url: "/master/staf", roles: ["*"] },
+      { title: "Mata Pelajaran", url: "/master/mapel", roles: ["*"] },
+      { title: "Organisasi", url: "/master/organisasi", roles: ["*"] }
+    ]
+  },
+  {
+    title: "Manajemen",
     icon: Settings,
-    roles: ["superadmin"],
+    roles: ["*"],
     group: "Sistem & Keamanan",
     items: [
-      { title: "Manajemen Pengguna", url: "/users", roles: ["superadmin"] },
-      { title: "Pengaturan Sistem", url: "/settings", roles: ["superadmin"] }
+      { title: "Manajemen Pengguna", url: "/users", roles: ["*"] },
+      { title: "Pengaturan Sistem", url: "/settings", roles: ["*"] }
     ]
   },
 ]
