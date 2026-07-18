@@ -1,5 +1,6 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
+import { resolveProxyRoute } from "@/lib/proxy-routing";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
 export const config = {
   matcher: [
@@ -15,28 +16,17 @@ export const config = {
 };
 
 export function proxy(req: NextRequest) {
-  const url = req.nextUrl;
-  const hostname = req.headers.get('host') || '';
+  const route = resolveProxyRoute(
+    req.headers.get("host") ?? "",
+    req.nextUrl.pathname,
+  );
 
-  // Get the subdomain
-  let subdomain = '';
-  
-  if (hostname.includes('localhost')) {
-    const parts = hostname.split('.');
-    if (parts.length > 1 && parts[1].startsWith('localhost')) {
-      subdomain = parts[0];
-    }
-  } else {
-    // For production domains
-    const parts = hostname.split('.');
-    if (parts.length >= 3) {
-      subdomain = parts[0];
-    }
+  if (route.kind === "not-found") {
+    return new NextResponse(null, { status: 404 });
   }
 
-  // Rewrite to /[domain]/path
-  if (subdomain && subdomain !== 'www') {
-    return NextResponse.rewrite(new URL(`/${subdomain}${url.pathname}`, req.url));
+  if (route.kind === "rewrite") {
+    return NextResponse.rewrite(new URL(route.pathname, req.url));
   }
 
   return NextResponse.next();
