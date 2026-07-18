@@ -4,8 +4,8 @@
 
 **Blocked by:** 05 — Tenant Onboarding
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Komponen banner UI yang mengecek `tenant.trial_ends_at` vs waktu sekarang.
-- [ ] Banner dirender di `app/(tenant)/[domain]/layout.tsx` sehingga muncul di semua halaman tenant tersebut.
-- [ ] Jika diuji dengan mengubah tanggal trial di DB ke masa lalu, banner otomatis terlihat.
+- [x] Komponen banner UI yang mengecek `tenant.trial_ends_at` vs waktu sekarang.
+- [x] Banner dirender di `app/(tenant)/[domain]/layout.tsx` sehingga muncul di semua halaman tenant tersebut.
+- [x] Jika diuji dengan mengubah tanggal trial di DB ke masa lalu, banner otomatis terlihat.

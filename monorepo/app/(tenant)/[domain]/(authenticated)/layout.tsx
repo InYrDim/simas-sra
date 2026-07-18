@@ -1,51 +1,26 @@
-"use client"
-
-import { useState } from "react"
-import { useParams } from "next/navigation"
-import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
+import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/dashboard/app-sidebar"
-import { Role } from "@/types/Role"
-import { Button } from "@/components/ui/button"
+import { DashboardHeader } from "@/components/dashboard/dashboard-header"
+import { TrialBanner } from "@/components/dashboard/trial-banner"
 
-export default function DashboardLayout({ children}: { children: React.ReactNode }) {
-  const params = useParams();
-  const [role, setRole] = useState<Role>("staff");
+export default async function DashboardLayout({ 
+  children,
+  params
+}: { 
+  children: React.ReactNode,
+  params: Promise<{ domain: string }>
+}) {
+  const { domain } = await params;
 
   return (
     <SidebarProvider>
-      <AppSidebar role={role} />
+      {/* Assuming AppSidebar handles its own client logic if necessary, or we pass a default role */}
+      {/* For now we just pass 'staff' as default since role state was moved to Header, 
+          ideally sidebar items are determined server-side or via context */}
+      <AppSidebar role="staff" />
       <SidebarInset>
-        <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b bg-background/95 backdrop-blur px-4">
-          <SidebarTrigger className="-ml-1" />
-          <div className="w-px h-6 bg-border mx-2" />
-
-          <div className="flex-1 flex justify-between items-center overflow-x-auto">
-            <div className="flex items-center gap-2">
-              <h1 className="font-semibold truncate">Dasbor Utama</h1>
-              <span className="text-xs font-medium text-muted-foreground">{params.domain as string}</span>
-            </div>
-            <div className="flex items-center gap-2 flex-nowrap shrink-0">
-              <span className="text-xs font-medium text-muted-foreground mr-2 hidden sm:inline-block">
-                Tampilan Role:
-              </span>
-              <Button size="xs" variant={role === "superadmin" ? "default" : "outline"} onClick={() => setRole("superadmin")}>
-                Superadmin
-              </Button>
-              <Button size="xs" variant={role === "pimpinan" ? "default" : "outline"} onClick={() => setRole("pimpinan")}>
-                Pimpinan
-              </Button>
-              <Button size="xs" variant={role === "staff" ? "default" : "outline"} onClick={() => setRole("staff")}>
-                Staff
-              </Button>
-              <Button size="xs" variant={role === "guru" ? "default" : "outline"} onClick={() => setRole("guru")}>
-                Guru
-              </Button>
-              <Button size="xs" variant={role === "siswa" ? "default" : "outline"} onClick={() => setRole("siswa")}>
-                Siswa
-              </Button>
-            </div>
-          </div>
-        </header>
+        <TrialBanner domain={domain} />
+        <DashboardHeader domain={domain} />
         <div className="flex flex-1 flex-col p-4 md:p-6 pt-6 gap-6">
           {children}
         </div>
