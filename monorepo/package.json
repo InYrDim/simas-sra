@@ -7,11 +7,16 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "tsx --test \"**/*.test.ts\"",
+    "typecheck": "tsc --noEmit",
     "db:gen:auth": "pnpm dlx @better-auth/cli generate",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:migrate": "drizzle-kit migrate",
-    "db:studio": "drizzle-kit studio"
+    "db:audit:lifecycle": "tsx scripts/audit-provider-lifecycle.ts",
+    "db:studio": "drizzle-kit studio",
+    "provider-admin:provision": "tsx scripts/provision-provider-admin.ts",
+    "provider-admin:deprovision": "tsx scripts/deprovision-provider-admin.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

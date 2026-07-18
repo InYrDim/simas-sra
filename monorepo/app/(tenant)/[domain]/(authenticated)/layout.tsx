@@ -1,23 +1,31 @@
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/dashboard/app-sidebar"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { TrialBanner } from "@/components/dashboard/trial-banner"
+import { TenantSidebar } from "@/components/dashboard/tenant-sidebar"
+import { requireTenantFeatureAccess } from "@/lib/tenant-access"
+import { TenantActivationError } from "@/lib/school-admin-activation"
+import { redirect } from "next/navigation"
 
-export default async function DashboardLayout({ 
+export default async function DashboardLayout({
   children,
   params
-}: { 
+}: {
   children: React.ReactNode,
   params: Promise<{ domain: string }>
 }) {
   const { domain } = await params;
+  try {
+    await requireTenantFeatureAccess(domain);
+  } catch (error) {
+    if (error instanceof TenantActivationError && error.code === "password-change-required") {
+      redirect("/change-password");
+    }
+    throw error;
+  }
 
   return (
     <SidebarProvider>
-      {/* Assuming AppSidebar handles its own client logic if necessary, or we pass a default role */}
-      {/* For now we just pass 'staff' as default since role state was moved to Header, 
-          ideally sidebar items are determined server-side or via context */}
-      <AppSidebar role="staff" />
+      <TenantSidebar role="staff" />
       <SidebarInset>
         <TrialBanner domain={domain} />
         <DashboardHeader domain={domain} />

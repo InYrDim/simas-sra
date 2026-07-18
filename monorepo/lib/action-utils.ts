@@ -1,6 +1,7 @@
 import { db } from "@/db";
 import { tenant } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { requireTenantFeatureAccess } from "@/lib/tenant-access";
 
 const READ_ONLY_MESSAGE =
   "Tindakan ini tidak diizinkan. Masa uji coba Anda telah berakhir (mode hanya-baca).";
@@ -35,6 +36,7 @@ export function tenantProtectedAction<
   action: (domain: string, ...args: TArgs) => Promise<TResult>,
 ): (domain: string, ...args: TArgs) => Promise<TResult | ProtectedActionError> {
   return async (domain, ...args) => {
+    await requireTenantFeatureAccess(domain);
     if (!(await isTenantWritable(domain))) {
       return {
         success: false,

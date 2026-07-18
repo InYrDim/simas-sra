@@ -3,10 +3,10 @@
 import { useState } from "react";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
-import { Role } from "@/types/Role";
+import { type TenantRole } from "@/types/TenantRole";
 
 export function DashboardHeader({ domain }: { domain: string }) {
-  const [role, setRole] = useState<Role>("staff");
+  const [role, setRole] = useState<TenantRole>("staff");
 
   return (
     <>
@@ -23,9 +23,9 @@ export function DashboardHeader({ domain }: { domain: string }) {
             <span className="text-xs font-medium text-muted-foreground mr-2 hidden sm:inline-block">
               Tampilan Role:
             </span>
-            <Button size="xs" variant={role === "superadmin" ? "default" : "outline"} onClick={() => setRole("superadmin")}>
-              Superadmin
-            </Button>
+            <Button size="xs" variant={role === "school-admin" ? "default" : "outline"} onClick={() => setRole("school-admin")}>
+                          School Admin
+                        </Button>
             <Button size="xs" variant={role === "pimpinan" ? "default" : "outline"} onClick={() => setRole("pimpinan")}>
               Pimpinan
             </Button>

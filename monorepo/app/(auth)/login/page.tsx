@@ -7,30 +7,44 @@ import { Input } from "@/components/ui/input";
 import { Field, FieldLabel, FieldGroup, FieldError } from "@/components/ui/field";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowRight, Loader2 } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
     const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
-    
-    if (!email || !password) {
+    const email = formData.get("email");
+    const password = formData.get("password");
+
+    if (typeof email !== "string" || typeof password !== "string" || !email || !password) {
       setError("Email dan kata sandi wajib diisi.");
       return;
     }
-    
+
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
+
+    try {
+      const result = await authClient.signIn.email({
+        email,
+        password,
+        callbackURL: "/continue",
+      });
+
+      if (result.error) {
+        setError("Email atau kata sandi tidak valid.");
+        return;
+      }
+
+      window.location.assign("/continue");
+    } catch {
+      setError("Tidak dapat terhubung ke server. Silakan coba lagi.");
+    } finally {
       setIsLoading(false);
-      // for prototype, just stay here or redirect
-      setError("Fungsi login belum terhubung ke backend.");
-    }, 1000);
+    }
   };
 
   return (

@@ -7,19 +7,29 @@ import { Input } from "@/components/ui/input";
 import { Field, FieldLabel, FieldGroup } from "@/components/ui/field";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
 
 export default function ForgotPasswordPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      setIsSubmitted(true);
-    }, 1000);
+    setError("");
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get("email");
+    const result = await authClient.requestPasswordReset({
+      email: typeof email === "string" ? email : "",
+      redirectTo: "/reset-password",
+    });
+    setIsLoading(false);
+    if (result.error) {
+      setError("Permintaan pemulihan belum dapat diproses. Hubungi Provider Admin.");
+      return;
+    }
+    setIsSubmitted(true);
   };
 
   return (
@@ -43,6 +53,7 @@ export default function ForgotPasswordPage() {
         ) : (
           <form onSubmit={handleSubmit}>
             <FieldGroup>
+              {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
               <Field>
                 <FieldLabel htmlFor="email">Email Terdaftar</FieldLabel>
                 <Input id="email" name="email" type="email" placeholder="admin@sekolah.sch.id" required />
