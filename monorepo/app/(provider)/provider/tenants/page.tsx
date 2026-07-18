@@ -17,6 +17,13 @@ import {
   APPLICATION_STATUS_LABELS,
   type ApplicationStatus,
 } from "@/lib/provider-applications";
+import { listProviderTenants } from "@/lib/provider-tenant-data";
+import {
+  normalizeTenantListQuery,
+  TENANT_USAGE_STAGE_LABELS,
+  tenantUsageStageLabel,
+  type TenantListQuery,
+} from "@/lib/provider-tenants";
 import { cn } from "@/lib/utils";
 
 
@@ -25,6 +32,14 @@ type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 function valueOf(value: string | string[] | undefined) {
   return typeof value === "string" ? value : undefined;
+}
+
+function tenantsUrl(current: TenantListQuery, page: number) {
+  const params = new URLSearchParams({ page: String(page) });
+  if (current.search) params.set("search", current.search);
+  if (current.stage !== "all") params.set("stage", current.stage);
+  if (current.sort !== "newest") params.set("sort", current.sort);
+  return `/provider/tenants?${params}`;
 }
 
 function applicationsUrl(
@@ -47,14 +62,90 @@ export default async function ProviderTenantsPage({
   const tab = valueOf(params.tab) === "applications" ? "applications" : "tenants";
 
   if (tab === "tenants") {
+    const query = normalizeTenantListQuery({
+      page: valueOf(params.page),
+      search: valueOf(params.search),
+      sort: valueOf(params.sort),
+      stage: valueOf(params.stage),
+    });
+    const result = await listProviderTenants(query);
+
     return (
       <div className="space-y-6">
         <PageHeading />
         <Tabs active="tenants" />
         <Card>
           <CardHeader><CardTitle>Daftar Tenant</CardTitle></CardHeader>
-          <CardContent className="text-sm text-muted-foreground">
-            Daftar Tenant akan tersedia pada tahap pengelolaan Tenant berikutnya.
+          <CardContent className="space-y-5">
+            <form className="grid gap-3 md:grid-cols-[1fr_auto_auto_auto]" method="get">
+              <Input
+                aria-label="Cari Tenant"
+                defaultValue={query.search}
+                name="search"
+                placeholder="Cari sekolah, NPSN, subdomain, atau email admin"
+              />
+              <select
+                aria-label="Filter tahap penggunaan"
+                className="h-9 rounded-4xl border border-input bg-input/30 px-3 text-sm"
+                defaultValue={query.stage}
+                name="stage"
+              >
+                <option value="all">Semua tahap</option>
+                {Object.entries(TENANT_USAGE_STAGE_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </select>
+              <select
+                aria-label="Urutkan Tenant"
+                className="h-9 rounded-4xl border border-input bg-input/30 px-3 text-sm"
+                defaultValue={query.sort}
+                name="sort"
+              >
+                <option value="newest">Persetujuan terbaru</option>
+                <option value="oldest">Persetujuan terlama</option>
+                <option value="school-asc">Nama A–Z</option>
+                <option value="school-desc">Nama Z–A</option>
+              </select>
+              <Button type="submit">Terapkan</Button>
+            </form>
+
+            {result.tenants.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+                Tidak ada Tenant yang cocok dengan filter ini.
+              </div>
+            ) : (
+              <Table>
+                <TableHeader><TableRow>
+                  <TableHead>Sekolah</TableHead><TableHead>NPSN</TableHead><TableHead>Subdomain</TableHead>
+                  <TableHead>School Admin pertama</TableHead><TableHead>Tahap</TableHead>
+                  <TableHead>Disetujui</TableHead><TableHead className="text-right">Tindakan</TableHead>
+                </TableRow></TableHeader>
+                <TableBody>{result.tenants.map((tenant) => {
+                  const usage = tenantUsageStageLabel(tenant);
+                  return <TableRow key={tenant.id}>
+                    <TableCell className="font-medium">{tenant.schoolName}</TableCell>
+                    <TableCell>{tenant.npsn ?? "—"}</TableCell>
+                    <TableCell>{tenant.domain}</TableCell>
+                    <TableCell>{tenant.schoolAdminEmail}</TableCell>
+                    <TableCell><Badge variant="outline">{usage.label}</Badge></TableCell>
+                    <TableCell>{tenant.approvedAt?.toLocaleDateString("id-ID", { dateStyle: "medium" }) ?? "—"}</TableCell>
+                    <TableCell className="space-x-2 text-right">
+                      <Link className={buttonVariants({ variant: "outline", size: "sm" })} href={`/provider/tenants/${tenant.id}`}>Lihat detail</Link>
+                      <Link className={buttonVariants({ variant: "outline", size: "sm" })} href={`/${tenant.domain}`} rel="noopener noreferrer" target="_blank">Buka situs Tenant</Link>
+                    </TableCell>
+                  </TableRow>;
+                })}</TableBody>
+              </Table>
+            )}
+
+            <div className="flex items-center justify-between text-sm">
+              <p className="text-muted-foreground">{result.total} Tenant</p>
+              <div className="flex items-center gap-2">
+                <Link aria-disabled={result.page <= 1} className={cn(buttonVariants({ variant: "outline", size: "sm" }), result.page <= 1 && "pointer-events-none opacity-50")} href={tenantsUrl(query, Math.max(1, result.page - 1))}>Sebelumnya</Link>
+                <span>Halaman {result.page} dari {result.pageCount}</span>
+                <Link aria-disabled={result.page >= result.pageCount} className={cn(buttonVariants({ variant: "outline", size: "sm" }), result.page >= result.pageCount && "pointer-events-none opacity-50")} href={tenantsUrl(query, Math.min(result.pageCount, result.page + 1))}>Berikutnya</Link>
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>

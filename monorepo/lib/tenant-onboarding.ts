@@ -126,6 +126,8 @@ export function createCompleteTenantOnboardingCommand(dependencies: {
     });
 }
 
+export const TENANT_ENDING_SOON_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
 export type TenantUsageStage =
   | "waiting-for-onboarding"
   | "in-trial"
@@ -142,8 +144,7 @@ export function projectTenantUsageStage(
   }
   if (lifecycle.trialEndsAt.getTime() <= now.getTime()) return "expired";
 
-  const sevenDaysInMilliseconds = 7 * 24 * 60 * 60 * 1000;
-  return lifecycle.trialEndsAt.getTime() - now.getTime() <= sevenDaysInMilliseconds
+  return lifecycle.trialEndsAt.getTime() - now.getTime() <= TENANT_ENDING_SOON_WINDOW_MS
     ? "ending-soon"
     : "in-trial";
 }
