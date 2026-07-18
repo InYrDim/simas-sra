@@ -7,12 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Field, FieldLabel, FieldGroup, FieldError } from "@/components/ui/field";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowRight, Loader2 } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
     const formData = new FormData(e.currentTarget);
@@ -25,12 +26,13 @@ export default function LoginPage() {
     }
     
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
+    const result = await authClient.signIn.email({ email, password });
+    if (result.error) {
       setIsLoading(false);
-      // for prototype, just stay here or redirect
-      setError("Fungsi login belum terhubung ke backend.");
-    }, 1000);
+      setError("Email atau kata sandi tidak valid.");
+      return;
+    }
+    window.location.assign("/continue");
   };
 
   return (

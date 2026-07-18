@@ -2,6 +2,9 @@ import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { TrialBanner } from "@/components/dashboard/trial-banner"
 import { TenantSidebar } from "@/components/dashboard/tenant-sidebar"
+import { requireTenantFeatureAccess } from "@/lib/tenant-access"
+import { TenantActivationError } from "@/lib/school-admin-activation"
+import { redirect } from "next/navigation"
 
 export default async function DashboardLayout({
   children,
@@ -11,6 +14,14 @@ export default async function DashboardLayout({
   params: Promise<{ domain: string }>
 }) {
   const { domain } = await params;
+  try {
+    await requireTenantFeatureAccess(domain);
+  } catch (error) {
+    if (error instanceof TenantActivationError && error.code === "password-change-required") {
+      redirect("/change-password");
+    }
+    throw error;
+  }
 
   return (
     <SidebarProvider>

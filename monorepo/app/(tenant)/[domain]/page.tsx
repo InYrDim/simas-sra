@@ -2,6 +2,9 @@ import { notFound } from 'next/navigation';
 import { db } from '@/db';
 import { tenant } from '@/db/schema';
 import { eq } from 'drizzle-orm';
+import { redirect } from 'next/navigation';
+import { requireTenantFeatureAccess } from '@/lib/tenant-access';
+import { TenantActivationError } from '@/lib/school-admin-activation';
 
 export default async function TenantPage({
   params,
@@ -9,6 +12,14 @@ export default async function TenantPage({
   params: Promise<{ domain: string }>
 }) {
   const { domain } = await params;
+  try {
+    await requireTenantFeatureAccess(domain);
+  } catch (error) {
+    if (error instanceof TenantActivationError && error.code === "password-change-required") {
+      redirect("/change-password");
+    }
+    throw error;
+  }
 
   const tenantDataArray = await db.select().from(tenant).where(eq(tenant.domain, domain)).limit(1);
   const tenantData = tenantDataArray[0];

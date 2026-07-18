@@ -4,11 +4,11 @@
 
 **Blocked by:** 07 — Approve Pengajuan SIMAS and provide a Tenant atomically.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Successful email/password authentication records first authentication idempotently for users with a School Admin activation record.
-- [ ] While credential change is required, server guards permit only password change and sign-out and reject Tenant features and onboarding completion.
-- [ ] Password change verifies the previous password, uses the Better Auth-compatible hasher, revokes other sessions, and clears the requirement idempotently.
-- [ ] Before first authentication, a Provider Admin can reset the temporary credential transactionally, revoke sessions, and see the replacement plaintext only once after commit.
-- [ ] After first authentication, temporary credential reset is denied and the UI directs the Provider Admin to the normal Better Auth password recovery flow.
-- [ ] Approval, first login, password change, and temporary credential reset do not start Trial Tenant or set onboarding timestamps.
+- [x] Successful email/password authentication records first authentication idempotently for users with a School Admin activation record.
+- [x] While credential change is required, server guards permit only password change and sign-out and reject Tenant features and onboarding completion.
+- [x] Password change verifies the previous password, uses the Better Auth-compatible hasher, revokes other sessions, and clears the requirement idempotently.
+- [x] Before first authentication, a Provider Admin can reset the temporary credential transactionally, revoke sessions, and see the replacement plaintext only once after commit.
+- [x] After first authentication, temporary credential reset is denied and the UI directs the Provider Admin to the normal Better Auth password recovery flow.
+- [x] Approval, first login, password change, and temporary credential reset do not start Trial Tenant or set onboarding timestamps.
