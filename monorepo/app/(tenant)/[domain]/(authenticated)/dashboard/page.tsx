@@ -13,6 +13,7 @@ export default async function DashboardPage({
   params: Promise<{ domain: string }>
 }) {
   const { domain } = await params;
+  console.log("DashboardPage domain raw:", domain, "typeof:", typeof domain, "length:", domain.length);
   
   const tenantDataArray = await db.select().from(tenant).where(eq(tenant.domain, domain)).limit(1);
   const tenantData = tenantDataArray[0];
@@ -25,7 +26,7 @@ export default async function DashboardPage({
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Ringkasan</h2>
-        <PocTrialAction />
+        <PocTrialAction domain={domain} />
       </div>
       
       <SessionInfo />

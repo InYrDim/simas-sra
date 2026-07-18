@@ -1,36 +1,48 @@
-import { headers } from "next/headers";
 import { db } from "@/db";
 import { tenant } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-export async function checkTrialStatus() {
-  const headersList = await headers();
-  const host = headersList.get("host") || "";
-  const domain = host.split(".")[0];
+const READ_ONLY_MESSAGE =
+  "Tindakan ini tidak diizinkan. Masa uji coba Anda telah berakhir (mode hanya-baca).";
 
-  if (!domain) return true;
+type ProtectedActionError = {
+  success: false;
+  status: 403;
+  error: string;
+};
 
-  const tenantDataArray = await db.select({ trialEndsAt: tenant.trialEndsAt }).from(tenant).where(eq(tenant.domain, domain)).limit(1);
-  const tenantData = tenantDataArray[0];
+export async function isTenantWritable(
+  domain: string,
+  now: Date = new Date(),
+): Promise<boolean> {
+  const [tenantData] = await db
+    .select({ trialEndsAt: tenant.trialEndsAt })
+    .from(tenant)
+    .where(eq(tenant.domain, domain))
+    .limit(1);
 
-  if (!tenantData || !tenantData.trialEndsAt) {
-    return true; // No trial limit
+  if (!tenantData) {
+    return false;
   }
 
-  const now = new Date();
-  if (now > tenantData.trialEndsAt) {
-    return false; // Expired
-  }
-  return true;
+  return tenantData.trialEndsAt === null || now <= tenantData.trialEndsAt;
 }
 
-// Wrapper for Server Actions
-export function tenantProtectedAction<T extends (...args: any[]) => Promise<any>>(action: T): T {
-  return (async (...args: Parameters<T>) => {
-    const isTrialActive = await checkTrialStatus();
-    if (!isTrialActive) {
-      return { error: "Tindakan ini tidak diizinkan. Masa uji coba Anda telah berakhir. (Read-Only Mode)" };
+export function tenantProtectedAction<
+  TArgs extends unknown[],
+  TResult,
+>(
+  action: (domain: string, ...args: TArgs) => Promise<TResult>,
+): (domain: string, ...args: TArgs) => Promise<TResult | ProtectedActionError> {
+  return async (domain, ...args) => {
+    if (!(await isTenantWritable(domain))) {
+      return {
+        success: false,
+        status: 403,
+        error: READ_ONLY_MESSAGE,
+      };
     }
-    return action(...args);
-  }) as T;
+
+    return action(domain, ...args);
+  };
 }

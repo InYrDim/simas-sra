@@ -5,33 +5,36 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { dummyUpdateSettings } from "@/app/(tenant)/[domain]/(authenticated)/dashboard/actions";
 
-export function PocTrialAction() {
+export function PocTrialAction({ domain }: { domain: string }) {
   const [isPending, startTransition] = useTransition();
 
-  const handleAction = () => {
+  function handleSubmit(formData: FormData) {
     startTransition(async () => {
       try {
-        const formData = new FormData();
-        formData.append("setting", "test_value");
-        const result = await dummyUpdateSettings(formData);
-        if (result?.error) {
+        const result = await dummyUpdateSettings(domain, formData);
+
+        if (!result.success) {
           toast.error(result.error);
-        } else if (result?.success) {
-          toast.success(result.message);
+          return;
         }
-      } catch (error: any) {
-        toast.error(error.message || "Terjadi kesalahan pada server");
+
+        toast.success(result.message);
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Terjadi kesalahan pada server",
+        );
       }
     });
-  };
+  }
 
   return (
-    <Button 
-      onClick={handleAction} 
-      disabled={isPending}
-      variant="outline"
-    >
-      {isPending ? "Menyimpan..." : "Ubah Pengaturan (POC Read-Only)"}
-    </Button>
+    <form action={handleSubmit}>
+      <input name="setting" type="hidden" value="test_value" />
+      <Button disabled={isPending} type="submit" variant="outline">
+        {isPending ? "Menyimpan..." : "Ubah Pengaturan (POC Read-Only)"}
+      </Button>
+    </form>
   );
 }
