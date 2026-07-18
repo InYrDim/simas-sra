@@ -5,6 +5,8 @@ import { tenant } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
+import { PocTrialAction } from "@/components/dashboard/poc-trial-action";
+
 export default async function DashboardPage({
   params,
 }: {
@@ -23,6 +25,7 @@ export default async function DashboardPage({
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Ringkasan</h2>
+        <PocTrialAction />
       </div>
       
       <SessionInfo />

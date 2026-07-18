@@ -4,8 +4,8 @@
 
 **Blocked by:** 06 — Trial State UI (Banner)
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Dibuat sebuah wrapper atau utilitas middleware (misal `tenantProtectedAction`) yang mengecek status trial.
-- [ ] Jika kedaluwarsa, wrapper membatalkan aksi dan me-return status 403 (atau setara).
-- [ ] Terdapat komponen form "Tambah Data" sederhana yang akan terblokir dan memunculkan toast/pesan error saat di-submit dalam keadaan read-only.
+- [x] Dibuat sebuah wrapper atau utilitas middleware (misal `tenantProtectedAction`) yang mengecek status trial.
+- [x] Jika kedaluwarsa, wrapper membatalkan aksi dan me-return status 403 (atau setara).
+- [x] Diimplementasikan pada minimal 1 aksi tulis (contoh: tambah pengguna / ubah pengaturan) sebagai Proof of Concept. memunculkan toast/pesan error saat di-submit dalam keadaan read-only.
