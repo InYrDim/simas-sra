@@ -6,6 +6,10 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Agent skills
 
+### Custom skills
+
+- **new-feature** — Start a new feature with its own worktree and branch from staging, then plan it with wayfinder. See `.agents/skills/new-feature/SKILL.md`.
+
 ### Issue tracker
 
 Local markdown — issues live as files under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.
