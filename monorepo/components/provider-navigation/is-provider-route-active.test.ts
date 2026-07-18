@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { isProviderRouteActive } from "./is-provider-route-active";
+import { isProviderRouteActive } from "@/components/provider-navigation/is-provider-route-active";
 
 test("Provider root is active only at the exact root route", () => {
   assert.equal(isProviderRouteActive("/provider", "/provider"), true);
