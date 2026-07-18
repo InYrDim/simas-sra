@@ -1,7 +1,7 @@
 import { Home, Database, Calendar, ClipboardCheck, Library, Mail, Settings, UserPlus } from "lucide-react"
-import { NavItem } from "@/types/components/NavItem"
+import { type TenantNavItem } from "@/types/components/TenantNavItem"
 
-export const menuItems: NavItem[] = [
+export const tenantMenuItems: TenantNavItem[] = [
   {
     title: "Dasbor",
     icon: Home,

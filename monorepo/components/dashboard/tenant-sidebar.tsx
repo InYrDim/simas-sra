@@ -11,31 +11,34 @@ import {
 } from "@/components/ui/sidebar"
 import { BookOpen, LogOut } from "lucide-react"
 import Link from "next/link"
-import { NavMenu } from "@/components/nav-menu"
-import { menuItems } from "@/components/nav-menu/config"
+import { TenantNavMenu } from "@/components/tenant-nav-menu"
+import { tenantMenuItems } from "@/components/tenant-nav-menu/config"
 
-import { Role } from "@/types/Role"
+import { type TenantRole } from "@/types/TenantRole"
 
-export function AppSidebar({ role }: { role: Role }) {
+export function TenantSidebar({ role }: { role: TenantRole }) {
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar
+      collapsible="icon"
+      className="[--sidebar:#0f172a] [--sidebar-foreground:#f8fafc] [--sidebar-primary:#38bdf8] [--sidebar-primary-foreground:#082f49] [--sidebar-accent:#1e3a5f] [--sidebar-accent-foreground:#f8fafc] [--sidebar-border:#334155] [--sidebar-ring:#38bdf8]"
+    >
       <SidebarHeader className="h-16 flex items-center justify-center border-b border-sidebar-border">
         <div className="flex items-center gap-2 px-2 overflow-hidden w-full group-data-[collapsible=icon]:justify-center">
-          <div className="bg-primary p-1.5 rounded-md shrink-0 flex items-center justify-center">
-            <BookOpen className="size-4 text-primary-foreground" />
+          <div className="bg-sidebar-primary p-1.5 rounded-md shrink-0 flex items-center justify-center">
+            <BookOpen className="size-4 text-sidebar-primary-foreground" />
           </div>
           <span className="font-bold tracking-tight truncate group-data-[collapsible=icon]:hidden">SIMAS</span>
         </div>
       </SidebarHeader>
 
       <SidebarContent>
-        <NavMenu items={menuItems} role={role} />
+        <TenantNavMenu items={tenantMenuItems} role={role} />
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border p-4">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton render={<Link href="/login" />} variant="outline" className="text-destructive hover:bg-destructive/10 hover:text-destructive">
+            <SidebarMenuButton render={<Link href="/login" />} variant="outline">
               <LogOut />
               <span>Keluar</span>
             </SidebarMenuButton>

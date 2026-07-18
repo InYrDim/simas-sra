@@ -1,5 +1,5 @@
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
-import { AppSidebar } from "@/components/dashboard/app-sidebar"
+import { TenantSidebar } from "@/components/dashboard/tenant-sidebar"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { TrialBanner } from "@/components/dashboard/trial-banner"
 
@@ -14,10 +14,7 @@ export default async function DashboardLayout({
 
   return (
     <SidebarProvider>
-      {/* Assuming AppSidebar handles its own client logic if necessary, or we pass a default role */}
-      {/* For now we just pass 'staff' as default since role state was moved to Header, 
-          ideally sidebar items are determined server-side or via context */}
-      <AppSidebar role="staff" />
+      <TenantSidebar role="staff" />
       <SidebarInset>
         <TrialBanner domain={domain} />
         <DashboardHeader domain={domain} />

@@ -21,10 +21,10 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
 
-import { Role } from "@/types/Role"
-import { NavItem } from "@/types/components/NavItem"
+import { type TenantRole } from "@/types/TenantRole"
+import { type TenantNavItem } from "@/types/components/TenantNavItem"
 
-function NavCollapsibleItem({ item, role, pathname }: { item: NavItem, role: Role, pathname: string }) {
+function TenantNavCollapsibleItem({ item, role, pathname }: { item: TenantNavItem, role: TenantRole, pathname: string }) {
   const filteredSubItems = item.items!.filter((subItem) => subItem.roles.includes(role) || subItem.roles.includes("*"))
   const isActive = filteredSubItems.some((subItem) => pathname === subItem.url)
 
@@ -60,7 +60,7 @@ function NavCollapsibleItem({ item, role, pathname }: { item: NavItem, role: Rol
             {filteredSubItems.map((subItem) => (
               <SidebarMenuSubItem key={subItem.title}>
                 <SidebarMenuSubButton
-                  render={<Link href={subItem.url || "#"} />}
+                  render={<Link href={subItem.url || "#"} aria-current={pathname === subItem.url ? "page" : undefined} />}
                   isActive={pathname === subItem.url}
                 >
                   <span>{subItem.title}</span>
@@ -74,12 +74,12 @@ function NavCollapsibleItem({ item, role, pathname }: { item: NavItem, role: Rol
   )
 }
 
-export function NavMenu({
+export function TenantNavMenu({
   items,
   role,
 }: {
-  items: NavItem[]
-  role: Role
+  items: TenantNavItem[]
+  role: TenantRole
 }) {
   const pathname = usePathname()
 
@@ -92,7 +92,7 @@ export function NavMenu({
     if (!acc[groupName]) acc[groupName] = []
     acc[groupName].push(item)
     return acc
-  }, {} as Record<string, NavItem[]>)
+  }, {} as Record<string, TenantNavItem[]>)
 
   return (
     <>
@@ -103,14 +103,14 @@ export function NavMenu({
             {groupItems.map((item) => {
               // Nested item scenario
               if (item.items && item.items.length > 0) {
-                return <NavCollapsibleItem key={item.title} item={item} role={role} pathname={pathname} />
+                return <TenantNavCollapsibleItem key={item.title} item={item} role={role} pathname={pathname} />
               }
 
               // Normal item scenario
               return (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
-                    render={<Link href={item.url || "#"} />}
+                    render={<Link href={item.url || "#"} aria-current={pathname === item.url ? "page" : undefined} />}
                     tooltip={item.title}
                     isActive={pathname === item.url}
                   >
