@@ -12,7 +12,9 @@
     "db:push": "drizzle-kit push",
     "db:migrate": "drizzle-kit migrate",
     "db:audit:lifecycle": "tsx scripts/audit-provider-lifecycle.ts",
-    "db:studio": "drizzle-kit studio"
+    "db:studio": "drizzle-kit studio",
+    "provider-admin:provision": "tsx scripts/provision-provider-admin.ts",
+    "provider-admin:deprovision": "tsx scripts/deprovision-provider-admin.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

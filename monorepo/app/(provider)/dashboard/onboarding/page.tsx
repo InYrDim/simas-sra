@@ -6,8 +6,16 @@ import { Label } from "@/components/ui/label";
 import { createTenantAction } from '../actions';
 import { ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
+import { getProviderPageAccess } from "@/lib/provider-access";
 
-export default function TenantOnboardingPage() {
+export default async function TenantOnboardingPage() {
+  const access = await getProviderPageAccess();
+
+  if (access.status === "forbidden") {
+    return null;
+  }
+
+
   return (
     <div className="flex-1 space-y-4 p-8 pt-6 max-w-3xl mx-auto">
       <div className="flex items-center space-x-4 mb-6">

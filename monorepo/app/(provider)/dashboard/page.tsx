@@ -6,10 +6,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Building2, Plus, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getProviderPageAccess } from "@/lib/provider-access";
 
 export const dynamic = 'force-dynamic';
 
 export default async function ProviderDashboardPage() {
+  const access = await getProviderPageAccess();
+
+  if (access.status === "forbidden") {
+    return null;
+  }
+
   const tenants = await db.select().from(tenant);
 
   return (

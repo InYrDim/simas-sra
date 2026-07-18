@@ -6,8 +6,11 @@ import { user } from "@/auth-schema";
 import { eq } from "drizzle-orm";
 import crypto from "crypto";
 import { redirect } from "next/navigation";
+import { requireProviderActionAccess } from "@/lib/provider-access";
 
 export async function createTenantAction(formData: FormData) {
+  await requireProviderActionAccess();
+
   const tenantName = formData.get("tenantName") as string;
   const domain = formData.get("domain") as string;
   const adminName = formData.get("adminName") as string;
