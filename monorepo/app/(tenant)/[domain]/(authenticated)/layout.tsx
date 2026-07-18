@@ -1,12 +1,12 @@
 import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
-import { TenantSidebar } from "@/components/dashboard/tenant-sidebar"
 import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { TrialBanner } from "@/components/dashboard/trial-banner"
+import { TenantSidebar } from "@/components/dashboard/tenant-sidebar"
 
-export default async function DashboardLayout({ 
+export default async function DashboardLayout({
   children,
   params
-}: { 
+}: {
   children: React.ReactNode,
   params: Promise<{ domain: string }>
 }) {
