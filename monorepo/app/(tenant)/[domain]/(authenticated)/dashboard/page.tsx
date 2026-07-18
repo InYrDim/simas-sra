@@ -1,9 +1,35 @@
-export default function DashboardPage() {
+import { SessionInfo } from "@/components/dashboard/session-info";
+import { AdvancedAnalytics } from "@/components/dashboard/advanced-analytics";
+import { db } from "@/db";
+import { tenant } from "@/db/schema";
+import { eq } from "drizzle-orm";
+import { notFound } from "next/navigation";
+
+import { PocTrialAction } from "@/components/dashboard/poc-trial-action";
+
+export default async function DashboardPage({
+  params,
+}: {
+  params: Promise<{ domain: string }>
+}) {
+  const { domain } = await params;
+  console.log("DashboardPage domain raw:", domain, "typeof:", typeof domain, "length:", domain.length);
+  
+  const tenantDataArray = await db.select().from(tenant).where(eq(tenant.domain, domain)).limit(1);
+  const tenantData = tenantDataArray[0];
+
+  if (!tenantData) {
+    notFound();
+  }
+
   return (
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Ringkasan</h2>
+        <PocTrialAction domain={domain} />
       </div>
+      
+      <SessionInfo />
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
@@ -16,12 +42,7 @@ export default function DashboardPage() {
       </div>
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
-        <div className="col-span-4 rounded-2xl border bg-card text-card-foreground shadow-sm p-6 h-[400px] flex items-center justify-center">
-          <div className="text-center text-muted-foreground">
-            <div className="h-64 w-full bg-muted/50 rounded-xl mb-4" />
-            Area Grafik Statistik
-          </div>
-        </div>
+        <AdvancedAnalytics tenantId={tenantData.id} />
         <div className="col-span-3 rounded-2xl border bg-card text-card-foreground shadow-sm p-6 h-[400px] flex flex-col gap-4">
           <div className="text-lg font-semibold">Aktivitas Terbaru</div>
           <div className="flex-1 space-y-4">

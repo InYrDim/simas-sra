@@ -1,5 +1,5 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs'
+import path from 'path';
 
 const routes = [
   { path: 'absensi', title: 'Absensi' },
@@ -19,7 +19,7 @@ const basePath = path.join(process.cwd(), 'app', '(authenticated)');
 routes.forEach(route => {
   const dirPath = path.join(basePath, route.path);
   fs.mkdirSync(dirPath, { recursive: true });
-  
+
   const componentName = route.title.replace(/[\s-]/g, '');
   const content = `export default function ${componentName}Page() {
   return (

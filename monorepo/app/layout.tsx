@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "@/components/ui/sonner";
 
 // For adding custom fonts with other frameworks, see:
 // https://tailwindcss.com/docs/font-family
@@ -42,7 +43,8 @@ export default function RootLayout({
       className={cn("h-full antialiased", fontSans.variable, fontSerif.variable, fontMono.variable)}
     >
       <body className="min-h-full flex flex-col">
-         <TooltipProvider >{children}</TooltipProvider>
+        <TooltipProvider>{children}</TooltipProvider>
+        <Toaster />
       </body>
     </html>
   );
