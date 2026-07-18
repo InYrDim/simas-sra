@@ -18,9 +18,22 @@ import { type TenantRole } from "@/types/TenantRole"
 
 export function TenantSidebar({ role }: { role: TenantRole }) {
   return (
+    <div
+      style={
+        {
+          "--sidebar": "#0f172a",
+          "--sidebar-foreground": "#f8fafc",
+          "--sidebar-primary": "#38bdf8",
+          "--sidebar-primary-foreground": "#082f49",
+          "--sidebar-accent": "#1e3a5f",
+          "--sidebar-accent-foreground": "#f8fafc",
+          "--sidebar-border": "#334155",
+          "--sidebar-ring": "#38bdf8",
+        } as React.CSSProperties
+      }
+    >
     <Sidebar
       collapsible="icon"
-      className="[--sidebar:#0f172a] [--sidebar-foreground:#f8fafc] [--sidebar-primary:#38bdf8] [--sidebar-primary-foreground:#082f49] [--sidebar-accent:#1e3a5f] [--sidebar-accent-foreground:#f8fafc] [--sidebar-border:#334155] [--sidebar-ring:#38bdf8]"
     >
       <SidebarHeader className="h-16 flex items-center justify-center border-b border-sidebar-border">
         <div className="flex items-center gap-2 px-2 overflow-hidden w-full group-data-[collapsible=icon]:justify-center">
@@ -46,5 +59,6 @@ export function TenantSidebar({ role }: { role: TenantRole }) {
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>
+  </div>
   )
 }
