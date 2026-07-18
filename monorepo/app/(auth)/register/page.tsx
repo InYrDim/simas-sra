@@ -7,29 +7,65 @@ import { Input } from "@/components/ui/input";
 import { Field, FieldLabel, FieldGroup, FieldError } from "@/components/ui/field";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
+import { authClient } from "@/lib/auth-client";
 
 export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError("");
+
     const formData = new FormData(e.currentTarget);
-    const password = formData.get("password") as string;
-    const confirm = formData.get("confirmPassword") as string;
-    
-    if (password !== confirm) {
+    const name = formData.get("name");
+    const email = formData.get("email");
+    const password = formData.get("password");
+    const confirmPassword = formData.get("confirmPassword");
+
+    if (
+      typeof name !== "string" ||
+      typeof email !== "string" ||
+      typeof password !== "string" ||
+      !name ||
+      !email ||
+      !password
+    ) {
+      setError("Nama, email, dan kata sandi wajib diisi.");
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("Kata sandi minimal 8 karakter.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
       setError("Kata sandi tidak cocok.");
       return;
     }
-    
+
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
+
+    try {
+      const result = await authClient.signUp.email({
+        name,
+        email,
+        password,
+        callbackURL: "/continue",
+      });
+
+      if (result.error) {
+        setError(result.error.message ?? "Pendaftaran gagal. Silakan coba lagi.");
+        return;
+      }
+
+      window.location.assign("/continue");
+    } catch {
+      setError("Tidak dapat terhubung ke server. Silakan coba lagi.");
+    } finally {
       setIsLoading(false);
-      setError("Fungsi registrasi belum terhubung ke backend.");
-    }, 1000);
+    }
   };
 
   return (

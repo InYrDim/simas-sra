@@ -17,22 +17,34 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
-    
-    if (!email || !password) {
+    const email = formData.get("email");
+    const password = formData.get("password");
+
+    if (typeof email !== "string" || typeof password !== "string" || !email || !password) {
       setError("Email dan kata sandi wajib diisi.");
       return;
     }
-    
+
     setIsLoading(true);
-    const result = await authClient.signIn.email({ email, password });
-    if (result.error) {
+
+    try {
+      const result = await authClient.signIn.email({
+        email,
+        password,
+        callbackURL: "/continue",
+      });
+
+      if (result.error) {
+        setError("Email atau kata sandi tidak valid.");
+        return;
+      }
+
+      window.location.assign("/continue");
+    } catch {
+      setError("Tidak dapat terhubung ke server. Silakan coba lagi.");
+    } finally {
       setIsLoading(false);
-      setError("Email atau kata sandi tidak valid.");
-      return;
     }
-    window.location.assign("/continue");
   };
 
   return (
