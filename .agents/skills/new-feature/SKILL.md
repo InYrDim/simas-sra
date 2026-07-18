@@ -47,29 +47,14 @@ Status: draft
 <one-paragraph summary derived from the feature name — refine after wayfinder planning>
 ```
 
-### 4. Invoke wayfinder
+### 4. Hand off
 
-Switch into the worktree directory and invoke `/wayfinder` to chart the map for this feature. Pass the feature name and spec as context:
-
-```
-/wayfinder
-
-Feature: <Feature Name>
-Worktree: ../<slug>
-Branch: feature/<slug>
-Spec: .scratch/<slug>/spec.md
-```
-
-Let wayfinder run its full charting flow (grilling → destination → map → tickets).
-
-### 5. Hand off
-
-After wayfinder finishes charting, tell the user:
+Tell the user:
 
 - Where the worktree is: `../<slug>`
 - What branch they're on: `feature/<slug>`
-- The map location: `.scratch/<slug>/map.md`
-- How to start working: `cd ../<slug>` then `/wayfinder` with the map, or pick a ticket from the frontier
+- The spec location: `.scratch/<slug>/spec.md`
+- **Next step**: run `/wayfinder` in the new worktree to chart the map and plan the feature
 
 ## Rules
 
