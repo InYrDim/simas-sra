@@ -4,11 +4,11 @@
 
 **Blocked by:** 04 — Introduce the guarded Provider shell and real navigation routes; 05 — Accept immutable Pengajuan SIMAS.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] The Pengajuan tab supports search, status filtering, sorting, pagination, and the specified Indonesian status labels.
-- [ ] Each Pengajuan has a guarded, refresh-safe detail route showing all immutable original data and current conflicts against relevant Pengajuan or Tenants.
-- [ ] Rejection checks Provider access before input or mutation, locks the pending decision, and requires a non-empty reason.
-- [ ] Rejection records decision time and Provider Admin identity without creating a Tenant, user, credential, or activation record.
-- [ ] Approved and rejected decisions cannot be edited, reopened, undone, or transitioned again.
-- [ ] Direct data access and mutation attempts by unauthorized callers are rejected independently of the Provider layout.
+- [x] The Pengajuan tab supports search, status filtering, sorting, pagination, and the specified Indonesian status labels.
+- [x] Each Pengajuan has a guarded, refresh-safe detail route showing all immutable original data and current conflicts against relevant Pengajuan or Tenants.
+- [x] Rejection checks Provider access before input or mutation, locks the pending decision, and requires a non-empty reason.
+- [x] Rejection records decision time and Provider Admin identity without creating a Tenant, user, credential, or activation record.
+- [x] Approved and rejected decisions cannot be edited, reopened, undone, or transitioned again.
+- [x] Direct data access and mutation attempts by unauthorized callers are rejected independently of the Provider layout.
