@@ -14,10 +14,19 @@ import {
 } from "drizzle-orm";
 
 import { db } from "@/db";
-import { simasApplication, tenant, user } from "@/db/schema";
 import {
+  account,
+  schoolAdminActivation,
+  simasApplication,
+  tenant,
+  user,
+} from "@/db/schema";
+import {
+  ApprovalConflictError,
+  type ApplicationApprovalStore,
   type ApplicationDecisionStore,
   type ApplicationStatus,
+  type ApprovalConflictField,
 } from "@/lib/provider-applications";
 import { requireProviderDataAccess } from "@/lib/provider-access";
 
@@ -144,6 +153,121 @@ export async function getProviderApplicationDetail(applicationId: string) {
     decisionMaker: decisionMakers[0] ?? null,
   };
 }
+
+function duplicateApprovalField(error: unknown): ApprovalConflictField | null {
+  const mysqlError = error as { code?: string; message?: string };
+  if (mysqlError.code !== "ER_DUP_ENTRY") return null;
+  const message = mysqlError.message?.toLowerCase() ?? "";
+  if (message.includes("user_email_unique")) return "email";
+  if (message.includes("tenant_npsn_unique")) return "npsn";
+  if (message.includes("tenant_domain_unique")) return "subdomain";
+  return "concurrent";
+}
+
+export const applicationApprovalStore: ApplicationApprovalStore = {
+  async transaction(work) {
+    try {
+      return await db.transaction(async (tx) =>
+        work({
+          async lock(applicationId) {
+            const [application] = await tx
+              .select({
+                id: simasApplication.id,
+                status: simasApplication.status,
+                schoolName: simasApplication.schoolName,
+                npsn: simasApplication.npsn,
+                contactName: simasApplication.contactName,
+                contactEmail: simasApplication.contactEmail,
+                approvedTenantId: simasApplication.approvedTenantId,
+              })
+              .from(simasApplication)
+              .where(eq(simasApplication.id, applicationId))
+              .limit(1)
+              .for("update");
+            return application ?? null;
+          },
+          async findConflict(input) {
+            const [npsnConflict] = await tx
+              .select({ id: tenant.id })
+              .from(tenant)
+              .where(eq(tenant.npsn, input.npsn))
+              .limit(1);
+            if (npsnConflict) return "npsn";
+
+            const [subdomainConflict] = await tx
+              .select({ id: tenant.id })
+              .from(tenant)
+              .where(eq(tenant.domain, input.subdomain))
+              .limit(1);
+            if (subdomainConflict) return "subdomain";
+
+            const [emailConflict] = await tx
+              .select({ id: user.id })
+              .from(user)
+              .where(eq(user.email, input.email))
+              .limit(1);
+            return emailConflict ? "email" : null;
+          },
+          async provision(values) {
+            await tx.insert(tenant).values({
+              id: values.tenant.id,
+              name: values.tenant.name,
+              domain: values.tenant.subdomain,
+              npsn: values.tenant.npsn,
+              sourceApplicationId: values.applicationId,
+              approvedAt: values.decidedAt,
+              onboardingCompletedAt: null,
+              trialStartedAt: null,
+              trialEndsAt: null,
+            });
+            await tx.insert(user).values({
+              id: values.schoolAdmin.id,
+              tenantId: values.tenant.id,
+              tenantRole: "school-admin",
+              name: values.schoolAdmin.name,
+              email: values.schoolAdmin.email,
+              emailVerified: true,
+            });
+            await tx.insert(account).values({
+              id: values.accountId,
+              accountId: values.schoolAdmin.id,
+              providerId: "credential",
+              userId: values.schoolAdmin.id,
+              password: values.credentialHash,
+            });
+            await tx.insert(schoolAdminActivation).values({
+              userId: values.schoolAdmin.id,
+              tenantId: values.tenant.id,
+              temporaryCredentialIssuedAt: values.decidedAt,
+              firstAuthenticatedAt: null,
+              passwordChangeRequired: true,
+              passwordChangedAt: null,
+            });
+            await tx
+              .update(simasApplication)
+              .set({
+                status: "approved",
+                decidedAt: values.decidedAt,
+                decidedByProviderAdminId: values.providerAdminId,
+                approvedTenantId: values.tenant.id,
+                rejectionReason: null,
+              })
+              .where(
+                and(
+                  eq(simasApplication.id, values.applicationId),
+                  eq(simasApplication.status, "pending"),
+                ),
+              );
+          },
+        }),
+      );
+    } catch (error) {
+      const field = duplicateApprovalField(error);
+      if (field) throw new ApprovalConflictError(field);
+      throw error;
+    }
+  },
+};
 
 export const applicationDecisionStore: ApplicationDecisionStore = {
   transaction(work) {

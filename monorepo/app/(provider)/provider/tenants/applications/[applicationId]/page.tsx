@@ -2,12 +2,16 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { rejectSimasApplicationAction } from "@/app/(provider)/provider/tenants/applications/actions";
+import { ApprovalForm } from "@/app/(provider)/provider/tenants/applications/[applicationId]/approval-form";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { getProviderApplicationDetail } from "@/lib/provider-application-data";
-import { APPLICATION_STATUS_LABELS } from "@/lib/provider-applications";
+import {
+  APPLICATION_STATUS_LABELS,
+  suggestSubdomain,
+} from "@/lib/provider-applications";
 
 function matchLabels(
   target: { npsn: string; contactEmail: string },
@@ -120,20 +124,33 @@ export default async function ProviderApplicationDetailPage({
           <CardHeader><CardTitle>Keputusan</CardTitle></CardHeader>
           <CardContent>
             {application.status === "pending" ? (
-              <form action={rejectAction} className="space-y-4">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium" htmlFor="reason">Alasan penolakan</label>
-                  <Textarea id="reason" name="reason" placeholder="Jelaskan alasan Pengajuan SIMAS ditolak" required />
+              <div className="space-y-6">
+                <ApprovalForm
+                  applicationId={application.id}
+                  defaultSubdomain={suggestSubdomain(application.schoolName)}
+                />
+                <div className="border-t pt-6">
+                  <form action={rejectAction} className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium" htmlFor="reason">Alasan penolakan</label>
+                      <Textarea id="reason" name="reason" placeholder="Jelaskan alasan Pengajuan SIMAS ditolak" required />
+                    </div>
+                    <p className="text-xs text-muted-foreground">Penolakan bersifat permanen dan tidak membuat Tenant atau akun apa pun.</p>
+                    <Button className="w-full" type="submit" variant="destructive">Tolak Pengajuan SIMAS</Button>
+                  </form>
                 </div>
-                <p className="text-xs text-muted-foreground">Penolakan bersifat permanen dan tidak membuat Tenant atau akun apa pun.</p>
-                <Button className="w-full" type="submit" variant="destructive">Tolak Pengajuan SIMAS</Button>
-              </form>
+              </div>
             ) : (
               <dl className="space-y-4">
                 <Field label="Status" value={APPLICATION_STATUS_LABELS[application.status]} />
                 <Field label="Diputuskan pada" value={application.decidedAt?.toLocaleString("id-ID", { dateStyle: "long", timeStyle: "short" }) ?? "—"} />
                 <Field label="Provider Admin" value={decisionMaker ? `${decisionMaker.name} (${decisionMaker.email})` : application.decidedByProviderAdminId ?? "—"} />
                 {application.status === "rejected" ? <Field label="Alasan penolakan" value={application.rejectionReason ?? "—"} /> : null}
+                {application.status === "approved" && application.approvedTenantId ? (
+                  <Link className={buttonVariants({ className: "w-full" })} href={`/provider/tenants/${application.approvedTenantId}`}>
+                    Lihat Tenant
+                  </Link>
+                ) : null}
                 <p className="text-xs text-muted-foreground">Keputusan terminal tidak dapat diedit, dibuka kembali, dibatalkan, atau diubah.</p>
               </dl>
             )}

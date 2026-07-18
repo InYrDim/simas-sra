@@ -31,6 +31,59 @@ export type ApplicationDecisionStore = Readonly<{
   transaction<T>(work: (tx: ApplicationDecisionTransaction) => Promise<T>): Promise<T>;
 }>;
 
+export type LockedApplicationApproval = Readonly<{
+  id: string;
+  status: ApplicationStatus;
+  schoolName: string;
+  npsn: string;
+  contactName: string;
+  contactEmail: string;
+  approvedTenantId: string | null;
+}>;
+
+export type ApprovalConflictField = "npsn" | "subdomain" | "email" | "concurrent";
+
+export type ApprovalProvision = Readonly<{
+  applicationId: string;
+  providerAdminId: string;
+  tenant: Readonly<{ id: string; name: string; npsn: string; subdomain: string }>;
+  schoolAdmin: Readonly<{ id: string; name: string; email: string }>;
+  accountId: string;
+  credentialHash: string;
+  decidedAt: Date;
+}>;
+
+export type ApplicationApprovalTransaction = Readonly<{
+  lock(applicationId: string): Promise<LockedApplicationApproval | null>;
+  findConflict(input: Readonly<{ npsn: string; subdomain: string; email: string }>): Promise<ApprovalConflictField | null>;
+  provision(values: ApprovalProvision): Promise<void>;
+}>;
+
+export type ApplicationApprovalStore = Readonly<{
+  transaction<T>(work: (tx: ApplicationApprovalTransaction) => Promise<T>): Promise<T>;
+}>;
+
+export class ApprovalConflictError extends Error {
+  constructor(readonly field: ApprovalConflictField) {
+    super(`Approval conflict: ${field}`);
+    this.name = "ApprovalConflictError";
+  }
+}
+
+export type ApproveSimasApplicationResult =
+  | {
+      ok: true;
+      status: "approved";
+      tenantId: string;
+      schoolAdminEmail: string;
+      temporaryCredential: string;
+    }
+  | { ok: true; status: "already-approved"; tenantId: string }
+  | { ok: false; code: "not-found" }
+  | { ok: false; code: "decision-conflict"; status: "rejected" }
+  | { ok: false; code: "resource-conflict"; field: ApprovalConflictField }
+  | { ok: false; code: "invalid-input"; errors: { applicationId?: string; subdomain?: string } };
+
 export type RejectSimasApplicationResult =
   | { ok: true; status: "rejected" }
   | { ok: false; code: "not-found" }
@@ -54,6 +107,128 @@ type RejectInput = Readonly<{
 
 function normalizedText(value: unknown): string {
   return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
+}
+
+function normalizedSubdomain(value: unknown): string {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+export function suggestSubdomain(schoolName: string): string {
+  return schoolName
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 63)
+    .replace(/-+$/g, "");
+}
+
+type ApproveCommandDependencies = Readonly<{
+  authorize(): Promise<ProviderDecisionPrincipal>;
+  store: ApplicationApprovalStore;
+  generateCredential?: () => string;
+  hashCredential?: (credential: string) => Promise<string>;
+  generateId?: () => string;
+  now?: () => Date;
+}>;
+
+type ApproveInput = Readonly<{ applicationId?: unknown; subdomain?: unknown }>;
+
+export function createApproveSimasApplicationCommand({
+  authorize,
+  store,
+  generateCredential,
+  hashCredential,
+  generateId,
+  now = () => new Date(),
+}: ApproveCommandDependencies) {
+  return async function approveSimasApplication(
+    input: ApproveInput,
+  ): Promise<ApproveSimasApplicationResult> {
+    const principal = await authorize();
+    const applicationId = normalizedText(input.applicationId);
+    const subdomain = normalizedSubdomain(input.subdomain);
+    const errors: { applicationId?: string; subdomain?: string } = {};
+
+    if (!applicationId) errors.applicationId = "Pengajuan SIMAS tidak valid.";
+    if (!subdomain) {
+      errors.subdomain = "Subdomain wajib diisi.";
+    } else if (subdomain.length > 63) {
+      errors.subdomain = "Subdomain maksimal 63 karakter.";
+    } else if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(subdomain)) {
+      errors.subdomain = "Subdomain hanya boleh berisi huruf kecil, angka, dan tanda hubung.";
+    }
+    if (Object.keys(errors).length > 0) {
+      return { ok: false, code: "invalid-input", errors };
+    }
+
+    const [{ randomBytes, randomUUID }, { hashPassword }] = await Promise.all([
+      import("node:crypto"),
+      import("better-auth/crypto"),
+    ]);
+    const credential = generateCredential?.() ?? randomBytes(24).toString("base64url");
+    const credentialHash = await (hashCredential ?? hashPassword)(credential);
+    const nextId = generateId ?? randomUUID;
+    const tenantId = nextId();
+    const schoolAdminId = nextId();
+    const accountId = nextId();
+
+    try {
+      return await store.transaction(async (tx) => {
+        const application = await tx.lock(applicationId);
+        if (!application) return { ok: false, code: "not-found" } as const;
+        if (application.status === "approved" && application.approvedTenantId) {
+          return {
+            ok: true,
+            status: "already-approved",
+            tenantId: application.approvedTenantId,
+          } as const;
+        }
+        if (application.status === "rejected") {
+          return { ok: false, code: "decision-conflict", status: "rejected" } as const;
+        }
+
+        const conflict = await tx.findConflict({
+          npsn: application.npsn,
+          subdomain,
+          email: application.contactEmail,
+        });
+        if (conflict) throw new ApprovalConflictError(conflict);
+
+        await tx.provision({
+          applicationId,
+          providerAdminId: principal.userId,
+          tenant: {
+            id: tenantId,
+            name: application.schoolName,
+            npsn: application.npsn,
+            subdomain,
+          },
+          schoolAdmin: {
+            id: schoolAdminId,
+            name: application.contactName,
+            email: application.contactEmail,
+          },
+          accountId,
+          credentialHash,
+          decidedAt: now(),
+        });
+        return {
+          ok: true,
+          status: "approved",
+          tenantId,
+          schoolAdminEmail: application.contactEmail,
+          temporaryCredential: credential,
+        } as const;
+      });
+    } catch (error) {
+      if (error instanceof ApprovalConflictError) {
+        return { ok: false, code: "resource-conflict", field: error.field };
+      }
+      throw error;
+    }
+  };
 }
 
 export function createRejectSimasApplicationCommand({
