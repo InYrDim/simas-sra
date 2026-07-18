@@ -1,5 +1,7 @@
 import { hasFeature } from "@/lib/features";
 
+const chartHeights = [42, 68, 35, 81, 56, 74, 49, 91, 63, 77, 52, 86];
+
 export async function AdvancedAnalytics({ tenantId }: { tenantId: string }) {
   const isEnabled = await hasFeature(tenantId, "advancedAnalytics");
 
@@ -20,11 +22,11 @@ export async function AdvancedAnalytics({ tenantId }: { tenantId: string }) {
       <div className="flex-1 flex items-center justify-center bg-primary/5 rounded-xl border border-primary/10 relative overflow-hidden">
         {/* Dummy Chart */}
         <div className="absolute bottom-0 left-0 right-0 h-1/2 flex items-end justify-between px-6 gap-2">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div 
-              key={i} 
+          {chartHeights.map((height, index) => (
+            <div
+              key={index}
               className="w-full bg-primary/40 rounded-t-sm"
-              style={{ height: `${Math.random() * 80 + 20}%` }}
+              style={{ height: `${height}%` }}
             />
           ))}
         </div>

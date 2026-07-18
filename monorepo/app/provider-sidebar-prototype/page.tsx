@@ -23,7 +23,7 @@ import {
   X,
 } from "lucide-react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
-import { useEffect, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
 
 type VariantKey = "A" | "B" | "C"
 type Surface = "provider" | "tenant"
@@ -57,6 +57,14 @@ const tenantItems: NavItem[] = [
 ]
 
 export default function ProviderSidebarPrototypePage() {
+  return (
+    <Suspense fallback={null}>
+      <ProviderSidebarPrototype />
+    </Suspense>
+  )
+}
+
+function ProviderSidebarPrototype() {
   const searchParams = useSearchParams()
   const selected = searchParams.get("variant")
   const variant: VariantKey = selected === "B" || selected === "C" ? selected : "A"

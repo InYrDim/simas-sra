@@ -19,11 +19,12 @@ export const tenant = mysqlTable(
     id: varchar("id", { length: 36 }).primaryKey(),
     name: varchar("name", { length: 255 }).notNull(),
     domain: varchar("domain", { length: 255 }).notNull().unique(),
-    npsn: varchar("npsn", { length: 20 }).unique(),
+    npsn: varchar("npsn", { length: 20 }).notNull().unique(),
     sourceApplicationId: varchar("source_application_id", { length: 36 })
+      .notNull()
       .unique()
       .references((): AnyMySqlColumn => simasApplication.id),
-    approvedAt: timestamp("approved_at", { fsp: 3 }),
+    approvedAt: timestamp("approved_at", { fsp: 3 }).notNull(),
     onboardingCompletedAt: timestamp("onboarding_completed_at", { fsp: 3 }),
     trialStartedAt: timestamp("trial_started_at", { fsp: 3 }),
     trialEndsAt: timestamp("trial_ends_at", { fsp: 3 }),
