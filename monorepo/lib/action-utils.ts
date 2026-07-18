@@ -29,7 +29,7 @@ export function tenantProtectedAction<T extends (...args: any[]) => Promise<any>
   return (async (...args: Parameters<T>) => {
     const isTrialActive = await checkTrialStatus();
     if (!isTrialActive) {
-      throw new Error("Tindakan ini tidak diizinkan. Masa uji coba Anda telah berakhir. (Read-Only Mode)");
+      return { error: "Tindakan ini tidak diizinkan. Masa uji coba Anda telah berakhir. (Read-Only Mode)" };
     }
     return action(...args);
   }) as T;

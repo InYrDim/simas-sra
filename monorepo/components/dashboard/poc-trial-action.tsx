@@ -14,11 +14,13 @@ export function PocTrialAction() {
         const formData = new FormData();
         formData.append("setting", "test_value");
         const result = await dummyUpdateSettings(formData);
-        if (result.success) {
+        if (result?.error) {
+          toast.error(result.error);
+        } else if (result?.success) {
           toast.success(result.message);
         }
       } catch (error: any) {
-        toast.error(error.message || "Terjadi kesalahan");
+        toast.error(error.message || "Terjadi kesalahan pada server");
       }
     });
   };
