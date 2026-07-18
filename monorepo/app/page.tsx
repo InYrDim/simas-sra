@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { ArrowRight, BookOpen, LayoutDashboard, ShieldCheck, Zap } from "lucide-react";
 
 export default function Home() {
@@ -21,8 +21,8 @@ export default function Home() {
             <Link href="/login" className={buttonVariants({ variant: "ghost", className: "hidden sm:inline-flex" })}>
               Masuk
             </Link>
-            <Link href="/login" className={buttonVariants({ className: "rounded-full shadow-lg shadow-primary/20" })}>
-              Mulai Sekarang <ArrowRight className="ml-2 size-4" />
+            <Link href="/apply" className={buttonVariants({ className: "rounded-full shadow-lg shadow-primary/20" })}>
+              Ajukan Sekolah <ArrowRight className="ml-2 size-4" />
             </Link>
           </div>
         </div>
@@ -51,8 +51,8 @@ export default function Home() {
             </p>
             
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-in fade-in slide-in-from-bottom-10 duration-700 delay-300">
-              <Link href="/login" className={buttonVariants({ size: "lg", className: "w-full sm:w-auto text-base rounded-full h-14 px-8 shadow-xl shadow-primary/25 transition-transform hover:scale-105" })}>
-                Masuk ke Dasbor <ArrowRight className="ml-2 size-5" />
+              <Link href="/apply" className={buttonVariants({ size: "lg", className: "w-full sm:w-auto text-base rounded-full h-14 px-8 shadow-xl shadow-primary/25 transition-transform hover:scale-105" })}>
+                Ajukan SIMAS <ArrowRight className="ml-2 size-5" />
               </Link>
               <Link href="#fitur" className={buttonVariants({ size: "lg", variant: "outline", className: "w-full sm:w-auto text-base rounded-full h-14 px-8" })}>
                 Pelajari Lebih Lanjut
@@ -114,8 +114,8 @@ export default function Home() {
             <p className="text-lg text-muted-foreground mb-10 max-w-2xl mx-auto">
               Bergabunglah dengan ratusan sekolah lainnya yang telah bertransformasi secara digital dengan SIMAS.
             </p>
-            <Link href="/login" className={buttonVariants({ size: "lg", className: "rounded-full h-14 px-10 text-lg shadow-xl shadow-primary/20 transition-transform hover:scale-105" })}>
-              Akses Platform Sekarang
+            <Link href="/apply" className={buttonVariants({ size: "lg", className: "rounded-full h-14 px-10 text-lg shadow-xl shadow-primary/20 transition-transform hover:scale-105" })}>
+              Ajukan Sekolah Sekarang
             </Link>
           </div>
         </section>

@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test": "tsx --test \"**/*.test.ts\"",
+    "typecheck": "tsc --noEmit",
     "db:gen:auth": "pnpm dlx @better-auth/cli generate",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
