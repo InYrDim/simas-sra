@@ -3,13 +3,14 @@ import test from "node:test";
 
 import { resolveCentralDestination, resolveCentralIdentity, resolvePublicIntent, resolveRawPublicIntent, type CentralIdentitySnapshot } from "@/lib/central-identity";
 
-const base: CentralIdentitySnapshot = { applicant: false, providerAdmin: false, tenantMembership: null, activation: null };
+const base: CentralIdentitySnapshot = { applicant: false, providerAdmin: false, tenantMembership: null, activation: null, promotedApplicant: false };
 const membership = { tenantId: "tenant-1", domain: "sman-1", role: "school-admin" };
 
 test("identity resolver returns exactly one server-backed identity path", () => {
   assert.deepEqual(resolveCentralIdentity({ ...base, providerAdmin: true }), { kind: "provider-admin", passwordChangeRequired: false });
   assert.deepEqual(resolveCentralIdentity({ ...base, applicant: true }), { kind: "applicant", passwordChangeRequired: false });
-  assert.deepEqual(resolveCentralIdentity({ ...base, tenantMembership: membership }), { kind: "tenant-member", tenantId: "tenant-1", domain: "sman-1", passwordChangeRequired: false });
+  assert.deepEqual(resolveCentralIdentity({ ...base, tenantMembership: membership }), { kind: "tenant-member", tenantId: "tenant-1", domain: "sman-1", passwordChangeRequired: false, promotedApplicant: false });
+  assert.deepEqual(resolveCentralIdentity({ ...base, tenantMembership: membership, promotedApplicant: true }), { kind: "tenant-member", tenantId: "tenant-1", domain: "sman-1", passwordChangeRequired: false, promotedApplicant: true });
 });
 
 test("zero paths, multiple paths, a missing Tenant, and a missing role are invalid", () => {
@@ -22,11 +23,12 @@ test("zero paths, multiple paths, a missing Tenant, and a missing role are inval
 test("destination policy handles every identity and required activation", () => {
   assert.equal(resolveCentralDestination({ kind: "provider-admin" }), "/provider");
   assert.equal(resolveCentralDestination({ kind: "applicant" }), "/apply");
-  assert.equal(resolveCentralDestination({ kind: "tenant-member", ...membership, passwordChangeRequired: false }), "/sman-1/dashboard");
+  assert.equal(resolveCentralDestination({ kind: "tenant-member", ...membership, passwordChangeRequired: false, promotedApplicant: false }), "/sman-1/dashboard");
+  assert.equal(resolveCentralDestination({ kind: "tenant-member", ...membership, passwordChangeRequired: false, promotedApplicant: true }), "/apply");
   for (const identity of [
     { kind: "provider-admin", passwordChangeRequired: true },
     { kind: "applicant", passwordChangeRequired: true },
-    { kind: "tenant-member", tenantId: "tenant-1", domain: "sman-1", passwordChangeRequired: true }
+    { kind: "tenant-member", tenantId: "tenant-1", domain: "sman-1", passwordChangeRequired: true, promotedApplicant: false }
   ] as const) assert.equal(resolveCentralDestination(identity), "/change-password");
   assert.equal(resolveCentralDestination({ kind: "invalid", reason: "no-identity-path" }), "/access-error");
 });

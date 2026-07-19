@@ -3,12 +3,13 @@ export type CentralIdentitySnapshot = {
   applicant: boolean;
   tenantMembership: { tenantId: string; domain: string | null; role: string | null } | null;
   activation: { passwordChangeRequired: boolean } | null;
+  promotedApplicant: boolean;
 };
 
 export type CentralIdentity =
   | { kind: "provider-admin"; passwordChangeRequired?: boolean }
   | { kind: "applicant"; passwordChangeRequired?: boolean }
-  | { kind: "tenant-member"; tenantId: string; domain: string; passwordChangeRequired: boolean }
+  | { kind: "tenant-member"; tenantId: string; domain: string; passwordChangeRequired: boolean; promotedApplicant: boolean }
   | { kind: "invalid"; reason: "no-identity-path" | "multiple-identity-paths" | "tenant-missing" | "tenant-role-missing" };
 
 export function resolveCentralIdentity(snapshot: CentralIdentitySnapshot): CentralIdentity {
@@ -25,6 +26,7 @@ export function resolveCentralIdentity(snapshot: CentralIdentitySnapshot): Centr
     tenantId: snapshot.tenantMembership.tenantId,
     domain: snapshot.tenantMembership.domain,
     passwordChangeRequired,
+    promotedApplicant: snapshot.promotedApplicant,
   };
 }
 
@@ -33,7 +35,7 @@ export function resolveCentralDestination(identity: CentralIdentity): string {
   switch (identity.kind) {
     case "provider-admin": return "/provider";
     case "applicant": return "/apply";
-    case "tenant-member": return identity.passwordChangeRequired ? "/change-password" : `/${identity.domain}/dashboard`;
+    case "tenant-member": return identity.promotedApplicant ? "/apply" : `/${identity.domain}/dashboard`;
     case "invalid": return "/access-error";
   }
 }

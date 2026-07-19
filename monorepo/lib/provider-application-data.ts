@@ -164,15 +164,29 @@ export async function getProviderApplicationDetail(applicationId: string) {
 
 
 function duplicateApprovalField(error: unknown): ApprovalConflictField | null {
-  const mysqlError = error as { code?: string; message?: string };
-  if (mysqlError.code !== "ER_DUP_ENTRY") return null;
+  const mysqlError = error as { code?: string; message?: string; cause?: unknown };
+  if (mysqlError.code !== "ER_DUP_ENTRY") {
+    return mysqlError.cause ? duplicateApprovalField(mysqlError.cause) : null;
+  }
   const message = mysqlError.message?.toLowerCase() ?? "";
   if (message.includes("tenant_npsn_unique")) return "npsn";
   if (message.includes("tenant_domain_unique")) return "subdomain";
   return "concurrent";
 }
 
-export const applicationApprovalStore: ApplicationApprovalStore = {
+export type ApprovalTransactionStep =
+  | "tenant-created"
+  | "user-promoted"
+  | "applicant-removed"
+  | "sessions-revoked"
+  | "application-finalized"
+  | "outbox-written";
+
+export function createApplicationApprovalStore(options: Readonly<{
+  afterStep?: (step: ApprovalTransactionStep) => void | Promise<void>;
+}> = {}): ApplicationApprovalStore {
+  const afterStep = options.afterStep ?? (() => undefined);
+  return {
   async transaction(work) {
     try {
       return await db.transaction(async (tx) =>
@@ -277,6 +291,8 @@ export const applicationApprovalStore: ApplicationApprovalStore = {
               trialStartedAt: null,
               trialEndsAt: null,
             });
+            await afterStep("tenant-created");
+
             const promoted = await tx.update(user).set({
               tenantId: values.tenant.id,
               tenantRole: "school-admin",
@@ -286,12 +302,16 @@ export const applicationApprovalStore: ApplicationApprovalStore = {
               isNull(user.tenantRole),
             ));
             if (promoted[0].affectedRows !== 1) throw new ApprovalConflictError("concurrent");
+            await afterStep("user-promoted");
 
             const removedApplicant = await tx.delete(applicant)
               .where(eq(applicant.userId, values.ownerUserId));
             if (removedApplicant[0].affectedRows !== 1) throw new ApprovalConflictError("concurrent");
+            await afterStep("applicant-removed");
 
             await tx.delete(session).where(eq(session.userId, values.ownerUserId));
+            await afterStep("sessions-revoked");
+
             const finalized = await tx
               .update(simasApplication)
               .set({
@@ -308,6 +328,7 @@ export const applicationApprovalStore: ApplicationApprovalStore = {
                 ),
               );
             if (finalized[0].affectedRows !== 1) throw new ApprovalConflictError("concurrent");
+            await afterStep("application-finalized");
 
             await tx.insert(transactionalOutbox).values({
               id: values.outboxEventId,
@@ -326,6 +347,7 @@ export const applicationApprovalStore: ApplicationApprovalStore = {
               },
               occurredAt: values.decidedAt,
             });
+            await afterStep("outbox-written");
           },
         }),
       );
@@ -335,4 +357,7 @@ export const applicationApprovalStore: ApplicationApprovalStore = {
       throw error;
     }
   },
-};
+  };
+}
+
+export const applicationApprovalStore = createApplicationApprovalStore();

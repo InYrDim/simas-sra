@@ -4,18 +4,18 @@
 
 **Blocked by:** 10 — Migrasikan model Kredensial sementara; 13 — Tolak dan ajukan ulang Pengajuan SIMAS.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] Form approval menyarankan domain dari nama sekolah tetapi Provider Admin menentukan domain final yang dinormalisasi, divalidasi, dan unik.
-- [ ] Approval mengunci binding, Pengajuan, user, lalu record terkait dalam urutan kanonis dan memvalidasi ulang seluruh invariant.
-- [ ] Satu transaksi membuat Tenant dari snapshot dan canonical NPSN, menghubungkan Pengajuan sumber, mempromosikan owner user existing menjadi School Admin, mencabut seluruh session, mencatat Provider decision, memfinalkan status, dan menulis audit/outbox.
-- [ ] User ID, credential account, dan password existing tetap sama; snapshot contact email tidak menentukan user yang dipromosikan.
-- [ ] Jalur Pemohon aktif dihapus saat promosi, sementara binding permanen dan seluruh history Pengajuan tetap tersedia.
-- [ ] Approval tidak membuat user, credential account, Kredensial sementara, atau temporary-credential activation baru dan UI sukses tidak menampilkan secret.
-- [ ] Domain yang sudah dipakai membatalkan seluruh transaksi dan membiarkan Pengajuan pending; Tenant existing untuk NPSN menghasilkan data conflict.
-- [ ] Retry approval dengan domain/result identik mengembalikan Tenant existing; domain atau keputusan berbeda setelah final menghasilkan conflict.
-- [ ] Failure injection pada setiap tahap membuktikan Tenant, promosi, keputusan, session deletion, dan outbox rollback bersama-sama.
-- [ ] Approval bersamaan menghasilkan tepat satu Tenant dan satu hasil final tanpa data tambahan.
-- [ ] Session Pemohon lama tidak dapat dipakai setelah commit; login ulang memuat role School Admin baru.
-- [ ] `/apply` School Admin menampilkan approval, immutable history, dan tautan Tenant server-derived serta tidak menawarkan submit baru.
+- [x] Form approval menyarankan domain dari nama sekolah tetapi Provider Admin menentukan domain final yang dinormalisasi, divalidasi, dan unik.
+- [x] Approval mengunci binding, Pengajuan, user, lalu record terkait dalam urutan kanonis dan memvalidasi ulang seluruh invariant.
+- [x] Satu transaksi membuat Tenant dari snapshot dan canonical NPSN, menghubungkan Pengajuan sumber, mempromosikan owner user existing menjadi School Admin, mencabut seluruh session, mencatat Provider decision, memfinalkan status, dan menulis audit/outbox.
+- [x] User ID, credential account, dan password existing tetap sama; snapshot contact email tidak menentukan user yang dipromosikan.
+- [x] Jalur Pemohon aktif dihapus saat promosi, sementara binding permanen dan seluruh history Pengajuan tetap tersedia.
+- [x] Approval tidak membuat user, credential account, Kredensial sementara, atau temporary-credential activation baru dan UI sukses tidak menampilkan secret.
+- [x] Domain yang sudah dipakai membatalkan seluruh transaksi dan membiarkan Pengajuan pending; Tenant existing untuk NPSN menghasilkan data conflict.
+- [x] Retry approval dengan domain/result identik mengembalikan Tenant existing; domain atau keputusan berbeda setelah final menghasilkan conflict.
+- [x] Failure injection pada setiap tahap membuktikan Tenant, promosi, keputusan, session deletion, dan outbox rollback bersama-sama.
+- [x] Approval bersamaan menghasilkan tepat satu Tenant dan satu hasil final tanpa data tambahan.
+- [x] Session Pemohon lama tidak dapat dipakai setelah commit; login ulang memuat role School Admin baru.
+- [x] `/apply` School Admin menampilkan approval, immutable history, dan tautan Tenant server-derived serta tidak menawarkan submit baru.
 - [ ] Browser test membuktikan pending→approval→session revoked→login ulang→portal approved→Tenant tanpa jalur change-password.
