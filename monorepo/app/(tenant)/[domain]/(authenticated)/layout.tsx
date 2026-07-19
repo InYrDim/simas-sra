@@ -3,7 +3,7 @@ import { DashboardHeader } from "@/components/dashboard/dashboard-header"
 import { TrialBanner } from "@/components/dashboard/trial-banner"
 import { TenantSidebar } from "@/components/dashboard/tenant-sidebar"
 import { requireTenantFeatureAccess } from "@/lib/tenant-access"
-import { TenantActivationError } from "@/lib/school-admin-activation"
+import { TenantActivationError } from "@/lib/temporary-credential-activation"
 import { redirect } from "next/navigation"
 
 export default async function DashboardLayout({

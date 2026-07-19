@@ -2,11 +2,11 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
-import { schoolAdminActivationStore } from "@/lib/school-admin-activation-data";
-import { createRecordFirstAuthenticationCommand } from "@/lib/school-admin-activation";
+import { temporaryCredentialActivationStore } from "@/lib/temporary-credential-activation-data";
+import { createRecordFirstAuthenticationCommand } from "@/lib/temporary-credential-activation";
 
 const recordFirstAuthentication = createRecordFirstAuthenticationCommand({
-  store: schoolAdminActivationStore,
+  store: temporaryCredentialActivationStore,
 });
 
 export const auth = betterAuth({

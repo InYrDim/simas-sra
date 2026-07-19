@@ -3,7 +3,7 @@ import "server-only";
 import { and, asc, count, desc, eq, or, sql, type SQL } from "drizzle-orm";
 
 import { db } from "@/db";
-import { schoolAdminActivation, simasApplication, tenant, user } from "@/db/schema";
+import { temporaryCredentialActivation, simasApplication, tenant, user } from "@/db/schema";
 import { requireProviderDataAccess } from "@/lib/provider-access";
 import { literalLikePattern, type TenantListQuery } from "@/lib/provider-tenants";
 import { TENANT_ENDING_SOON_WINDOW_MS } from "@/lib/tenant-onboarding";
@@ -50,8 +50,7 @@ export async function listProviderTenants(query: TenantListQuery, now: Date = ne
   const baseJoin = db
     .select({ value: count() })
     .from(tenant)
-    .innerJoin(schoolAdminActivation, eq(schoolAdminActivation.tenantId, tenant.id))
-    .innerJoin(user, and(eq(user.id, schoolAdminActivation.userId), eq(user.tenantId, tenant.id)));
+    .innerJoin(user, and(eq(user.tenantId, tenant.id), eq(user.tenantRole, "school-admin")));
   const [totalRow] = await baseJoin.where(where);
   const total = totalRow?.value ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / TENANTS_PER_PAGE));
@@ -68,8 +67,7 @@ export async function listProviderTenants(query: TenantListQuery, now: Date = ne
       trialEndsAt: tenant.trialEndsAt,
     })
     .from(tenant)
-    .innerJoin(schoolAdminActivation, eq(schoolAdminActivation.tenantId, tenant.id))
-    .innerJoin(user, and(eq(user.id, schoolAdminActivation.userId), eq(user.tenantId, tenant.id)))
+    .innerJoin(user, and(eq(user.tenantId, tenant.id), eq(user.tenantRole, "school-admin")))
     .where(where)
     .orderBy(orderBy, desc(tenant.id))
     .limit(TENANTS_PER_PAGE)
@@ -94,9 +92,10 @@ export async function getProviderTenantDetail(tenantId: string) {
       schoolAdminName: user.name,
       schoolAdminEmail: user.email,
       schoolAdminEmailVerified: user.emailVerified,
-      firstAuthenticatedAt: schoolAdminActivation.firstAuthenticatedAt,
-      passwordChangeRequired: schoolAdminActivation.passwordChangeRequired,
-      temporaryCredentialIssuedAt: schoolAdminActivation.temporaryCredentialIssuedAt,
+      temporaryCredentialActivationUserId: temporaryCredentialActivation.userId,
+      firstAuthenticatedAt: temporaryCredentialActivation.firstAuthenticatedAt,
+      passwordChangeRequired: temporaryCredentialActivation.passwordChangeRequired,
+      temporaryCredentialIssuedAt: temporaryCredentialActivation.temporaryCredentialIssuedAt,
       applicationId: simasApplication.id,
       applicationSchoolName: simasApplication.schoolName,
       applicationNpsn: simasApplication.npsn,
@@ -111,7 +110,13 @@ export async function getProviderTenantDetail(tenantId: string) {
     })
     .from(tenant)
     .innerJoin(user, and(eq(user.tenantId, tenant.id), eq(user.tenantRole, "school-admin")))
-    .innerJoin(schoolAdminActivation, eq(schoolAdminActivation.userId, user.id))
+    .leftJoin(
+      temporaryCredentialActivation,
+      and(
+        eq(temporaryCredentialActivation.userId, user.id),
+        eq(temporaryCredentialActivation.tenantId, tenant.id),
+      ),
+    )
     .leftJoin(simasApplication, eq(simasApplication.id, tenant.sourceApplicationId))
     .where(eq(tenant.id, tenantId))
     .limit(1);

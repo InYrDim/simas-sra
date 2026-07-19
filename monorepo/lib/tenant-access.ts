@@ -6,8 +6,8 @@ import { headers } from "next/headers";
 import { db } from "@/db";
 import { tenant } from "@/db/schema";
 import { auth } from "@/lib/auth";
-import { requireActivatedTenantPrincipal, TenantActivationError } from "@/lib/school-admin-activation";
-import { schoolAdminActivationStore } from "@/lib/school-admin-activation-data";
+import { requireActivatedTenantPrincipal, TenantActivationError } from "@/lib/temporary-credential-activation";
+import { temporaryCredentialActivationStore } from "@/lib/temporary-credential-activation-data";
 
 export async function requireTenantFeatureAccess(domain: string) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -23,6 +23,6 @@ export async function requireTenantFeatureAccess(domain: string) {
   return requireActivatedTenantPrincipal(
     session.user.id,
     tenantData.id,
-    schoolAdminActivationStore,
+    temporaryCredentialActivationStore
   );
 }

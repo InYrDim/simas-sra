@@ -7,8 +7,8 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { tenant } from "@/db/schema";
 import { auth } from "@/lib/auth";
-import { createChangeSchoolAdminPasswordCommand } from "@/lib/school-admin-activation";
-import { schoolAdminActivationStore } from "@/lib/school-admin-activation-data";
+import { createChangeSchoolAdminPasswordCommand } from "@/lib/temporary-credential-activation";
+import { temporaryCredentialActivationStore } from "@/lib/temporary-credential-activation-data";
 
 export async function changeRequiredPasswordAction(formData: FormData) {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -22,7 +22,7 @@ export async function changeRequiredPasswordAction(formData: FormData) {
   }
   if (confirmation !== newPassword) redirect("/change-password?error=confirmation");
 
-  const changePassword = createChangeSchoolAdminPasswordCommand({ store: schoolAdminActivationStore });
+  const changePassword = createChangeSchoolAdminPasswordCommand({ store: temporaryCredentialActivationStore });
   const result = await changePassword({
     userId: session.user.id,
     currentSessionId: session.session.id,

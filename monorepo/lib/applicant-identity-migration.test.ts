@@ -140,7 +140,7 @@ test("unsafe legacy data is blocked with deterministic actionable identifiers", 
       { code: "invalid-identity-path-count", identifiers: ["multi-user", "orphan-user", "role-without-tenant"] },
       { code: "school-admin-without-valid-tenant", identifiers: ["multi-user", "role-without-tenant"] },
       { code: "inconsistent-approval-tenant-link", identifiers: ["ownerless-a", "tenant-duplicate-a", "tenant-duplicate-b"] },
-      { code: "invalid-school-admin-activation", identifiers: ["multi-user"] },
+      { code: "invalid-temporary-credential-activation", identifiers: ["multi-user"] },
     ],
   );
   assert.equal(JSON.stringify(report).includes("contact"), false);

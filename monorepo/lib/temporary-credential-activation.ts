@@ -26,7 +26,7 @@ type ActivationTransaction = Readonly<{
   reissueTemporaryCredential(userId: string, issuedAt: Date): Promise<void>;
 }>;
 
-export type SchoolAdminActivationStore = Readonly<{
+export type TemporaryCredentialActivationStore = Readonly<{
   recordFirstAuthentication(userId: string, authenticatedAt: Date): Promise<void>;
   getTenantPrincipal(userId: string): Promise<(TenantPrincipal & {
     passwordChangeRequired: boolean;
@@ -52,7 +52,7 @@ export class TemporaryCredentialResetDeniedError extends Error {
 }
 
 export function createRecordFirstAuthenticationCommand(dependencies: {
-  store: SchoolAdminActivationStore;
+  store: TemporaryCredentialActivationStore;
   now?: () => Date;
 }) {
   const now = dependencies.now ?? (() => new Date());
@@ -62,7 +62,7 @@ export function createRecordFirstAuthenticationCommand(dependencies: {
 export async function requireActivatedTenantPrincipal(
   userId: string,
   tenantId: string,
-  store: SchoolAdminActivationStore,
+  store: TemporaryCredentialActivationStore,
 ): Promise<TenantPrincipal> {
   const principal = await store.getTenantPrincipal(userId);
   if (!principal || principal.tenantId !== tenantId || principal.tenantRole !== "school-admin") {
@@ -79,7 +79,7 @@ export async function requireActivatedTenantPrincipal(
 }
 
 export function createChangeSchoolAdminPasswordCommand(dependencies: {
-  store: SchoolAdminActivationStore;
+  store: TemporaryCredentialActivationStore;
   hashPassword?: (password: string) => Promise<string>;
   verifyPassword?: (input: { hash: string; password: string }) => Promise<boolean>;
   now?: () => Date;
@@ -113,7 +113,7 @@ export function createChangeSchoolAdminPasswordCommand(dependencies: {
 
 export function createResetTemporaryCredentialCommand(dependencies: {
   authorize: () => Promise<ProviderPrincipal>;
-  store: SchoolAdminActivationStore;
+  store: TemporaryCredentialActivationStore;
   generateCredential?: () => string;
   hashPassword?: (password: string) => Promise<string>;
   now?: () => Date;
@@ -124,20 +124,19 @@ export function createResetTemporaryCredentialCommand(dependencies: {
 
   return async (userId: string) => {
     await dependencies.authorize();
-    const temporaryCredential = generateCredential();
-    const credentialHash = await createHash(temporaryCredential);
-
-    await dependencies.store.transaction(async (tx) => {
+    return dependencies.store.transaction(async (tx) => {
       const activation = await tx.lock(userId);
       if (!activation) throw new TenantActivationError("forbidden");
       if (activation.firstAuthenticatedAt || !activation.passwordChangeRequired) {
         throw new TemporaryCredentialResetDeniedError();
       }
+
+      const temporaryCredential = generateCredential();
+      const credentialHash = await createHash(temporaryCredential);
       await tx.replaceCredential(userId, credentialHash);
       await tx.revokeAllSessions(userId);
       await tx.reissueTemporaryCredential(userId, now());
+      return { ok: true, temporaryCredential } as const;
     });
-
-    return { ok: true, temporaryCredential } as const;
   };
 }

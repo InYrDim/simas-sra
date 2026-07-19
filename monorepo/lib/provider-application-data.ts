@@ -16,7 +16,7 @@ import {
 import { db } from "@/db";
 import {
   account,
-  schoolAdminActivation,
+  temporaryCredentialActivation,
   simasApplication,
   tenant,
   user,
@@ -235,7 +235,7 @@ export const applicationApprovalStore: ApplicationApprovalStore = {
               userId: values.schoolAdmin.id,
               password: values.credentialHash,
             });
-            await tx.insert(schoolAdminActivation).values({
+            await tx.insert(temporaryCredentialActivation).values({
               userId: values.schoolAdmin.id,
               tenantId: values.tenant.id,
               temporaryCredentialIssuedAt: values.decidedAt,

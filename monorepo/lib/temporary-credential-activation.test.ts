@@ -7,8 +7,8 @@ import {
   createResetTemporaryCredentialCommand,
   requireActivatedTenantPrincipal,
   TemporaryCredentialResetDeniedError,
-  type SchoolAdminActivationStore,
-} from "@/lib/school-admin-activation";
+  type TemporaryCredentialActivationStore,
+} from "@/lib/temporary-credential-activation";
 
 function activationStore(state: {
   firstAuthenticatedAt: Date | null;
@@ -16,7 +16,7 @@ function activationStore(state: {
 }) {
   const events: string[] = [];
   let credentialHash = "hash:temporary";
-  const store: SchoolAdminActivationStore = {
+  const store: TemporaryCredentialActivationStore = {
     async recordFirstAuthentication(userId, authenticatedAt) {
       events.push(`first-auth:${userId}:${authenticatedAt.toISOString()}`);
     },
@@ -77,6 +77,31 @@ test("successful authentication records the first authentication idempotently", 
     "first-auth:school-admin-1:2026-07-18T10:00:00.000Z",
     "first-auth:school-admin-1:2026-07-18T10:00:00.000Z",
   ]);
+});
+
+test("tenant authorization does not require a password change without a temporary credential activation", async () => {
+  const events: string[] = [];
+  const store: TemporaryCredentialActivationStore = {
+    async recordFirstAuthentication() {},
+    async getTenantPrincipal(userId) {
+      events.push(`principal:${userId}`);
+      return {
+        userId,
+        tenantId: "tenant-promoted",
+        tenantRole: "school-admin",
+        passwordChangeRequired: false,
+      };
+    },
+    async transaction() {
+      throw new Error("not used");
+    },
+  };
+
+  assert.deepEqual(
+    await requireActivatedTenantPrincipal("school-admin-promoted", "tenant-promoted", store),
+    { userId: "school-admin-promoted", tenantId: "tenant-promoted", tenantRole: "school-admin" },
+  );
+  assert.deepEqual(events, ["principal:school-admin-promoted"]);
 });
 
 test("tenant authorization blocks features until the temporary credential is replaced", async () => {
@@ -167,4 +192,45 @@ test("Provider Admin can reset a temporary credential only before first authenti
   });
   await assert.rejects(() => denied("school-admin-1"), TemporaryCredentialResetDeniedError);
   assert.deepEqual(afterLogin.events, ["transaction", "lock:school-admin-1"]);
+});
+
+test("Provider Admin cannot reset credentials for an account without temporary credential activation", async () => {
+  const events: string[] = [];
+  const store: TemporaryCredentialActivationStore = {
+    async recordFirstAuthentication() {},
+    async getTenantPrincipal() { return null; },
+    async transaction(work) {
+      events.push("transaction");
+      return work({
+        async lock(userId) {
+          events.push(`lock:${userId}`);
+          return null;
+        },
+        async getCredentialHash() { throw new Error("not used"); },
+        async replaceCredential() { throw new Error("not used"); },
+        async revokeOtherSessions() { throw new Error("not used"); },
+        async revokeAllSessions() { throw new Error("not used"); },
+        async completePasswordChange() { throw new Error("not used"); },
+        async reissueTemporaryCredential() { throw new Error("not used"); },
+      });
+    },
+  };
+  const reset = createResetTemporaryCredentialCommand({
+    authorize: async () => ({ userId: "provider-1", name: "Provider", email: "provider@test" }),
+    generateCredential: () => {
+      events.push("generated");
+      return "must-not-be-persisted";
+    },
+    hashPassword: async () => {
+      events.push("hashed");
+      return "must-not-be-persisted";
+    },
+    store,
+  });
+
+  await assert.rejects(
+    () => reset("school-admin-promoted"),
+    (error: unknown) => (error as { code?: string }).code === "forbidden",
+  );
+  assert.deepEqual(events, ["transaction", "lock:school-admin-promoted"]);
 });

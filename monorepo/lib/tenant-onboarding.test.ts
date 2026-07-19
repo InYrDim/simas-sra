@@ -14,6 +14,7 @@ const trialEndsAt = new Date("2026-02-28T18:30:00.000Z");
 function onboardingStore(options: {
   tenantId?: string;
   tenantRole?: string;
+  hasTemporaryCredentialActivation?: boolean;
   firstAuthenticatedAt?: Date | null;
   passwordChangeRequired?: boolean;
   passwordChangedAt?: Date | null;
@@ -34,6 +35,7 @@ function onboardingStore(options: {
           return {
             tenantId: options.tenantId ?? "tenant-1",
             tenantRole: (options.tenantRole ?? "school-admin") as "school-admin" | "staff",
+            hasTemporaryCredentialActivation: options.hasTemporaryCredentialActivation ?? true,
             firstAuthenticatedAt: options.firstAuthenticatedAt === undefined ? completedAt : options.firstAuthenticatedAt,
             passwordChangeRequired: options.passwordChangeRequired ?? false,
             passwordChangedAt: options.passwordChangedAt === undefined ? completedAt : options.passwordChangedAt,
@@ -80,6 +82,23 @@ test("School Admin completes onboarding and starts the trial atomically from the
     trialStartedAt: completedAt,
     trialEndsAt,
   });
+});
+
+test("promoted School Admin completes onboarding without temporary credential activation", async () => {
+  const fixture = onboardingStore({
+    hasTemporaryCredentialActivation: false,
+    firstAuthenticatedAt: null,
+    passwordChangedAt: null,
+  });
+  const complete = createCompleteTenantOnboardingCommand({
+    now: () => completedAt,
+    store: fixture.store,
+  });
+
+  assert.equal((await complete("school-admin-promoted", {
+    schoolYear: "2026/2027",
+    timezone: "Asia/Jakarta",
+  })).status, "completed");
 });
 
 test("repeated completion is idempotent and preserves every trial date", async () => {

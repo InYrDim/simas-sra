@@ -3,7 +3,7 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { schoolAdminActivation, tenant, user } from "@/db/schema";
+import { temporaryCredentialActivation, tenant, user } from "@/db/schema";
 import type { TenantOnboardingStore } from "@/lib/tenant-onboarding";
 
 export const tenantOnboardingStore: TenantOnboardingStore = {
@@ -14,19 +14,20 @@ export const tenantOnboardingStore: TenantOnboardingStore = {
           .select({
             tenantId: tenant.id,
             tenantRole: user.tenantRole,
-            firstAuthenticatedAt: schoolAdminActivation.firstAuthenticatedAt,
-            passwordChangeRequired: schoolAdminActivation.passwordChangeRequired,
-            passwordChangedAt: schoolAdminActivation.passwordChangedAt,
+            temporaryCredentialActivationUserId: temporaryCredentialActivation.userId,
+            firstAuthenticatedAt: temporaryCredentialActivation.firstAuthenticatedAt,
+            passwordChangeRequired: temporaryCredentialActivation.passwordChangeRequired,
+            passwordChangedAt: temporaryCredentialActivation.passwordChangedAt,
             onboardingCompletedAt: tenant.onboardingCompletedAt,
             trialStartedAt: tenant.trialStartedAt,
             trialEndsAt: tenant.trialEndsAt,
           })
           .from(user)
-          .innerJoin(
-            schoolAdminActivation,
+          .leftJoin(
+            temporaryCredentialActivation,
             and(
-              eq(schoolAdminActivation.userId, user.id),
-              eq(schoolAdminActivation.tenantId, user.tenantId),
+              eq(temporaryCredentialActivation.userId, user.id),
+              eq(temporaryCredentialActivation.tenantId, user.tenantId),
             ),
           )
           .innerJoin(tenant, eq(tenant.id, user.tenantId))
@@ -34,7 +35,12 @@ export const tenantOnboardingStore: TenantOnboardingStore = {
           .limit(1)
           .for("update");
         if (!principal || !principal.tenantRole) return null;
-        return { ...principal, tenantRole: principal.tenantRole };
+        return {
+          ...principal,
+          tenantRole: principal.tenantRole,
+          hasTemporaryCredentialActivation: principal.temporaryCredentialActivationUserId !== null,
+          passwordChangeRequired: principal.passwordChangeRequired ?? false,
+        };
       },
       async complete(tenantId, settings, lifecycle) {
         await databaseTransaction

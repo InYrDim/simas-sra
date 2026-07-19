@@ -4,7 +4,7 @@ import { tenant } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
 import { requireTenantFeatureAccess } from '@/lib/tenant-access';
-import { TenantActivationError } from '@/lib/school-admin-activation';
+import { TenantActivationError } from '@/lib/temporary-credential-activation';
 
 export default async function TenantPage({
   params,

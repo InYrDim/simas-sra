@@ -14,6 +14,7 @@ type TenantLifecycle = Readonly<{
 type LockedTenantPrincipal = TenantLifecycle & Readonly<{
   tenantId: string;
   tenantRole: TenantRole;
+  hasTemporaryCredentialActivation: boolean;
   firstAuthenticatedAt: Date | null;
   passwordChangeRequired: boolean;
   passwordChangedAt: Date | null;
@@ -89,11 +90,13 @@ export function createCompleteTenantOnboardingCommand(dependencies: {
       if (!principal || principal.tenantRole !== "school-admin") {
         throw new TenantOnboardingError("forbidden");
       }
-      if (principal.passwordChangeRequired) {
-        throw new TenantOnboardingError("password-change-required");
-      }
-      if (!principal.firstAuthenticatedAt || !principal.passwordChangedAt) {
-        throw new TenantOnboardingError("forbidden");
+      if (principal.hasTemporaryCredentialActivation) {
+        if (principal.passwordChangeRequired) {
+          throw new TenantOnboardingError("password-change-required");
+        }
+        if (!principal.firstAuthenticatedAt || !principal.passwordChangedAt) {
+          throw new TenantOnboardingError("forbidden");
+        }
       }
       if (
         principal.onboardingCompletedAt &&

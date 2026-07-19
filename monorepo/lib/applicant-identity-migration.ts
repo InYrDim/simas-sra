@@ -61,7 +61,7 @@ export type MigrationFindingCode =
   | "invalid-identity-path-count"
   | "school-admin-without-valid-tenant"
   | "inconsistent-approval-tenant-link"
-  | "invalid-school-admin-activation";
+  | "invalid-temporary-credential-activation";
 
 export type MigrationFinding = Readonly<{
   code: MigrationFindingCode;
@@ -226,7 +226,7 @@ export function auditApplicantIdentityMigration(
     ),
     finding("inconsistent-approval-tenant-link", inconsistentApprovalLinks),
     finding(
-      "invalid-school-admin-activation",
+      "invalid-temporary-credential-activation",
       snapshot.activations
         .filter((activation) => {
           const user = usersById.get(activation.userId);

@@ -164,8 +164,8 @@ export const simasApplication = mysqlTable(
   ],
 );
 
-export const schoolAdminActivation = mysqlTable(
-  "school_admin_activation",
+export const temporaryCredentialActivation = mysqlTable(
+  "temporary_credential_activation",
   {
     userId: varchar("user_id", { length: 36 })
       .primaryKey()
@@ -184,7 +184,7 @@ export const schoolAdminActivation = mysqlTable(
   },
   (table) => [
     check(
-      "school_admin_activation_password_state_check",
+      "temporary_credential_activation_password_state_check",
       sql`((${table.passwordChangeRequired} = true AND ${table.passwordChangedAt} IS NULL) OR (${table.passwordChangeRequired} = false AND ${table.passwordChangedAt} IS NOT NULL))`,
     ),
   ],
@@ -257,7 +257,7 @@ export const schemaRelations = defineRelations(
     applicant,
     applicantSchoolBinding,
     simasApplication,
-    schoolAdminActivation,
+    temporaryCredentialActivation,
     session,
     account,
   },
@@ -272,7 +272,7 @@ export const schemaRelations = defineRelations(
         to: r.simasApplication.approvedTenantId,
       }),
       users: r.many.user(),
-      schoolAdminActivations: r.many.schoolAdminActivation(),
+      temporaryCredentialActivations: r.many.temporaryCredentialActivation(),
     },
     user: {
       tenant: r.one.tenant({ from: r.user.tenantId, to: r.tenant.id }),
@@ -292,9 +292,9 @@ export const schemaRelations = defineRelations(
         from: r.user.id,
         to: r.simasApplication.ownerUserId,
       }),
-      schoolAdminActivation: r.one.schoolAdminActivation({
+      temporaryCredentialActivation: r.one.temporaryCredentialActivation({
         from: r.user.id,
-        to: r.schoolAdminActivation.userId,
+        to: r.temporaryCredentialActivation.userId,
       }),
       sessions: r.many.session(),
       accounts: r.many.account(),
@@ -335,13 +335,13 @@ export const schemaRelations = defineRelations(
         to: r.applicantSchoolBinding.id,
       }),
     },
-    schoolAdminActivation: {
+    temporaryCredentialActivation: {
       user: r.one.user({
-        from: r.schoolAdminActivation.userId,
+        from: r.temporaryCredentialActivation.userId,
         to: r.user.id,
       }),
       tenant: r.one.tenant({
-        from: r.schoolAdminActivation.tenantId,
+        from: r.temporaryCredentialActivation.tenantId,
         to: r.tenant.id,
       }),
     },
