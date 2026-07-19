@@ -1,20 +1,48 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createApplicantApplicationSubmission, type ApplicantApplicationSubmissionStore } from "@/lib/applicant-application-submission";
+import {
+  createApplicantApplicationSubmission,
+  SubmissionConflict,
+  type ApplicantApplicationSubmissionStore,
+} from "@/lib/applicant-application-submission";
 
-const input = { schoolName: "SMA 1", npsn: "20100001", educationLevel: "SMA", address: "Jalan Pendidikan 1", contactName: "Siti", contactPosition: "Kepala Sekolah", contactEmail: "siti@example.test", contactWhatsapp: "081234567890" };
+const input = {
+  schoolName: "SMA 1",
+  npsn: " 2010-0001 ",
+  educationLevel: "SMA",
+  address: "Jalan Pendidikan 1",
+  contactName: "Siti",
+  contactPosition: "Kepala Sekolah",
+  contactEmail: "SITI@example.test",
+  contactWhatsapp: "0812 3456 7890",
+};
 
-function recordingStore(binding: { id: string; canonicalNpsn: string } | null = null) {
+type StoredApplication = {
+  id: string;
+  payloadHash: string;
+  status: "pending" | "approved" | "rejected";
+};
+
+function recordingStore(options: {
+  binding?: { id: string; canonicalNpsn: string } | null;
+  idempotent?: StoredApplication | null;
+  pending?: StoredApplication | null;
+  applicant?: boolean;
+  conflict?: SubmissionConflict["code"];
+} = {}) {
   const events: string[] = [];
   const writes: unknown[] = [];
   const store: ApplicantApplicationSubmissionStore = {
     async transaction(work) {
       events.push("transaction");
+      if (options.conflict) throw new SubmissionConflict(options.conflict);
       return work({
-        async lockApplicant(userId) { events.push(`lock:${userId}`); return true; },
-        async getBinding() { return binding; },
+        async lockApplicant(userId) { events.push(`lock:${userId}`); return options.applicant ?? true; },
+        async getBinding() { return options.binding ?? null; },
         async createBinding(value) { events.push("bind"); writes.push(value); },
+        async findByIdempotencyKey() { return options.idempotent ?? null; },
+        async findPending() { return options.pending ?? null; },
         async nextAttemptNumber() { return 1; },
         async createApplication(value) { events.push("create"); writes.push(value); },
       });
@@ -23,36 +51,92 @@ function recordingStore(binding: { id: string; canonicalNpsn: string } | null = 
   return { events, store, writes };
 }
 
-test("first successful submission atomically binds the Pemohon and owns the application", async () => {
+test("first successful submission atomically binds the Pemohon and creates attempt one", async () => {
   const { events, store, writes } = recordingStore();
-  const submit = createApplicantApplicationSubmission({ store, createId: (() => { const ids = ["application-1", "binding-1"]; return () => ids.shift()!; })(), now: () => new Date("2026-07-19T00:00:00Z") });
+  const ids = ["application-1", "binding-1"];
+  const submit = createApplicantApplicationSubmission({
+    store,
+    createId: () => ids.shift()!,
+    now: () => new Date("2026-07-19T00:00:00Z"),
+  });
 
-  const result = await submit("applicant-1", input);
+  const result = await submit("applicant-1", "render-key-1", input);
 
-  assert.deepEqual(result, { ok: true, applicationId: "application-1" });
+  assert.deepEqual(result, { ok: true, applicationId: "application-1", existing: false });
   assert.deepEqual(events, ["transaction", "lock:applicant-1", "bind", "create"]);
   assert.deepEqual(writes[0], { id: "binding-1", userId: "applicant-1", canonicalNpsn: "20100001" });
-  assert.equal((writes[1] as { ownerUserId: string }).ownerUserId, "applicant-1");
-  assert.equal((writes[1] as { bindingId: string }).bindingId, "binding-1");
-  assert.equal((writes[1] as { attemptNumber: number }).attemptNumber, 1);
+  const applicationWrite = writes[1] as Record<string, unknown>;
+  assert.match(applicationWrite.payloadHash as string, /^[a-f0-9]{64}$/);
+  assert.deepEqual({ ...applicationWrite, payloadHash: "<hash>" }, {
+    id: "application-1",
+    schoolName: "SMA 1",
+    npsn: "2010-0001",
+    educationLevel: "SMA",
+    address: "Jalan Pendidikan 1",
+    contactName: "Siti",
+    contactPosition: "Kepala Sekolah",
+    contactEmail: "siti@example.test",
+    contactWhatsapp: "+6281234567890",
+    needsNote: null,
+    status: "pending",
+    submittedAt: new Date("2026-07-19T00:00:00Z"),
+    decidedAt: null,
+    decidedByProviderAdminId: null,
+    rejectionReason: null,
+    approvedTenantId: null,
+    ownerUserId: "applicant-1",
+    bindingId: "binding-1",
+    attemptNumber: 1,
+    idempotencyKey: "render-key-1",
+    payloadHash: "<hash>",
+  });
 });
 
-test("invalid input and non-Pemohon identities create no binding or application", async () => {
+test("invalid input, invalid key, and non-Pemohon identities create nothing", async () => {
   const first = recordingStore();
-  const submitInvalid = createApplicantApplicationSubmission({ store: first.store });
-  assert.equal((await submitInvalid("applicant-1", { ...input, npsn: "bad" })).ok, false);
+  const submit = createApplicantApplicationSubmission({ store: first.store });
+  assert.equal((await submit("applicant-1", "key", { ...input, npsn: "bad" })).ok, false);
+  assert.equal((await submit("applicant-1", "", input)).ok, false);
   assert.deepEqual(first.events, []);
 
-  const second = recordingStore();
-  second.store.transaction = async (work) => work({
-    async lockApplicant() { return false; }, async getBinding() { return null; }, async createBinding() {}, async nextAttemptNumber() { return 1; }, async createApplication() {},
-  });
-  const result = await createApplicantApplicationSubmission({ store: second.store })("other-1", input);
-  assert.deepEqual(result, { ok: false, code: "forbidden" });
+  const second = recordingStore({ applicant: false });
+  assert.deepEqual(await createApplicantApplicationSubmission({ store: second.store })("other-1", "valid-key", input), { ok: false, code: "forbidden" });
 });
 
-test("an existing binding permits only the same NPSN", async () => {
-  const { store } = recordingStore({ id: "binding-1", canonicalNpsn: "20100001" });
-  const submit = createApplicantApplicationSubmission({ store });
-  assert.deepEqual(await submit("applicant-1", { ...input, npsn: "30100001" }), { ok: false, code: "npsn-conflict" });
+test("same idempotency key and payload returns the existing application", async () => {
+  const initial = recordingStore();
+  const submitInitial = createApplicantApplicationSubmission({ store: initial.store, createId: () => "application-1", now: () => new Date("2026-07-19") });
+  await submitInitial("applicant-1", "retry-key", input);
+  const hash = (initial.writes[1] as { payloadHash: string }).payloadHash;
+
+  const retry = recordingStore({ binding: { id: "binding-1", canonicalNpsn: "20100001" }, idempotent: { id: "application-1", payloadHash: hash, status: "pending" } });
+  const result = await createApplicantApplicationSubmission({ store: retry.store })("applicant-1", "retry-key", input);
+
+  assert.deepEqual(result, { ok: true, applicationId: "application-1", existing: true });
+  assert.ok(!retry.events.includes("create"));
+});
+
+test("same idempotency key with changed payload is a conflict", async () => {
+  const store = recordingStore({ binding: { id: "binding-1", canonicalNpsn: "20100001" }, idempotent: { id: "application-1", payloadHash: "different", status: "pending" } }).store;
+  assert.deepEqual(await createApplicantApplicationSubmission({ store })("applicant-1", "retry-key", input), { ok: false, code: "idempotency-conflict" });
+});
+
+test("an existing pending application blocks a different key", async () => {
+  const store = recordingStore({ binding: { id: "binding-1", canonicalNpsn: "20100001" }, pending: { id: "application-1", payloadHash: "hash", status: "pending" } }).store;
+  assert.deepEqual(await createApplicantApplicationSubmission({ store })("applicant-1", "other-key", input), { ok: false, code: "existing-pending", applicationId: "application-1" });
+});
+
+test("a database-won pending collision returns the existing-pending outcome", async () => {
+  const store = recordingStore({ conflict: "existing-pending" }).store;
+  assert.deepEqual(await createApplicantApplicationSubmission({ store })("applicant-1", "valid-key", input), { ok: false, code: "existing-pending", applicationId: "" });
+});
+
+test("binding and database ownership conflicts expose only a support-safe NPSN conflict", async () => {
+  const bound = recordingStore({ binding: { id: "binding-1", canonicalNpsn: "30100001" } }).store;
+  assert.deepEqual(await createApplicantApplicationSubmission({ store: bound })("applicant-1", "valid-key", input), { ok: false, code: "npsn-conflict" });
+
+  for (const code of ["npsn-conflict", "binding-conflict"] as const) {
+    const racing = recordingStore({ conflict: code }).store;
+    assert.deepEqual(await createApplicantApplicationSubmission({ store: racing })("applicant-1", "valid-key", input), { ok: false, code: "npsn-conflict" });
+  }
 });

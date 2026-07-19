@@ -1,13 +1,14 @@
-import { eq } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+
 import { BookOpen } from "lucide-react";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { ApplicationForm } from "@/app/apply/application-form";
-import { db } from "@/db";
-import { simasApplication } from "@/db/schema";
 import { auth } from "@/lib/auth";
+import { createApplicantPortalQuery, type ApplicantApplicationSnapshot } from "@/lib/applicant-portal";
+import { applicantPortalStore } from "@/lib/applicant-portal-data";
 import { resolveCentralDestination } from "@/lib/central-identity";
 import { getCentralIdentity } from "@/lib/central-identity-data";
 
@@ -17,10 +18,9 @@ export default async function ApplyPage() {
 
   const identity = await getCentralIdentity(session.user.id);
   if (identity.kind !== "applicant") redirect(resolveCentralDestination(identity));
-  const applications = await db
-    .select({ id: simasApplication.id, status: simasApplication.status, schoolName: simasApplication.schoolName })
-    .from(simasApplication)
-    .where(eq(simasApplication.ownerUserId, session.user.id));
+
+  const portal = await createApplicantPortalQuery(applicantPortalStore)(session.user.id);
+  if (!portal.ok) redirect(resolveCentralDestination(identity));
 
   return (
     <ApplyShell>
@@ -29,33 +29,50 @@ export default async function ApplyPage() {
         <h1 className="mt-2 text-3xl font-bold tracking-tight">{session.user.name}</h1>
         <p className="mt-2 text-muted-foreground">{session.user.email}</p>
       </header>
-      {applications.length === 0 ? (
+      {portal.state.kind === "empty" ? (
         <section>
           <h2 className="text-xl font-semibold">Belum ada Pengajuan SIMAS</h2>
-          <p className="mt-2 mb-8 text-muted-foreground">Buat Pengajuan pertama untuk menghubungkan akun ini dengan NPSN sekolah Anda.</p>
-          <ApplicationForm />
+          <p className="mt-2 mb-8 text-muted-foreground">Buat Pengajuan pertama untuk menghubungkan akun ini secara permanen dengan NPSN sekolah Anda.</p>
+          <ApplicationForm idempotencyKey={randomUUID()} />
         </section>
+      ) : portal.state.kind === "pending" ? (
+        <PendingApplication current={portal.state.current} history={portal.state.history} />
       ) : (
-        <section>
-          <h2 className="text-xl font-semibold">Riwayat Pengajuan</h2>
-          <ul className="mt-4 space-y-3">{applications.map((item) => <li className="rounded-md border p-4" key={item.id}>{item.schoolName} — {item.status}</li>)}</ul>
-        </section>
+        <ApplicationHistory history={portal.state.history} />
       )}
     </ApplyShell>
   );
 }
 
-function AnonymousApply() {
+function PendingApplication({ current, history }: { current: ApplicantApplicationSnapshot; history: readonly ApplicantApplicationSnapshot[] }) {
   return (
-    <ApplyShell>
-      <h1 className="text-3xl font-bold tracking-tight">Ajukan Tenant SIMAS untuk sekolah Anda</h1>
-      <p className="mt-4 text-muted-foreground">Masuk dengan akun Pemohon atau daftar terlebih dahulu untuk membuat dan memantau Pengajuan SIMAS.</p>
-      <div className="mt-8 flex gap-4">
-        <Link className="rounded-md bg-primary px-4 py-2 text-primary-foreground" href="/login?intent=apply">Masuk</Link>
-        <Link className="rounded-md border px-4 py-2" href="/register?intent=apply">Daftar sebagai Pemohon</Link>
+    <section className="space-y-8">
+      <div className="rounded-lg border border-primary/30 bg-primary/5 p-5" role="status">
+        <p className="text-sm font-medium text-primary">Status: Menunggu peninjauan Provider</p>
+        <h2 className="mt-2 text-xl font-semibold">Pengajuan #{current.id}</h2>
+        <p className="mt-2 text-sm text-muted-foreground">Snapshot ini bersifat tetap dan tidak dapat diedit atau dibatalkan.</p>
       </div>
-    </ApplyShell>
+      <Snapshot application={current} />
+      <ApplicationHistory history={history} />
+    </section>
   );
+}
+
+function Snapshot({ application }: { application: ApplicantApplicationSnapshot }) {
+  const fields = [
+    ["Nama resmi sekolah", application.schoolName], ["NPSN", application.npsn], ["Jenjang", application.educationLevel],
+    ["Alamat", application.address], ["Penanggung jawab", application.contactName], ["Jabatan", application.contactPosition],
+    ["Email kontak", application.contactEmail], ["WhatsApp", application.contactWhatsapp], ["Catatan kebutuhan", application.needsNote ?? "—"],
+  ];
+  return <div><h3 className="text-lg font-semibold">Snapshot Pengajuan</h3><dl className="mt-4 grid gap-4 sm:grid-cols-2">{fields.map(([label, value]) => <div className="rounded-md border p-3" key={label}><dt className="text-xs font-medium text-muted-foreground">{label}</dt><dd className="mt-1 text-sm">{value}</dd></div>)}</dl></div>;
+}
+
+function ApplicationHistory({ history }: { history: readonly ApplicantApplicationSnapshot[] }) {
+  return <div><h3 className="text-lg font-semibold">Riwayat Pengajuan</h3><ol className="mt-4 space-y-3">{history.map((item) => <li className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-4" key={item.id}><div><p className="font-medium">Percobaan {item.attemptNumber} · #{item.id}</p><p className="text-sm text-muted-foreground">{item.schoolName} · {item.submittedAt.toLocaleString("id-ID", { dateStyle: "long", timeStyle: "short" })}</p></div><span className="rounded-full border px-3 py-1 text-xs font-medium capitalize">{item.status}</span></li>)}</ol></div>;
+}
+
+function AnonymousApply() {
+  return <ApplyShell><h1 className="text-3xl font-bold tracking-tight">Ajukan Tenant SIMAS untuk sekolah Anda</h1><p className="mt-4 text-muted-foreground">Masuk dengan akun Pemohon atau daftar terlebih dahulu untuk membuat dan memantau Pengajuan SIMAS.</p><div className="mt-8 flex gap-4"><Link className="rounded-md bg-primary px-4 py-2 text-primary-foreground" href="/login?intent=apply">Masuk</Link><Link className="rounded-md border px-4 py-2" href="/register?intent=apply">Daftar sebagai Pemohon</Link></div></ApplyShell>;
 }
 
 function ApplyShell({ children }: { children: React.ReactNode }) {

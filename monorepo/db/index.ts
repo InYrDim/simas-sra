@@ -12,3 +12,7 @@ if (!(poolConnection as PoolWithConfig).config) {
 }
 
 export const db = drizzle({ client: poolConnection });
+
+export async function closeDatabasePool() {
+    await poolConnection.end();
+}

@@ -1,6 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 import { auth } from "@/lib/auth";
 import { createApplicantApplicationSubmission } from "@/lib/applicant-application-submission";
@@ -16,7 +17,7 @@ export async function submitSimasApplicationAction(
   if (!session) return { success: false, message: "Silakan masuk sebagai Pemohon untuk mengirim Pengajuan." };
 
   const submit = createApplicantApplicationSubmission({ store: applicantApplicationSubmissionStore });
-  const result = await submit(session.user.id, {
+  const result = await submit(session.user.id, String(formData.get("idempotencyKey") ?? ""), {
     schoolName: formData.get("schoolName"), npsn: formData.get("npsn"), educationLevel: formData.get("educationLevel"),
     address: formData.get("address"), contactName: formData.get("contactName"), contactPosition: formData.get("contactPosition"),
     contactEmail: formData.get("contactEmail"), contactWhatsapp: formData.get("contactWhatsapp"), needsNote: formData.get("needsNote"),
@@ -24,8 +25,10 @@ export async function submitSimasApplicationAction(
 
   if (!result.ok) {
     if ("errors" in result) return { success: false, message: "Periksa kembali data pengajuan Anda.", errors: result.errors };
-    if (result.code === "npsn-conflict") return { success: false, message: "Akun Pemohon ini sudah terikat ke NPSN lain." };
+    if (result.code === "npsn-conflict") return { success: false, message: "NPSN tidak dapat digunakan. Hubungi dukungan Provider untuk bantuan kepemilikan sekolah." };
+    if (result.code === "idempotency-conflict") return { success: false, message: "Permintaan yang sama berisi data berbeda. Muat ulang halaman lalu coba lagi." };
+    if (result.code === "existing-pending") redirect("/apply");
     return { success: false, message: "Akun ini tidak memiliki akses Pemohon." };
   }
-  return { success: true, message: `Pengajuan berhasil dikirim. Nomor pengajuan: ${result.applicationId}` };
+  redirect("/apply");
 }

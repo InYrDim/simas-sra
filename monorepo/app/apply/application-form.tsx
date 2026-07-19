@@ -18,7 +18,7 @@ function FieldError({ message }: { message?: string }) {
   return <p className="text-sm text-destructive">{message}</p>;
 }
 
-export function ApplicationForm() {
+export function ApplicationForm({ idempotencyKey }: { idempotencyKey: string }) {
   const [state, formAction, pending] = useActionState(
     submitSimasApplicationAction,
     initialState,
@@ -35,6 +35,7 @@ export function ApplicationForm() {
 
   return (
     <form action={formAction} className="space-y-8">
+      <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
       {state.message ? (
         <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive" role="alert">
           {state.message}
