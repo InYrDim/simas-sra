@@ -12,7 +12,9 @@ export type ApplicantApplicationSnapshot = Readonly<{
   contactWhatsapp: string;
   needsNote: string | null;
   submittedAt: Date;
-}>;
+    decidedAt: Date | null;
+    rejectionReason: string | null;
+  }>;
 
 export type ApplicantPortalStore = {
   isApplicant(userId: string): Promise<boolean>;
@@ -22,7 +24,8 @@ export type ApplicantPortalStore = {
 type ApplicantPortalState =
   | { kind: "empty" }
   | { kind: "pending"; current: ApplicantApplicationSnapshot; history: readonly ApplicantApplicationSnapshot[] }
-  | { kind: "history"; history: readonly ApplicantApplicationSnapshot[] };
+    | { kind: "rejected"; current: ApplicantApplicationSnapshot; history: readonly ApplicantApplicationSnapshot[] }
+    | { kind: "history"; history: readonly ApplicantApplicationSnapshot[] };
 
 export function createApplicantPortalQuery(store: ApplicantPortalStore) {
   return async (userId: string): Promise<{ ok: true; state: ApplicantPortalState } | { ok: false; code: "forbidden" }> => {
@@ -35,6 +38,7 @@ export function createApplicantPortalQuery(store: ApplicantPortalStore) {
       .sort((left, right) => left.attemptNumber - right.attemptNumber));
     const current = history.at(-1)!;
     if (current.status === "pending") return { ok: true, state: { kind: "pending", current, history } };
-    return { ok: true, state: { kind: "history", history } };
+        if (current.status === "rejected") return { ok: true, state: { kind: "rejected", current, history } };
+        return { ok: true, state: { kind: "history", history } };
   };
 }

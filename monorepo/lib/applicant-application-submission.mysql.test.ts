@@ -7,6 +7,8 @@ import mysql from "mysql2/promise";
 import { closeDatabasePool } from "@/db";
 import { createApplicantApplicationSubmission } from "@/lib/applicant-application-submission";
 import { applicantApplicationSubmissionStore } from "@/lib/applicant-application-submission-data";
+import { applicationDecisionStore } from "@/lib/application-decision-data";
+import { createRejectSimasApplicationCommand } from "@/lib/provider-applications";
 
 const databaseUrl = process.env.DATABASE_URL;
 after(() => closeDatabasePool());
@@ -69,6 +71,77 @@ mysqlTest("MySQL serializes different-key double submit to one pending applicati
     assert.equal(results.filter((result) => !result.ok && "code" in result && result.code === "existing-pending").length, 1);
     const [applications] = await data.connection.execute<mysql.RowDataPacket[]>("SELECT `id` FROM `simas_application` WHERE `owner_user_id` = ? AND `status` = 'pending'", [data.userIds[0]]);
     assert.equal(applications.length, 1);
+  } finally { await data.cleanup(); }
+});
+
+mysqlTest("MySQL makes identical rejection retries idempotent and preserves the first decision", async () => {
+  const data = await fixture();
+  try {
+    const submit = createApplicantApplicationSubmission({ store: applicantApplicationSubmissionStore });
+    const submitted = await submit(data.userIds[0], `key-${randomUUID()}`, { ...input, npsn: "20888886" });
+    assert.equal(submitted.ok, true);
+    if (!submitted.ok) return;
+    const reject = createRejectSimasApplicationCommand({
+      authorize: async () => ({ userId: data.providerId }),
+      store: applicationDecisionStore,
+      now: () => new Date("2026-07-19T03:00:00Z"),
+    });
+
+    assert.deepEqual(await reject({ applicationId: submitted.applicationId, reason: "Data perlu diperbaiki" }), { ok: true, status: "rejected" });
+    assert.deepEqual(await reject({ applicationId: submitted.applicationId, reason: " Data  perlu diperbaiki " }), { ok: true, status: "already-rejected" });
+    assert.deepEqual(await reject({ applicationId: submitted.applicationId, reason: "Alasan berbeda" }), { ok: false, code: "decision-conflict", status: "rejected" });
+
+    const [rows] = await data.connection.execute<mysql.RowDataPacket[]>("SELECT `status`, `rejection_reason`, `decided_by_provider_admin_id`, `decided_at` FROM `simas_application` WHERE `id` = ?", [submitted.applicationId]);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].status, "rejected");
+    assert.equal(rows[0].rejection_reason, "Data perlu diperbaiki");
+    assert.equal(rows[0].decided_by_provider_admin_id, data.providerId);
+    assert.equal(new Date(rows[0].decided_at).toISOString(), "2026-07-19T03:00:00.000Z");
+  } finally { await data.cleanup(); }
+});
+
+mysqlTest("MySQL serializes concurrent resubmission to one monotonic next attempt", async () => {
+  const data = await fixture();
+  try {
+    const submit = createApplicantApplicationSubmission({ store: applicantApplicationSubmissionStore });
+    const first = await submit(data.userIds[0], `key-${randomUUID()}`, { ...input, npsn: "20888887" });
+    assert.equal(first.ok, true);
+    if (!first.ok) return;
+    const reject = createRejectSimasApplicationCommand({ authorize: async () => ({ userId: data.providerId }), store: applicationDecisionStore });
+    assert.equal((await reject({ applicationId: first.applicationId, reason: "Perbaiki data" })).ok, true);
+
+    const results = await Promise.all([
+      submit(data.userIds[0], `key-${randomUUID()}`, { ...input, npsn: "20888887", address: "Alamat revisi A" }),
+      submit(data.userIds[0], `key-${randomUUID()}`, { ...input, npsn: "20888887", address: "Alamat revisi B" }),
+    ]);
+
+    assert.equal(results.filter((result) => result.ok).length, 1);
+    assert.equal(results.filter((result) => !result.ok && "code" in result && result.code === "existing-pending").length, 1);
+    const [rows] = await data.connection.execute<mysql.RowDataPacket[]>("SELECT `attempt_number`, `status` FROM `simas_application` WHERE `owner_user_id` = ? ORDER BY `attempt_number`", [data.userIds[0]]);
+    assert.deepEqual(rows.map((row) => [row.attempt_number, row.status]), [[1, "rejected"], [2, "pending"]]);
+  } finally { await data.cleanup(); }
+});
+
+mysqlTest("MySQL reject versus submit leaves one legal complete history", async () => {
+  const data = await fixture();
+  try {
+    const submit = createApplicantApplicationSubmission({ store: applicantApplicationSubmissionStore });
+    const first = await submit(data.userIds[0], `key-${randomUUID()}`, { ...input, npsn: "20888888" });
+    assert.equal(first.ok, true);
+    if (!first.ok) return;
+    const reject = createRejectSimasApplicationCommand({ authorize: async () => ({ userId: data.providerId }), store: applicationDecisionStore });
+
+    const [rejection, resubmission] = await Promise.all([
+      reject({ applicationId: first.applicationId, reason: "Perbaiki data" }),
+      submit(data.userIds[0], `key-${randomUUID()}`, { ...input, npsn: "20888888", address: "Alamat revisi" }),
+    ]);
+
+    assert.equal(rejection.ok, true);
+    assert.equal(resubmission.ok || ("code" in resubmission && resubmission.code === "existing-pending"), true);
+    const [rows] = await data.connection.execute<mysql.RowDataPacket[]>("SELECT `attempt_number`, `status`, `rejection_reason` FROM `simas_application` WHERE `owner_user_id` = ? ORDER BY `attempt_number`", [data.userIds[0]]);
+    assert.deepEqual([rows[0].attempt_number, rows[0].status, rows[0].rejection_reason], [1, "rejected", "Perbaiki data"]);
+        assert.equal(rows.length, resubmission.ok ? 2 : 1);
+        if (resubmission.ok) assert.deepEqual([rows[1].attempt_number, rows[1].status, rows[1].rejection_reason], [2, "pending", null]);
   } finally { await data.cleanup(); }
 });
 

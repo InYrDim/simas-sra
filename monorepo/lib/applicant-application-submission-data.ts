@@ -1,4 +1,4 @@
-import { and, eq, max } from "drizzle-orm";
+import { and, desc, eq, max } from "drizzle-orm";
 
 import { db } from "@/db";
 import { applicant, applicantSchoolBinding, simasApplication } from "@/db/schema";
@@ -35,8 +35,12 @@ export const applicantApplicationSubmissionStore: ApplicantApplicationSubmission
     for (let attempt = 0; ; attempt += 1) {
       try {
         return await db.transaction((tx) => work({
-        async lockApplicant(userId) {
-          const [row] = await tx.select({ userId: applicant.userId }).from(applicant).where(eq(applicant.userId, userId)).limit(1).for("update");
+        async isApplicant(userId) {
+                  const [row] = await tx.select({ userId: applicant.userId }).from(applicant).where(eq(applicant.userId, userId)).limit(1);
+                  return row !== undefined;
+                },
+                async lockApplicant(userId) {
+                  const [row] = await tx.select({ userId: applicant.userId }).from(applicant).where(eq(applicant.userId, userId)).limit(1).for("update");
           return row !== undefined;
         },
         async getBinding(userId) {
@@ -50,7 +54,8 @@ export const applicantApplicationSubmissionStore: ApplicantApplicationSubmission
           const [row] = await tx.select({ id: simasApplication.id, payloadHash: simasApplication.payloadHash })
             .from(simasApplication)
             .where(and(eq(simasApplication.ownerUserId, userId), eq(simasApplication.idempotencyKey, idempotencyKey)))
-            .limit(1);
+                        .limit(1)
+                        .for("update");
           return row?.payloadHash ? { ...row, payloadHash: row.payloadHash } : null;
         },
         async findPending(bindingId) {
@@ -61,7 +66,16 @@ export const applicantApplicationSubmissionStore: ApplicantApplicationSubmission
             .for("update");
           return row?.payloadHash ? { ...row, payloadHash: row.payloadHash } : null;
         },
-        async nextAttemptNumber(bindingId) {
+        async findLatest(bindingId) {
+                  const [row] = await tx.select({ id: simasApplication.id, payloadHash: simasApplication.payloadHash, status: simasApplication.status })
+                    .from(simasApplication)
+                    .where(eq(simasApplication.bindingId, bindingId))
+                    .orderBy(desc(simasApplication.attemptNumber))
+                    .limit(1)
+                    .for("update");
+                  return row?.payloadHash ? { ...row, payloadHash: row.payloadHash } : null;
+                },
+                async nextAttemptNumber(bindingId) {
           const [row] = await tx.select({ value: max(simasApplication.attemptNumber) }).from(simasApplication).where(eq(simasApplication.bindingId, bindingId));
           return (row?.value ?? 0) + 1;
         },

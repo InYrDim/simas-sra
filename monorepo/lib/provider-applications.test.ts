@@ -29,9 +29,10 @@ function recordingStore(application: LockedApplicationDecision | null) {
           return application;
         },
         async reject(decision) {
-          events.push("reject");
-          decisions.push(decision);
-        },
+                  events.push("reject");
+                  decisions.push(decision);
+                  return true;
+                },
       });
     },
   };
@@ -113,17 +114,35 @@ test("rejection requires a non-empty reason before mutation", async () => {
   assert.deepEqual(decisions, []);
 });
 
-test("terminal application decisions cannot transition again", async () => {
-  for (const status of ["approved", "rejected"] as const) {
-    const { decisions, store } = recordingStore({ id: "application-1", status });
-    const reject = createRejectSimasApplicationCommand({
-      authorize: async () => principal,
-      store,
-    });
+test("an identical rejection retry is idempotent without overwriting decision metadata", async () => {
+  const { decisions, store } = recordingStore({
+    id: "application-1",
+    status: "rejected",
+    decidedByProviderAdminId: "provider-1",
+    rejectionReason: "Tidak memenuhi syarat",
+  });
+  const reject = createRejectSimasApplicationCommand({ authorize: async () => principal, store });
+
+  assert.deepEqual(await reject({ applicationId: "application-1", reason: " Tidak  memenuhi syarat " }), {
+    ok: true,
+    status: "already-rejected",
+  });
+  assert.deepEqual(decisions, []);
+});
+
+test("a different rejection or an approved application is a decision conflict", async () => {
+  const cases: LockedApplicationDecision[] = [
+    { id: "application-1", status: "approved", decidedByProviderAdminId: "provider-1", rejectionReason: null },
+    { id: "application-1", status: "rejected", decidedByProviderAdminId: "provider-1", rejectionReason: "Alasan lama" },
+    { id: "application-1", status: "rejected", decidedByProviderAdminId: "provider-lain", rejectionReason: "Tidak memenuhi syarat" },
+  ];
+  for (const application of cases) {
+    const { decisions, store } = recordingStore(application);
+    const reject = createRejectSimasApplicationCommand({ authorize: async () => principal, store });
 
     const result = await reject({ applicationId: "application-1", reason: "Tidak memenuhi syarat" });
 
-    assert.deepEqual(result, { ok: false, code: "decision-conflict", status });
+    assert.deepEqual(result, { ok: false, code: "decision-conflict", status: application.status });
     assert.deepEqual(decisions, []);
   }
 });

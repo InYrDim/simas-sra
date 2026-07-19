@@ -3,10 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import {
-  applicationApprovalStore,
-  applicationDecisionStore,
-} from "@/lib/provider-application-data";
+import { applicationDecisionStore } from "@/lib/application-decision-data";
+import { applicationApprovalStore } from "@/lib/provider-application-data";
 import {
   createApproveSimasApplicationCommand,
   createRejectSimasApplicationCommand,

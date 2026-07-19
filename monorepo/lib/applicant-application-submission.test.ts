@@ -28,7 +28,9 @@ function recordingStore(options: {
   binding?: { id: string; canonicalNpsn: string } | null;
   idempotent?: StoredApplication | null;
   pending?: StoredApplication | null;
-  applicant?: boolean;
+    latest?: StoredApplication | null;
+    nextAttempt?: number;
+    applicant?: boolean;
   conflict?: SubmissionConflict["code"];
 } = {}) {
   const events: string[] = [];
@@ -38,12 +40,14 @@ function recordingStore(options: {
       events.push("transaction");
       if (options.conflict) throw new SubmissionConflict(options.conflict);
       return work({
-        async lockApplicant(userId) { events.push(`lock:${userId}`); return options.applicant ?? true; },
+        async isApplicant() { return options.applicant ?? true; },
+                async lockApplicant(userId) { events.push(`lock:${userId}`); return options.applicant ?? true; },
         async getBinding() { return options.binding ?? null; },
         async createBinding(value) { events.push("bind"); writes.push(value); },
         async findByIdempotencyKey() { return options.idempotent ?? null; },
         async findPending() { return options.pending ?? null; },
-        async nextAttemptNumber() { return 1; },
+                async findLatest() { return options.latest ?? null; },
+                async nextAttemptNumber() { return options.nextAttempt ?? 1; },
         async createApplication(value) { events.push("create"); writes.push(value); },
       });
     },
@@ -124,6 +128,34 @@ test("same idempotency key with changed payload is a conflict", async () => {
 test("an existing pending application blocks a different key", async () => {
   const store = recordingStore({ binding: { id: "binding-1", canonicalNpsn: "20100001" }, pending: { id: "application-1", payloadHash: "hash", status: "pending" } }).store;
   assert.deepEqual(await createApplicantApplicationSubmission({ store })("applicant-1", "other-key", input), { ok: false, code: "existing-pending", applicationId: "application-1" });
+});
+
+test("a rejected Pemohon can submit a new immutable attempt for the bound canonical NPSN", async () => {
+  const previous = { id: "application-1", payloadHash: "old", status: "rejected" as const };
+  const { store, writes } = recordingStore({
+    binding: { id: "binding-1", canonicalNpsn: "20100001" },
+    latest: previous,
+    nextAttempt: 2,
+  });
+
+  const result = await createApplicantApplicationSubmission({ store, createId: () => "application-2" })("applicant-1", "retry-key-2", input);
+
+  assert.deepEqual(result, { ok: true, applicationId: "application-2", existing: false });
+  assert.equal((writes[0] as { attemptNumber: number }).attemptNumber, 2);
+  assert.deepEqual(previous, { id: "application-1", payloadHash: "old", status: "rejected" });
+});
+
+test("a final application that was not rejected cannot be resubmitted", async () => {
+  const { store, writes } = recordingStore({
+    binding: { id: "binding-1", canonicalNpsn: "20100001" },
+    latest: { id: "application-1", payloadHash: "old", status: "approved" },
+  });
+
+  assert.deepEqual(await createApplicantApplicationSubmission({ store })("applicant-1", "retry-key-2", input), {
+    ok: false,
+    code: "resubmit-conflict",
+  });
+  assert.deepEqual(writes, []);
 });
 
 test("a database-won pending collision returns the existing-pending outcome", async () => {

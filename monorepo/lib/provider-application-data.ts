@@ -24,7 +24,6 @@ import {
 import {
   ApprovalConflictError,
   type ApplicationApprovalStore,
-  type ApplicationDecisionStore,
   type ApplicationStatus,
   type ApprovalConflictField,
 } from "@/lib/provider-applications";
@@ -154,6 +153,8 @@ export async function getProviderApplicationDetail(applicationId: string) {
   };
 }
 
+
+
 function duplicateApprovalField(error: unknown): ApprovalConflictField | null {
   const mysqlError = error as { code?: string; message?: string };
   if (mysqlError.code !== "ER_DUP_ENTRY") return null;
@@ -266,39 +267,5 @@ export const applicationApprovalStore: ApplicationApprovalStore = {
       if (field) throw new ApprovalConflictError(field);
       throw error;
     }
-  },
-};
-
-export const applicationDecisionStore: ApplicationDecisionStore = {
-  transaction(work) {
-    return db.transaction(async (tx) =>
-      work({
-        async lock(applicationId) {
-          const [application] = await tx
-            .select({ id: simasApplication.id, status: simasApplication.status })
-            .from(simasApplication)
-            .where(eq(simasApplication.id, applicationId))
-            .limit(1)
-            .for("update");
-          return application ?? null;
-        },
-        async reject(decision) {
-          await tx
-            .update(simasApplication)
-            .set({
-              status: "rejected",
-              decidedAt: decision.decidedAt,
-              decidedByProviderAdminId: decision.providerAdminId,
-              rejectionReason: decision.reason,
-            })
-            .where(
-              and(
-                eq(simasApplication.id, decision.applicationId),
-                eq(simasApplication.status, "pending"),
-              ),
-            );
-        },
-      }),
-    );
   },
 };

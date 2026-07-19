@@ -24,6 +24,8 @@ export const applicantPortalStore: ApplicantPortalStore = {
       contactWhatsapp: simasApplication.contactWhatsapp,
       needsNote: simasApplication.needsNote,
       submittedAt: simasApplication.submittedAt,
+            decidedAt: simasApplication.decidedAt,
+            rejectionReason: simasApplication.rejectionReason,
     }).from(simasApplication)
       .where(eq(simasApplication.ownerUserId, userId))
       .orderBy(asc(simasApplication.attemptNumber));

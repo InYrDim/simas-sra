@@ -17,6 +17,8 @@ const pending = {
   contactWhatsapp: "+6281234567890",
   needsNote: null,
   submittedAt: new Date("2026-07-19T00:00:00Z"),
+    decidedAt: null,
+    rejectionReason: null,
 };
 
 test("portal query rejects a user without an active Pemohon identity", async () => {
@@ -27,6 +29,23 @@ test("portal query rejects a user without an active Pemohon identity", async () 
 test("portal query returns the empty state for a Pemohon without Pengajuan", async () => {
   const store: ApplicantPortalStore = { async isApplicant() { return true; }, async listApplications() { return []; } };
   assert.deepEqual(await createApplicantPortalQuery(store)("applicant-1"), { ok: true, state: { kind: "empty" } });
+});
+
+test("portal query exposes a rejected snapshot, reason, and immediate resubmit state", async () => {
+  const rejected = {
+    ...pending,
+    id: "application-1",
+    attemptNumber: 1,
+    status: "rejected" as const,
+    decidedAt: new Date("2026-07-19T01:00:00Z"),
+    rejectionReason: "Perbaiki data penanggung jawab.",
+  };
+  const store: ApplicantPortalStore = { async isApplicant() { return true; }, async listApplications() { return [rejected]; } };
+
+  const result = await createApplicantPortalQuery(store)("applicant-1");
+
+  assert.deepEqual(result, { ok: true, state: { kind: "rejected", current: rejected, history: [rejected] } });
+  if (result.ok && result.state.kind === "rejected") assert.equal(Object.isFrozen(result.state.current), true);
 });
 
 test("portal query exposes a read-only pending snapshot and attempt-ordered history", async () => {

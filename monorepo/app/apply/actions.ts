@@ -28,7 +28,8 @@ export async function submitSimasApplicationAction(
     if (result.code === "npsn-conflict") return { success: false, message: "NPSN tidak dapat digunakan. Hubungi dukungan Provider untuk bantuan kepemilikan sekolah." };
     if (result.code === "idempotency-conflict") return { success: false, message: "Permintaan yang sama berisi data berbeda. Muat ulang halaman lalu coba lagi." };
     if (result.code === "existing-pending") redirect("/apply");
-    return { success: false, message: "Akun ini tidak memiliki akses Pemohon." };
+        if (result.code === "resubmit-conflict") return { success: false, message: "Pengajuan baru hanya dapat dibuat setelah Pengajuan terakhir ditolak." };
+        return { success: false, message: "Akun ini tidak memiliki akses Pemohon." };
   }
   redirect("/apply");
 }

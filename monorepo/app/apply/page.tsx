@@ -37,6 +37,8 @@ export default async function ApplyPage() {
         </section>
       ) : portal.state.kind === "pending" ? (
         <PendingApplication current={portal.state.current} history={portal.state.history} />
+      ) : portal.state.kind === "rejected" ? (
+        <RejectedApplication current={portal.state.current} history={portal.state.history} />
       ) : (
         <ApplicationHistory history={portal.state.history} />
       )}
@@ -54,6 +56,27 @@ function PendingApplication({ current, history }: { current: ApplicantApplicatio
       </div>
       <Snapshot application={current} />
       <ApplicationHistory history={history} />
+    </section>
+  );
+}
+
+function RejectedApplication({ current, history }: { current: ApplicantApplicationSnapshot; history: readonly ApplicantApplicationSnapshot[] }) {
+  return (
+    <section className="space-y-8">
+      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-5" role="status">
+        <p className="text-sm font-medium text-destructive">Status: Ditolak</p>
+        <h2 className="mt-2 text-xl font-semibold">Percobaan {current.attemptNumber}</h2>
+        <p className="mt-3 font-medium">Alasan Provider</p>
+        <p className="mt-1 text-sm">{current.rejectionReason}</p>
+        <p className="mt-2 text-xs text-muted-foreground">Snapshot yang ditolak tetap tersimpan dan tidak akan diubah oleh pengajuan baru.</p>
+      </div>
+      <Snapshot application={current} />
+      <ApplicationHistory history={history} />
+      <div>
+        <h3 className="text-lg font-semibold">Ajukan kembali</h3>
+        <p className="mt-2 mb-6 text-sm text-muted-foreground">Perbaiki data yang diperlukan. NPSN tetap terikat ke akun ini.</p>
+        <ApplicationForm idempotencyKey={randomUUID()} initial={current} />
+      </div>
     </section>
   );
 }

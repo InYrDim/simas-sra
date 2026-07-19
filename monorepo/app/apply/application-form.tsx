@@ -18,7 +18,23 @@ function FieldError({ message }: { message?: string }) {
   return <p className="text-sm text-destructive">{message}</p>;
 }
 
-export function ApplicationForm({ idempotencyKey }: { idempotencyKey: string }) {
+export function ApplicationForm({
+  idempotencyKey,
+  initial,
+}: {
+  idempotencyKey: string;
+  initial?: Readonly<{
+      schoolName: string;
+      npsn: string;
+      educationLevel: string;
+      address: string;
+      contactName: string;
+      contactPosition: string;
+      contactEmail: string;
+      contactWhatsapp: string;
+      needsNote: string | null;
+    }>;
+}) {
   const [state, formAction, pending] = useActionState(
     submitSimasApplicationAction,
     initialState,
@@ -46,22 +62,22 @@ export function ApplicationForm({ idempotencyKey }: { idempotencyKey: string }) 
         <legend className="mb-4 text-lg font-semibold">Identitas sekolah</legend>
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="schoolName">Nama resmi sekolah</Label>
-          <Input id="schoolName" name="schoolName" maxLength={255} required />
+          <Input id="schoolName" name="schoolName" maxLength={255} defaultValue={initial?.schoolName ?? ""} required />
           <FieldError message={state.errors?.schoolName} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="npsn">NPSN</Label>
-          <Input id="npsn" name="npsn" inputMode="numeric" maxLength={20} required />
+          <Input id="npsn" name="npsn" inputMode="numeric" maxLength={20} defaultValue={initial?.npsn ?? ""} readOnly={Boolean(initial?.npsn)} required />
           <FieldError message={state.errors?.npsn} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="educationLevel">Jenjang pendidikan</Label>
-          <Input id="educationLevel" name="educationLevel" maxLength={64} placeholder="Contoh: SMA" required />
+          <Input id="educationLevel" name="educationLevel" maxLength={64} placeholder="Contoh: SMA" defaultValue={initial?.educationLevel ?? ""} required />
           <FieldError message={state.errors?.educationLevel} />
         </div>
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="address">Alamat sekolah</Label>
-          <Textarea id="address" name="address" required />
+          <Textarea id="address" name="address" defaultValue={initial?.address ?? ""} required />
           <FieldError message={state.errors?.address} />
         </div>
       </fieldset>
@@ -70,27 +86,27 @@ export function ApplicationForm({ idempotencyKey }: { idempotencyKey: string }) 
         <legend className="mb-4 text-lg font-semibold">Kontak penanggung jawab</legend>
         <div className="space-y-2">
           <Label htmlFor="contactName">Nama penanggung jawab</Label>
-          <Input id="contactName" name="contactName" maxLength={255} required />
+          <Input id="contactName" name="contactName" maxLength={255} defaultValue={initial?.contactName ?? ""} required />
           <FieldError message={state.errors?.contactName} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="contactPosition">Jabatan</Label>
-          <Input id="contactPosition" name="contactPosition" maxLength={255} required />
+          <Input id="contactPosition" name="contactPosition" maxLength={255} defaultValue={initial?.contactPosition ?? ""} required />
           <FieldError message={state.errors?.contactPosition} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="contactEmail">Email</Label>
-          <Input id="contactEmail" name="contactEmail" type="email" maxLength={255} required />
+          <Input id="contactEmail" name="contactEmail" type="email" maxLength={255} defaultValue={initial?.contactEmail ?? ""} required />
           <FieldError message={state.errors?.contactEmail} />
         </div>
         <div className="space-y-2">
           <Label htmlFor="contactWhatsapp">WhatsApp</Label>
-          <Input id="contactWhatsapp" name="contactWhatsapp" type="tel" maxLength={32} placeholder="0812 3456 7890" required />
+          <Input id="contactWhatsapp" name="contactWhatsapp" type="tel" maxLength={32} placeholder="0812 3456 7890" defaultValue={initial?.contactWhatsapp ?? ""} required />
           <FieldError message={state.errors?.contactWhatsapp} />
         </div>
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="needsNote">Catatan kebutuhan (opsional)</Label>
-          <Textarea id="needsNote" name="needsNote" />
+          <Textarea id="needsNote" name="needsNote" defaultValue={initial?.needsNote ?? ""} />
           <FieldError message={state.errors?.needsNote} />
         </div>
       </fieldset>

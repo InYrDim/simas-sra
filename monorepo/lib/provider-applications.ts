@@ -13,6 +13,8 @@ export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
 export type LockedApplicationDecision = Readonly<{
   id: string;
   status: ApplicationStatus;
+  decidedByProviderAdminId?: string | null;
+  rejectionReason?: string | null;
 }>;
 
 export type RejectionDecision = Readonly<{
@@ -24,7 +26,7 @@ export type RejectionDecision = Readonly<{
 
 export type ApplicationDecisionTransaction = Readonly<{
   lock(applicationId: string): Promise<LockedApplicationDecision | null>;
-  reject(decision: RejectionDecision): Promise<void>;
+  reject(decision: RejectionDecision): Promise<boolean>;
 }>;
 
 export type ApplicationDecisionStore = Readonly<{
@@ -85,7 +87,7 @@ export type ApproveSimasApplicationResult =
   | { ok: false; code: "invalid-input"; errors: { applicationId?: string; subdomain?: string } };
 
 export type RejectSimasApplicationResult =
-  | { ok: true; status: "rejected" }
+  | { ok: true; status: "rejected" | "already-rejected" }
   | { ok: false; code: "not-found" }
   | { ok: false; code: "decision-conflict"; status: "approved" | "rejected" }
   | {
@@ -254,6 +256,11 @@ export function createRejectSimasApplicationCommand({
     return store.transaction(async (tx) => {
       const application = await tx.lock(applicationId);
       if (!application) return { ok: false, code: "not-found" } as const;
+      if (application.status === "rejected"
+        && application.decidedByProviderAdminId === principal.userId
+        && application.rejectionReason === reason) {
+        return { ok: true, status: "already-rejected" } as const;
+      }
       if (application.status !== "pending") {
         return {
           ok: false,
@@ -262,12 +269,13 @@ export function createRejectSimasApplicationCommand({
         } as const;
       }
 
-      await tx.reject({
+      const updated = await tx.reject({
         applicationId,
         providerAdminId: principal.userId,
         reason,
         decidedAt: now(),
       });
+      if (!updated) return { ok: false, code: "decision-conflict", status: "rejected" } as const;
 
       return { ok: true, status: "rejected" } as const;
     });
