@@ -28,12 +28,16 @@ _Avoid_: Onboarding Provider, onboarding Tenant
 Proses yang dilakukan sekolah untuk menginisialisasi SIMAS bagi sekolahnya setelah ruang kerja tersedia.
 _Avoid_: Penyediaan Tenant, pendaftaran oleh Provider
 
+**Pemohon**:
+Pengguna yang mendaftar melalui jalur publik untuk mewakili satu sekolah serta membuat dan mengelola Pengajuan SIMAS, tetapi belum menjadi School Admin. Pengguna menjadi Pemohon sejak registrasi, meskipun belum mengirim Pengajuan pertamanya.
+_Avoid_: Tenant, School Admin, akun
+
 **Pengajuan SIMAS**:
 Permohonan sekolah kepada Provider untuk memperoleh Tenant SIMAS. Pengajuan yang ditolak tidak diubah atau dibuka kembali; sekolah mengirim Pengajuan SIMAS baru.
 _Avoid_: Tenant, registrasi pengguna, Onboarding Tenant
 
 **Kredensial sementara**:
-Rahasia sekali pakai yang diterbitkan Provider untuk login awal School Admin dan wajib diganti sebelum School Admin dapat menggunakan Tenant.
+Rahasia sekali pakai yang diterbitkan Provider untuk login awal School Admin yang akunnya dibuat oleh Provider dan wajib diganti sebelum School Admin dapat menggunakan Tenant. Kredensial ini tidak diterbitkan kepada Pemohon yang dipromosikan menjadi School Admin karena akun tersebut mempertahankan kredensial yang sudah dimilikinya.
 _Avoid_: kata sandi permanen, undangan Provider
 
 **Trial Tenant**:
