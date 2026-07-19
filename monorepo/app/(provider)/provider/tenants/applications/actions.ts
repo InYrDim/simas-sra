@@ -15,17 +15,12 @@ export type ApprovalActionState =
   | { status: "idle" }
   | { status: "error"; message: string; subdomain?: string }
   | { status: "already-approved"; tenantId: string }
-  | {
-      status: "approved";
-      tenantId: string;
-      schoolAdminEmail: string;
-      temporaryCredential: string;
-    };
+  | { status: "approved"; tenantId: string };
 
 const CONFLICT_MESSAGES = {
   npsn: "NPSN sudah digunakan Tenant lain.",
   subdomain: "Subdomain sudah digunakan Tenant lain.",
-  email: "Email School Admin sudah digunakan.",
+
   concurrent: "Persetujuan bertabrakan dengan perubahan lain. Muat ulang halaman dan coba lagi.",
 } as const;
 
@@ -49,7 +44,7 @@ export async function approveSimasApplicationAction(
         : result.code === "not-found"
           ? "Pengajuan SIMAS tidak ditemukan."
           : result.code === "decision-conflict"
-            ? "Pengajuan SIMAS yang ditolak tidak dapat disetujui."
+            ? "Pengajuan SIMAS ini sudah memiliki keputusan berbeda dan tidak dapat diubah."
             : CONFLICT_MESSAGES[result.field];
     return {
       status: "error",
@@ -63,12 +58,7 @@ export async function approveSimasApplicationAction(
   if (result.status === "already-approved") {
     return { status: "already-approved", tenantId: result.tenantId };
   }
-  return {
-    status: "approved",
-    tenantId: result.tenantId,
-    schoolAdminEmail: result.schoolAdminEmail,
-    temporaryCredential: result.temporaryCredential,
-  };
+  return { status: "approved", tenantId: result.tenantId };
 }
 
 export async function rejectSimasApplicationAction(

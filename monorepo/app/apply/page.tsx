@@ -17,15 +17,13 @@ export default async function ApplyPage() {
   if (!session) return <AnonymousApply />;
 
   const identity = await getCentralIdentity(session.user.id);
-  if (identity.kind !== "applicant") redirect(resolveCentralDestination(identity));
-
   const portal = await createApplicantPortalQuery(applicantPortalStore)(session.user.id);
   if (!portal.ok) redirect(resolveCentralDestination(identity));
 
   return (
     <ApplyShell>
       <header className="mb-8">
-        <p className="text-sm font-medium text-primary">Akun Pemohon</p>
+        <p className="text-sm font-medium text-primary">{portal.state.kind === "approved" ? "Akun School Admin" : "Akun Pemohon"}</p>
         <h1 className="mt-2 text-3xl font-bold tracking-tight">{session.user.name}</h1>
         <p className="mt-2 text-muted-foreground">{session.user.email}</p>
       </header>
@@ -39,10 +37,27 @@ export default async function ApplyPage() {
         <PendingApplication current={portal.state.current} history={portal.state.history} />
       ) : portal.state.kind === "rejected" ? (
         <RejectedApplication current={portal.state.current} history={portal.state.history} />
+      ) : portal.state.kind === "approved" ? (
+        <ApprovedApplication current={portal.state.current} history={portal.state.history} tenant={portal.state.tenant} />
       ) : (
         <ApplicationHistory history={portal.state.history} />
       )}
     </ApplyShell>
+  );
+}
+
+function ApprovedApplication({ current, history, tenant }: { current: ApplicantApplicationSnapshot; history: readonly ApplicantApplicationSnapshot[]; tenant: Readonly<{ id: string; name: string; href: string }> }) {
+  return (
+    <section className="space-y-8">
+      <div className="rounded-lg border border-primary/30 bg-primary/5 p-5" role="status">
+        <p className="text-sm font-medium text-primary">Status: Disetujui</p>
+        <h2 className="mt-2 text-xl font-semibold">Pengajuan #{current.id}</h2>
+        <p className="mt-2 text-sm text-muted-foreground">Riwayat Pengajuan ini bersifat tetap dan tidak dapat diubah.</p>
+        <Link className="mt-5 inline-flex rounded-md bg-primary px-4 py-2 text-primary-foreground" href={tenant.href}>Masuk ke {tenant.name}</Link>
+      </div>
+      <Snapshot application={current} />
+      <ApplicationHistory history={history} />
+    </section>
   );
 }
 

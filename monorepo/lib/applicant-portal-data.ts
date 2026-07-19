@@ -1,13 +1,30 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { applicant, simasApplication } from "@/db/schema";
+import { applicant, simasApplication, tenant, user } from "@/db/schema";
 import type { ApplicantPortalStore } from "@/lib/applicant-portal";
 
 export const applicantPortalStore: ApplicantPortalStore = {
   async isApplicant(userId) {
     const [row] = await db.select({ userId: applicant.userId }).from(applicant).where(eq(applicant.userId, userId)).limit(1);
     return row !== undefined;
+  },
+  async findPromotedTenant(userId) {
+    const [row] = await db.select({
+      id: tenant.id,
+      name: tenant.name,
+      domain: tenant.domain,
+    }).from(tenant)
+      .innerJoin(simasApplication, eq(tenant.sourceApplicationId, simasApplication.id))
+      .innerJoin(user, eq(user.tenantId, tenant.id))
+      .where(and(
+        eq(simasApplication.ownerUserId, userId),
+        eq(simasApplication.status, "approved"),
+        eq(user.id, userId),
+        eq(user.tenantRole, "school-admin"),
+      ))
+      .limit(1);
+    return row ?? null;
   },
   async listApplications(userId) {
     const rows = await db.select({

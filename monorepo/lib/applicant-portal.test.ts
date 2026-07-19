@@ -21,13 +21,42 @@ const pending = {
     rejectionReason: null,
 };
 
+test("portal query returns approved history and a tenant link for the promoted School Admin", async () => {
+  const approved = {
+    ...pending,
+    status: "approved" as const,
+    decidedAt: new Date("2026-07-19T02:00:00Z"),
+  };
+  const store: ApplicantPortalStore = {
+    async isApplicant() { return false; },
+    async findPromotedTenant() { return { id: "tenant-1", name: "SMA Batunapara", domain: "sma-batunapara" }; },
+    async listApplications() { return [approved]; },
+  };
+
+  const result = await createApplicantPortalQuery(store)("school-admin-1");
+
+  assert.deepEqual(result, {
+    ok: true,
+    state: {
+      kind: "approved",
+      current: approved,
+      history: [approved],
+      tenant: { id: "tenant-1", name: "SMA Batunapara", href: "/sma-batunapara/dashboard" },
+    },
+  });
+  if (result.ok && result.state.kind === "approved") {
+    assert.equal(Object.isFrozen(result.state.current), true);
+    assert.equal(Object.isFrozen(result.state.history), true);
+  }
+});
+
 test("portal query rejects a user without an active Pemohon identity", async () => {
-  const store: ApplicantPortalStore = { async isApplicant() { return false; }, async listApplications() { throw new Error("must not load"); } };
+  const store: ApplicantPortalStore = { async isApplicant() { return false; }, async findPromotedTenant() { return null; }, async listApplications() { throw new Error("must not load"); } };
   assert.deepEqual(await createApplicantPortalQuery(store)("other-1"), { ok: false, code: "forbidden" });
 });
 
 test("portal query returns the empty state for a Pemohon without Pengajuan", async () => {
-  const store: ApplicantPortalStore = { async isApplicant() { return true; }, async listApplications() { return []; } };
+  const store: ApplicantPortalStore = { async isApplicant() { return true; }, async findPromotedTenant() { return null; }, async listApplications() { return []; } };
   assert.deepEqual(await createApplicantPortalQuery(store)("applicant-1"), { ok: true, state: { kind: "empty" } });
 });
 
@@ -40,7 +69,7 @@ test("portal query exposes a rejected snapshot, reason, and immediate resubmit s
     decidedAt: new Date("2026-07-19T01:00:00Z"),
     rejectionReason: "Perbaiki data penanggung jawab.",
   };
-  const store: ApplicantPortalStore = { async isApplicant() { return true; }, async listApplications() { return [rejected]; } };
+  const store: ApplicantPortalStore = { async isApplicant() { return true; }, async findPromotedTenant() { return null; }, async listApplications() { return [rejected]; } };
 
   const result = await createApplicantPortalQuery(store)("applicant-1");
 
@@ -50,7 +79,7 @@ test("portal query exposes a rejected snapshot, reason, and immediate resubmit s
 
 test("portal query exposes a read-only pending snapshot and attempt-ordered history", async () => {
   const first = { ...pending, id: "application-1", attemptNumber: 1, status: "rejected" as const, submittedAt: new Date("2026-07-18T00:00:00Z") };
-  const store: ApplicantPortalStore = { async isApplicant() { return true; }, async listApplications() { return [pending, first]; } };
+  const store: ApplicantPortalStore = { async isApplicant() { return true; }, async findPromotedTenant() { return null; }, async listApplications() { return [pending, first]; } };
 
   const result = await createApplicantPortalQuery(store)("applicant-1");
 

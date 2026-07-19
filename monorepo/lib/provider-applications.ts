@@ -37,27 +37,28 @@ export type LockedApplicationApproval = Readonly<{
   id: string;
   status: ApplicationStatus;
   schoolName: string;
-  npsn: string;
-  contactName: string;
-  contactEmail: string;
+  canonicalNpsn: string;
+  bindingId: string;
+  ownerUserId: string;
   approvedTenantId: string | null;
+  approvedDomain: string | null;
 }>;
 
-export type ApprovalConflictField = "npsn" | "subdomain" | "email" | "concurrent";
+export type ApprovalConflictField = "npsn" | "subdomain" | "concurrent";
 
 export type ApprovalProvision = Readonly<{
   applicationId: string;
+  bindingId: string;
+  ownerUserId: string;
   providerAdminId: string;
   tenant: Readonly<{ id: string; name: string; npsn: string; subdomain: string }>;
-  schoolAdmin: Readonly<{ id: string; name: string; email: string }>;
-  accountId: string;
-  credentialHash: string;
+  outboxEventId: string;
   decidedAt: Date;
 }>;
 
 export type ApplicationApprovalTransaction = Readonly<{
   lock(applicationId: string): Promise<LockedApplicationApproval | null>;
-  findConflict(input: Readonly<{ npsn: string; subdomain: string; email: string }>): Promise<ApprovalConflictField | null>;
+  findConflict(input: Readonly<{ npsn: string; subdomain: string }>): Promise<ApprovalConflictField | null>;
   provision(values: ApprovalProvision): Promise<void>;
 }>;
 
@@ -73,16 +74,10 @@ export class ApprovalConflictError extends Error {
 }
 
 export type ApproveSimasApplicationResult =
-  | {
-      ok: true;
-      status: "approved";
-      tenantId: string;
-      schoolAdminEmail: string;
-      temporaryCredential: string;
-    }
+  | { ok: true; status: "approved"; tenantId: string }
   | { ok: true; status: "already-approved"; tenantId: string }
   | { ok: false; code: "not-found" }
-  | { ok: false; code: "decision-conflict"; status: "rejected" }
+  | { ok: false; code: "decision-conflict"; status: "approved" | "rejected" }
   | { ok: false; code: "resource-conflict"; field: ApprovalConflictField }
   | { ok: false; code: "invalid-input"; errors: { applicationId?: string; subdomain?: string } };
 
@@ -129,8 +124,6 @@ export function suggestSubdomain(schoolName: string): string {
 type ApproveCommandDependencies = Readonly<{
   authorize(): Promise<ProviderDecisionPrincipal>;
   store: ApplicationApprovalStore;
-  generateCredential?: () => string;
-  hashCredential?: (credential: string) => Promise<string>;
   generateId?: () => string;
   now?: () => Date;
 }>;
@@ -140,8 +133,6 @@ type ApproveInput = Readonly<{ applicationId?: unknown; subdomain?: unknown }>;
 export function createApproveSimasApplicationCommand({
   authorize,
   store,
-  generateCredential,
-  hashCredential,
   generateId,
   now = () => new Date(),
 }: ApproveCommandDependencies) {
@@ -165,22 +156,19 @@ export function createApproveSimasApplicationCommand({
       return { ok: false, code: "invalid-input", errors };
     }
 
-    const [{ randomBytes, randomUUID }, { hashPassword }] = await Promise.all([
-      import("node:crypto"),
-      import("better-auth/crypto"),
-    ]);
-    const credential = generateCredential?.() ?? randomBytes(24).toString("base64url");
-    const credentialHash = await (hashCredential ?? hashPassword)(credential);
+    const { randomUUID } = await import("node:crypto");
     const nextId = generateId ?? randomUUID;
     const tenantId = nextId();
-    const schoolAdminId = nextId();
-    const accountId = nextId();
+    const outboxEventId = nextId();
 
     try {
       return await store.transaction(async (tx) => {
         const application = await tx.lock(applicationId);
         if (!application) return { ok: false, code: "not-found" } as const;
         if (application.status === "approved" && application.approvedTenantId) {
+          if (application.approvedDomain !== subdomain) {
+            return { ok: false, code: "decision-conflict", status: "approved" } as const;
+          }
           return {
             ok: true,
             status: "already-approved",
@@ -192,36 +180,29 @@ export function createApproveSimasApplicationCommand({
         }
 
         const conflict = await tx.findConflict({
-          npsn: application.npsn,
+          npsn: application.canonicalNpsn,
           subdomain,
-          email: application.contactEmail,
         });
         if (conflict) throw new ApprovalConflictError(conflict);
 
         await tx.provision({
           applicationId,
+          bindingId: application.bindingId,
+          ownerUserId: application.ownerUserId,
           providerAdminId: principal.userId,
           tenant: {
             id: tenantId,
             name: application.schoolName,
-            npsn: application.npsn,
+            npsn: application.canonicalNpsn,
             subdomain,
           },
-          schoolAdmin: {
-            id: schoolAdminId,
-            name: application.contactName,
-            email: application.contactEmail,
-          },
-          accountId,
-          credentialHash,
+          outboxEventId,
           decidedAt: now(),
         });
         return {
           ok: true,
           status: "approved",
           tenantId,
-          schoolAdminEmail: application.contactEmail,
-          temporaryCredential: credential,
         } as const;
       });
     } catch (error) {

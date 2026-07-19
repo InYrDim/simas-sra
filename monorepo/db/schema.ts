@@ -190,6 +190,33 @@ export const temporaryCredentialActivation = mysqlTable(
   ],
 );
 
+export const transactionalOutbox = mysqlTable(
+  "transactional_outbox",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    eventType: varchar("event_type", { length: 100 }).notNull(),
+    aggregateType: varchar("aggregate_type", { length: 64 }).notNull(),
+    aggregateId: varchar("aggregate_id", { length: 36 }).notNull(),
+    payload: json("payload").notNull(),
+    occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull(),
+    publishedAt: timestamp("published_at", { fsp: 3 }),
+    attempts: int("attempts").default(0).notNull(),
+    lastError: text("last_error"),
+  },
+  (table) => [
+    unique("transactional_outbox_event_aggregate_unique").on(
+      table.eventType,
+      table.aggregateType,
+      table.aggregateId,
+    ),
+    index("transactional_outbox_pending_idx").on(
+      table.publishedAt,
+      table.occurredAt,
+    ),
+    check("transactional_outbox_attempts_check", sql`${table.attempts} >= 0`),
+  ],
+);
+
 export const session = mysqlTable(
   "session",
   {
@@ -258,6 +285,7 @@ export const schemaRelations = defineRelations(
     applicantSchoolBinding,
     simasApplication,
     temporaryCredentialActivation,
+    transactionalOutbox,
     session,
     account,
   },

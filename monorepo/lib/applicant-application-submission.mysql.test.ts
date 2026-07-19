@@ -88,7 +88,8 @@ mysqlTest("MySQL makes identical rejection retries idempotent and preserves the 
     });
 
     assert.deepEqual(await reject({ applicationId: submitted.applicationId, reason: "Data perlu diperbaiki" }), { ok: true, status: "rejected" });
-    assert.deepEqual(await reject({ applicationId: submitted.applicationId, reason: " Data  perlu diperbaiki " }), { ok: true, status: "already-rejected" });
+        const [firstDecision] = await data.connection.execute<mysql.RowDataPacket[]>("SELECT `decided_at` FROM `simas_application` WHERE `id` = ?", [submitted.applicationId]);
+        assert.deepEqual(await reject({ applicationId: submitted.applicationId, reason: " Data  perlu diperbaiki " }), { ok: true, status: "already-rejected" });
     assert.deepEqual(await reject({ applicationId: submitted.applicationId, reason: "Alasan berbeda" }), { ok: false, code: "decision-conflict", status: "rejected" });
 
     const [rows] = await data.connection.execute<mysql.RowDataPacket[]>("SELECT `status`, `rejection_reason`, `decided_by_provider_admin_id`, `decided_at` FROM `simas_application` WHERE `id` = ?", [submitted.applicationId]);
@@ -96,7 +97,7 @@ mysqlTest("MySQL makes identical rejection retries idempotent and preserves the 
     assert.equal(rows[0].status, "rejected");
     assert.equal(rows[0].rejection_reason, "Data perlu diperbaiki");
     assert.equal(rows[0].decided_by_provider_admin_id, data.providerId);
-    assert.equal(new Date(rows[0].decided_at).toISOString(), "2026-07-19T03:00:00.000Z");
+    assert.equal(new Date(rows[0].decided_at).getTime(), new Date(firstDecision[0].decided_at).getTime());
   } finally { await data.cleanup(); }
 });
 

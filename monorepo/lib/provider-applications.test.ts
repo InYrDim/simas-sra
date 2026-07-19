@@ -164,15 +164,16 @@ const pendingApproval = {
   id: "application-1",
   status: "pending" as const,
   schoolName: "SMA Negeri 1 Bandung",
-  npsn: "20200001",
-  contactName: "Siti Aminah",
-  contactEmail: "admin@sman1.test",
+  canonicalNpsn: "20200001",
+  bindingId: "binding-1",
+  ownerUserId: "applicant-user-1",
   approvedTenantId: null,
+  approvedDomain: null,
 };
 
 function approvalStore(
   application: LockedApplicationApproval | null,
-  conflict?: "npsn" | "subdomain" | "email",
+  conflict?: "npsn" | "subdomain" | "concurrent",
 ) {
   const events: string[] = [];
   const provisions: unknown[] = [];
@@ -198,13 +199,11 @@ function approvalStore(
   return { events, provisions, store };
 }
 
-test("approval authorizes before reading input, generating a credential, or starting a transaction", async () => {
+test("approval authorizes before reading input or starting a transaction", async () => {
   const { events, store } = approvalStore(pendingApproval);
   const guardedInput = new Proxy({}, { get() { events.push("input-read"); return "value"; } });
   const approve = createApproveSimasApplicationCommand({
     authorize: async () => { events.push("authorize"); throw new Error("forbidden"); },
-    generateCredential: () => { events.push("credential"); return "secret"; },
-    hashCredential: async () => "hash",
     store,
   });
 
@@ -212,14 +211,12 @@ test("approval authorizes before reading input, generating a credential, or star
   assert.deepEqual(events, ["authorize"]);
 });
 
-test("a pending application atomically provides its Tenant and one-time credential", async () => {
+test("a pending application atomically provisions a Tenant and promotes its existing owner", async () => {
   const { events, provisions, store } = approvalStore(pendingApproval);
   const approve = createApproveSimasApplicationCommand({
     authorize: async () => principal,
-    generateCredential: () => "temporary-secret",
-    hashCredential: async (credential) => `hashed:${credential}`,
     generateId: (() => {
-      const ids = ["tenant-1", "user-1", "account-1"];
+      const ids = ["tenant-1", "outbox-1"];
       return () => ids.shift()!;
     })(),
     now: () => new Date("2026-07-18T12:00:00.000Z"),
@@ -232,12 +229,12 @@ test("a pending application atomically provides its Tenant and one-time credenti
     ok: true,
     status: "approved",
     tenantId: "tenant-1",
-    schoolAdminEmail: "admin@sman1.test",
-    temporaryCredential: "temporary-secret",
   });
   assert.deepEqual(events, ["transaction", "lock:application-1", "check-conflicts", "provision"]);
   assert.deepEqual(provisions, [{
     applicationId: "application-1",
+    bindingId: "binding-1",
+    ownerUserId: "applicant-user-1",
     providerAdminId: "provider-1",
     tenant: {
       id: "tenant-1",
@@ -245,13 +242,7 @@ test("a pending application atomically provides its Tenant and one-time credenti
       npsn: "20200001",
       subdomain: "sman-1-bandung",
     },
-    schoolAdmin: {
-      id: "user-1",
-      name: "Siti Aminah",
-      email: "admin@sman1.test",
-    },
-    accountId: "account-1",
-    credentialHash: "hashed:temporary-secret",
+    outboxEventId: "outbox-1",
     decidedAt: new Date("2026-07-18T12:00:00.000Z"),
   }]);
 });
@@ -260,8 +251,6 @@ test("approval validates the editable subdomain before opening a transaction", a
   const { events, store } = approvalStore(pendingApproval);
   const approve = createApproveSimasApplicationCommand({
     authorize: async () => principal,
-    generateCredential: () => "secret",
-    hashCredential: async () => "hash",
     store,
   });
 
@@ -275,13 +264,11 @@ test("approval validates the editable subdomain before opening a transaction", a
   assert.deepEqual(events, []);
 });
 
-test("retrying an approved application returns its Tenant without another credential", async () => {
-  const approved = { ...pendingApproval, status: "approved" as const, approvedTenantId: "tenant-existing" };
+test("retrying an identical approval returns its Tenant without another write", async () => {
+  const approved = { ...pendingApproval, status: "approved" as const, approvedTenantId: "tenant-existing", approvedDomain: "sman-1-bandung" };
   const { provisions, store } = approvalStore(approved);
   const approve = createApproveSimasApplicationCommand({
     authorize: async () => principal,
-    generateCredential: () => "unused-secret",
-    hashCredential: async () => "unused-hash",
     store,
   });
 
@@ -289,6 +276,11 @@ test("retrying an approved application returns its Tenant without another creden
 
   assert.deepEqual(result, { ok: true, status: "already-approved", tenantId: "tenant-existing" });
   assert.deepEqual(provisions, []);
+  assert.deepEqual(await approve({ applicationId: approved.id, subdomain: "domain-berbeda" }), {
+    ok: false,
+    code: "decision-conflict",
+    status: "approved",
+  });
 });
 
 test("approval maps rejected state and database collisions to safe domain conflicts", async () => {
@@ -296,8 +288,6 @@ test("approval maps rejected state and database collisions to safe domain confli
   const rejectedStore = approvalStore(rejected);
   const rejectApprove = createApproveSimasApplicationCommand({
     authorize: async () => principal,
-    generateCredential: () => "secret",
-    hashCredential: async () => "hash",
     store: rejectedStore.store,
   });
   assert.deepEqual(await rejectApprove({ applicationId: rejected.id, subdomain: "sman-1" }), {
@@ -307,18 +297,16 @@ test("approval maps rejected state and database collisions to safe domain confli
   });
 
   const collidingStore: ApplicationApprovalStore = {
-    async transaction() { throw new ApprovalConflictError("email"); },
+    async transaction() { throw new ApprovalConflictError("subdomain"); },
   };
   const collisionApprove = createApproveSimasApplicationCommand({
     authorize: async () => principal,
-    generateCredential: () => "secret",
-    hashCredential: async () => "hash",
     store: collidingStore,
   });
   assert.deepEqual(await collisionApprove({ applicationId: "application-1", subdomain: "sman-1" }), {
     ok: false,
     code: "resource-conflict",
-    field: "email",
+    field: "subdomain",
   });
 });
 
