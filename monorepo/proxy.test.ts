@@ -26,6 +26,19 @@ test("returns 404 for Provider routes on Tenant hosts", () => {
   assert.equal(response.headers.get("x-middleware-rewrite"), null);
 });
 
+test("central auth rejects and logs encoded intent at the route boundary", () => {
+  const events: unknown[] = [];
+  const originalWarn = console.warn;
+  console.warn = (event) => events.push(event);
+  try {
+    const response = proxy(request("localhost:3000", "/login?intent=%61pply"));
+    assert.equal(response.status, 200);
+    assert.deepEqual(events, [{ event: "central_auth_intent_rejected", value: "%61pply" }]);
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
 test("rewrites ordinary Tenant routes", () => {
   const response = proxy(request("sekolah.localhost:3000", "/dashboard"));
 

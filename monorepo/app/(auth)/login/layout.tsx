@@ -5,9 +5,8 @@ import { auth } from "@/lib/auth";
 import { resolveCentralDestination } from "@/lib/central-identity";
 import { getCentralIdentity } from "@/lib/central-identity-data";
 
-export default async function ContinueAfterLoginPage() {
+export default async function LoginLayout({ children }: { children: React.ReactNode }) {
   const session = await auth.api.getSession({ headers: await headers() });
-  if (!session) redirect("/login");
-  const identity = await getCentralIdentity(session.user.id);
-  redirect(resolveCentralDestination(identity));
+  if (session) redirect(resolveCentralDestination(await getCentralIdentity(session.user.id)));
+  return children;
 }

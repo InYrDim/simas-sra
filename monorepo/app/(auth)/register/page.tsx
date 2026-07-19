@@ -48,18 +48,20 @@ export default function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const result = await authClient.signUp.email({
-        name,
-        email,
-        password,
-        callbackURL: "/continue",
+      const registration = await fetch("/api/public-register", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ name, email, password }),
       });
-
-      if (result.error) {
-        setError(result.error.message ?? "Pendaftaran gagal. Silakan coba lagi.");
+      if (!registration.ok) {
+        setError(registration.status === 409 ? "Email sudah digunakan." : "Pendaftaran gagal. Silakan coba lagi.");
         return;
       }
-
+      const result = await authClient.signIn.email({ email, password, callbackURL: "/continue" });
+      if (result.error) {
+        window.location.assign("/login?intent=apply");
+        return;
+      }
       window.location.assign("/continue");
     } catch {
       setError("Tidak dapat terhubung ke server. Silakan coba lagi.");

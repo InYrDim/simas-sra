@@ -1,3 +1,4 @@
+import { resolveRawPublicIntent } from "@/lib/central-identity";
 import { resolveProxyRoute } from "@/lib/proxy-routing";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
@@ -16,6 +17,9 @@ export const config = {
 };
 
 export function proxy(req: NextRequest) {
+  if (req.nextUrl.pathname === "/login" || req.nextUrl.pathname === "/register") {
+    resolveRawPublicIntent(req.nextUrl.search);
+  }
   const route = resolveProxyRoute(
     req.headers.get("host") ?? "",
     req.nextUrl.pathname,

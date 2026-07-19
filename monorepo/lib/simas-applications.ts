@@ -82,11 +82,10 @@ function requiredText(
   else if (value.length > maxLength) errors[field] = `Maksimal ${maxLength} karakter.`;
 }
 
-async function submitSimasApplication(
+export function prepareSimasApplication(
   input: SimasApplicationInput,
-  writer: SimasApplicationWriter,
   dependencies: SubmitDependencies = {},
-): Promise<SubmitSimasApplicationResult> {
+): { ok: true; application: NewSimasApplication } | { ok: false; errors: ValidationErrors } {
   const schoolName = normalizedText(input.schoolName);
   const npsn = normalizeNpsn(input.npsn);
   const educationLevel = normalizedText(input.educationLevel);
@@ -118,7 +117,7 @@ async function submitSimasApplication(
   if (Object.keys(errors).length > 0) return { ok: false, errors };
 
   const id = (dependencies.createId ?? randomUUID)();
-  await writer.create({
+  return { ok: true, application: {
     id,
     schoolName,
     npsn,
@@ -135,9 +134,18 @@ async function submitSimasApplication(
     decidedByProviderAdminId: null,
     rejectionReason: null,
     approvedTenantId: null,
-  });
+  } };
+}
 
-  return { ok: true, applicationId: id };
+async function submitSimasApplication(
+  input: SimasApplicationInput,
+  writer: SimasApplicationWriter,
+  dependencies: SubmitDependencies = {},
+): Promise<SubmitSimasApplicationResult> {
+  const prepared = prepareSimasApplication(input, dependencies);
+  if (!prepared.ok) return prepared;
+  await writer.create(prepared.application);
+  return { ok: true, applicationId: prepared.application.id };
 }
 
 export function createSimasApplicationCommands(

@@ -18,6 +18,7 @@ export const auth = betterAuth({
     enabled: true,
   },
   databaseHooks: {
+
     session: {
       create: {
         after: async (createdSession) => {
@@ -31,10 +32,12 @@ export const auth = betterAuth({
       tenantId: {
         type: "string",
         required: false,
+        input: false,
       },
       tenantRole: {
         type: "string",
         required: false,
+        input: false,
       },
     },
   },
