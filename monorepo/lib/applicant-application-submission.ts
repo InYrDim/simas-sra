@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 
-import { prepareSimasApplication, type NewSimasApplication, type SimasApplicationInput } from "@/lib/simas-applications";
+import { prepareSimasApplication, type NewSimasApplication, type SimasApplicationInput } from "@/lib/simas-application-input";
 
 type Binding = { id: string; canonicalNpsn: string };
 type ExistingApplication = { id: string; payloadHash: string };

@@ -84,10 +84,10 @@ const checks = [
   {
     name: "invalid first School Admin activation relationships",
     query: `
-      SELECT school_admin_activation.user_id, school_admin_activation.tenant_id
-      FROM school_admin_activation
-      INNER JOIN user ON user.id = school_admin_activation.user_id
-      WHERE user.tenant_id <> school_admin_activation.tenant_id
+      SELECT temporary_credential_activation.user_id, temporary_credential_activation.tenant_id
+      FROM temporary_credential_activation
+      INNER JOIN user ON user.id = temporary_credential_activation.user_id
+      WHERE user.tenant_id <> temporary_credential_activation.tenant_id
          OR user.tenant_id IS NULL
          OR user.tenant_role <> 'school-admin'
          OR user.tenant_role IS NULL

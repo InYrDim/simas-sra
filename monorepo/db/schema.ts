@@ -120,15 +120,15 @@ export const simasApplication = mysqlTable(
     approvedTenantId: varchar("approved_tenant_id", { length: 36 }).references(
       (): AnyMySqlColumn => tenant.id,
     ),
-    ownerUserId: varchar("owner_user_id", { length: 36 }).references(
-      () => user.id,
-    ),
-    bindingId: varchar("binding_id", { length: 36 }).references(
-      () => applicantSchoolBinding.id,
-    ),
-    attemptNumber: int("attempt_number"),
-    idempotencyKey: varchar("idempotency_key", { length: 255 }),
-    payloadHash: varchar("payload_hash", { length: 64 }),
+    ownerUserId: varchar("owner_user_id", { length: 36 })
+      .notNull()
+      .references(() => user.id),
+    bindingId: varchar("binding_id", { length: 36 })
+      .notNull()
+      .references(() => applicantSchoolBinding.id),
+    attemptNumber: int("attempt_number").notNull(),
+    idempotencyKey: varchar("idempotency_key", { length: 255 }).notNull(),
+    payloadHash: varchar("payload_hash", { length: 64 }).notNull(),
     pendingBindingId: varchar("pending_binding_id", { length: 36 })
       .generatedAlwaysAs(
         sql`CASE WHEN status = 'pending' THEN binding_id ELSE NULL END`,
@@ -151,7 +151,7 @@ export const simasApplication = mysqlTable(
     ),
     check(
       "simas_application_attempt_number_check",
-      sql`${table.attemptNumber} IS NULL OR ${table.attemptNumber} > 0`,
+      sql`${table.attemptNumber} > 0`,
     ),
     check(
       "simas_application_decision_state_check",

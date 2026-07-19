@@ -46,6 +46,62 @@ interface ActivationRow extends RowDataPacket {
   firstAuthenticatedAt: Date | null;
   passwordChangedAt: Date | null;
 }
+interface NameRow extends RowDataPacket { name: string }
+interface NullableColumnRow extends RowDataPacket {
+  name: string;
+  nullable: "YES" | "NO";
+}
+
+async function verifyContractSchema(connection: Connection) {
+  const [columns] = await connection.query<NullableColumnRow[]>(`
+    SELECT column_name AS name, is_nullable AS nullable
+    FROM information_schema.columns
+    WHERE table_schema = DATABASE()
+      AND table_name = 'simas_application'
+      AND column_name IN ('owner_user_id', 'binding_id', 'attempt_number', 'idempotency_key', 'payload_hash')
+  `);
+  const [indexes] = await connection.query<NameRow[]>(`
+    SELECT DISTINCT CONCAT(table_name, ':', index_name) AS name
+    FROM information_schema.statistics
+    WHERE table_schema = DATABASE()
+      AND table_name IN ('applicant_school_binding', 'simas_application')
+  `);
+  const [checks] = await connection.query<NameRow[]>(`
+    SELECT constraint_name AS name
+    FROM information_schema.table_constraints
+    WHERE table_schema = DATABASE()
+      AND table_name = 'simas_application'
+      AND constraint_type = 'CHECK'
+  `);
+  const [legacyViews] = await connection.query<NameRow[]>(`
+    SELECT table_name AS name
+    FROM information_schema.views
+    WHERE table_schema = DATABASE() AND table_name = 'school_admin_activation'
+  `);
+
+  const requiredColumns = ["owner_user_id", "binding_id", "attempt_number", "idempotency_key", "payload_hash"];
+  const requiredIndexes = [
+    "applicant_school_binding:applicant_school_binding_user_id_unique",
+    "applicant_school_binding:applicant_school_binding_canonical_npsn_unique",
+    "simas_application:simas_application_binding_attempt_unique",
+    "simas_application:simas_application_owner_idempotency_unique",
+    "simas_application:simas_application_pending_binding_unique",
+  ];
+  const requiredChecks = [
+    "simas_application_attempt_number_check",
+    "simas_application_decision_state_check",
+  ];
+  const nonNullColumns = new Set(columns.filter(({ nullable }) => nullable === "NO").map(({ name }) => name));
+  const indexNames = new Set(indexes.map(({ name }) => name));
+  const checkNames = new Set(checks.map(({ name }) => name));
+  const findings = [
+    ...requiredColumns.filter((name) => !nonNullColumns.has(name)).map((name) => `nullable-or-missing-column:${name}`),
+    ...requiredIndexes.filter((name) => !indexNames.has(name)).map((name) => `missing-index:${name}`),
+    ...requiredChecks.filter((name) => !checkNames.has(name)).map((name) => `missing-check:${name}`),
+    ...legacyViews.map(({ name }) => `legacy-view-present:${name}`),
+  ].sort();
+  return { ok: findings.length === 0, findings } as const;
+}
 
 async function loadSnapshot(connection: Connection): Promise<ApplicantIdentityMigrationSnapshot> {
   const [users] = await connection.query<UserRow[]>(`
@@ -91,7 +147,7 @@ async function loadSnapshot(connection: Connection): Promise<ApplicantIdentityMi
       temporary_credential_issued_at AS temporaryCredentialIssuedAt,
       first_authenticated_at AS firstAuthenticatedAt,
       password_changed_at AS passwordChangedAt
-    FROM school_admin_activation
+    FROM temporary_credential_activation
     ORDER BY user_id
   `);
 
@@ -181,8 +237,8 @@ async function main() {
   if (!databaseUrl) throw new Error("DATABASE_URL is required.");
 
   const mode = process.argv[2] ?? "audit";
-  if (mode !== "audit" && mode !== "backfill") {
-    throw new Error("Usage: migrate-applicant-identities.ts [audit|backfill <mapping.json>]");
+  if (mode !== "audit" && mode !== "backfill" && mode !== "verify") {
+    throw new Error("Usage: migrate-applicant-identities.ts [audit|verify|backfill <mapping.json>]");
   }
 
   const connection = await mysql.createConnection({
@@ -207,8 +263,9 @@ async function main() {
     }
 
     const report = auditApplicantIdentityMigration(snapshot);
-    console.log(JSON.stringify(report, null, 2));
-    if (!report.ok) process.exitCode = 1;
+    const contract = mode === "verify" ? await verifyContractSchema(connection) : undefined;
+    console.log(JSON.stringify(contract ? { ...report, contract } : report, null, 2));
+    if (!report.ok || contract?.ok === false) process.exitCode = 1;
   } finally {
     await connection.end();
   }

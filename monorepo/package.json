@@ -15,6 +15,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:audit:lifecycle": "tsx scripts/audit-provider-lifecycle.ts",
     "db:audit:applicant-identities": "tsx scripts/migrate-applicant-identities.ts audit",
+    "db:verify:applicant-cutover": "tsx scripts/migrate-applicant-identities.ts verify",
     "db:backfill:applicant-identities": "tsx scripts/migrate-applicant-identities.ts backfill",
     "db:studio": "drizzle-kit studio",
     "provider-admin:provision": "tsx scripts/provision-provider-admin.ts",

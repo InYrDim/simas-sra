@@ -31,17 +31,13 @@ export type NewSimasApplication = Readonly<{
   approvedTenantId: null;
 }>;
 
-export type SimasApplicationWriter = Readonly<{
-  create(application: NewSimasApplication): Promise<void>;
-}>;
+
 
 type ValidationErrors = Partial<
   Record<keyof SimasApplicationInput, string>
 >;
 
-export type SubmitSimasApplicationResult =
-  | { ok: true; applicationId: string }
-  | { ok: false; errors: ValidationErrors };
+
 
 type SubmitDependencies = {
   createId?: () => string;
@@ -137,23 +133,3 @@ export function prepareSimasApplication(
   } };
 }
 
-async function submitSimasApplication(
-  input: SimasApplicationInput,
-  writer: SimasApplicationWriter,
-  dependencies: SubmitDependencies = {},
-): Promise<SubmitSimasApplicationResult> {
-  const prepared = prepareSimasApplication(input, dependencies);
-  if (!prepared.ok) return prepared;
-  await writer.create(prepared.application);
-  return { ok: true, applicationId: prepared.application.id };
-}
-
-export function createSimasApplicationCommands(
-  writer: SimasApplicationWriter,
-  dependencies: SubmitDependencies = {},
-) {
-  return Object.freeze({
-    submit: (input: SimasApplicationInput) =>
-      submitSimasApplication(input, writer, dependencies),
-  });
-}
