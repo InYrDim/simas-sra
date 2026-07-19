@@ -7,6 +7,8 @@ import { redirect } from "next/navigation";
 import { db } from "@/db";
 import { providerAdmin, user } from "@/db/schema";
 import { auth } from "@/lib/auth";
+import { resolveCentralDestination } from "@/lib/central-identity";
+import { getCentralIdentity } from "@/lib/central-identity-data";
 
 export type ProviderPrincipal = Readonly<{
   userId: string;
@@ -16,7 +18,7 @@ export type ProviderPrincipal = Readonly<{
 
 export type ProviderAccess =
   | { status: "unauthenticated" }
-  | { status: "forbidden" }
+  | { status: "forbidden"; userId: string }
   | { status: "authorized"; principal: ProviderPrincipal };
 
 export class ProviderAuthorizationError extends Error {
@@ -54,22 +56,21 @@ export async function getProviderAccess(): Promise<ProviderAccess> {
     .limit(1);
 
   if (!principal) {
-    return { status: "forbidden" };
+    return { status: "forbidden", userId: session.user.id };
   }
 
   return { status: "authorized", principal };
 }
 
 export async function getProviderPageAccess(): Promise<
-  | { status: "forbidden" }
-  | { status: "authorized"; principal: ProviderPrincipal }
+  { status: "authorized"; principal: ProviderPrincipal }
 > {
   const access = await getProviderAccess();
 
-  if (access.status === "unauthenticated") {
-    redirect("/login");
+  if (access.status === "unauthenticated") redirect("/login");
+  if (access.status === "forbidden") {
+    redirect(resolveCentralDestination(await getCentralIdentity(access.userId)));
   }
-
   return access;
 }
 

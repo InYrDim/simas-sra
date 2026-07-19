@@ -1,5 +1,5 @@
 import { resolveRawPublicIntent } from "@/lib/central-identity";
-import { resolveProxyRoute } from "@/lib/proxy-routing";
+import { resolveProxyRoute, TENANT_PATHNAME_HEADER } from "@/lib/proxy-routing";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -30,7 +30,11 @@ export function proxy(req: NextRequest) {
   }
 
   if (route.kind === "rewrite") {
-    return NextResponse.rewrite(new URL(route.pathname, req.url));
+    const requestHeaders = new Headers(req.headers);
+    requestHeaders.set(TENANT_PATHNAME_HEADER, route.pathname);
+    return NextResponse.rewrite(new URL(route.pathname, req.url), {
+      request: { headers: requestHeaders },
+    });
   }
 
   return NextResponse.next();

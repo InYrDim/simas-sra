@@ -1,3 +1,5 @@
+export const TENANT_PATHNAME_HEADER = "x-tenant-pathname";
+
 export type ProxyRoute =
   | { kind: "next" }
   | { kind: "not-found" }
@@ -28,5 +30,9 @@ export function resolveProxyRoute(host: string, pathname: string): ProxyRoute {
   if (!subdomain) return { kind: "next" };
   if (isProviderPath(pathname)) return { kind: "not-found" };
 
-  return { kind: "rewrite", pathname: `/${subdomain}${pathname}` };
+  const tenantPrefix = `/${subdomain}`;
+  if (pathname === tenantPrefix || pathname.startsWith(`${tenantPrefix}/`)) {
+    return { kind: "rewrite", pathname };
+  }
+  return { kind: "rewrite", pathname: `${tenantPrefix}${pathname}` };
 }

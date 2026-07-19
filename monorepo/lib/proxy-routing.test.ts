@@ -33,6 +33,17 @@ test("continues rewriting ordinary Tenant routes", () => {
   });
 });
 
+test("does not duplicate an exact Tenant prefix on redirected internal paths", () => {
+  assert.deepEqual(resolveProxyRoute("sekolah.localhost:3000", "/sekolah/dashboard"), {
+    kind: "rewrite",
+    pathname: "/sekolah/dashboard",
+  });
+  assert.deepEqual(resolveProxyRoute("sekolah.localhost:3000", "/sekolah-lain/dashboard"), {
+    kind: "rewrite",
+    pathname: "/sekolah/sekolah-lain/dashboard",
+  });
+});
+
 test("does not treat similarly-prefixed paths as Provider routes", () => {
   assert.deepEqual(resolveProxyRoute("sekolah.simas.test", "/providership"), {
     kind: "rewrite",

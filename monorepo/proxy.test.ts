@@ -39,7 +39,7 @@ test("central auth rejects and logs encoded intent at the route boundary", () =>
   }
 });
 
-test("rewrites ordinary Tenant routes", () => {
+test("rewrites ordinary Tenant routes and forwards the canonical path to guards", () => {
   const response = proxy(request("sekolah.localhost:3000", "/dashboard"));
 
   assert.equal(response.status, 200);
@@ -47,4 +47,10 @@ test("rewrites ordinary Tenant routes", () => {
     response.headers.get("x-middleware-rewrite"),
     "http://sekolah.localhost:3000/sekolah/dashboard",
   );
+  assert.equal(response.headers.get("x-middleware-request-x-tenant-pathname"), "/sekolah/dashboard");
+});
+
+test("rewrites Tenant login without treating the requested domain as membership", () => {
+  const response = proxy(request("sekolah.localhost:3000", "/login"));
+  assert.equal(response.headers.get("x-middleware-rewrite"), "http://sekolah.localhost:3000/sekolah/login");
 });

@@ -1,38 +1,22 @@
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
-import { DashboardHeader } from "@/components/dashboard/dashboard-header"
-import { TrialBanner } from "@/components/dashboard/trial-banner"
-import { TenantSidebar } from "@/components/dashboard/tenant-sidebar"
-import { requireTenantFeatureAccess } from "@/lib/tenant-access"
-import { TenantActivationError } from "@/lib/temporary-credential-activation"
-import { redirect } from "next/navigation"
+import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { TenantSidebar } from "@/components/dashboard/tenant-sidebar";
+import { TrialBanner } from "@/components/dashboard/trial-banner";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { enforceTenantPageAccess } from "@/lib/tenant-access";
 
-export default async function DashboardLayout({
-  children,
-  params
-}: {
-  children: React.ReactNode,
-  params: Promise<{ domain: string }>
+export default async function DashboardLayout({ children, params }: {
+  children: React.ReactNode;
+  params: Promise<{ domain: string }>;
 }) {
   const { domain } = await params;
-  try {
-    await requireTenantFeatureAccess(domain);
-  } catch (error) {
-    if (error instanceof TenantActivationError && error.code === "password-change-required") {
-      redirect("/change-password");
-    }
-    throw error;
-  }
+  await enforceTenantPageAccess(domain);
 
-  return (
-    <SidebarProvider>
-      <TenantSidebar role="staff" />
-      <SidebarInset>
-        <TrialBanner domain={domain} />
-        <DashboardHeader domain={domain} />
-        <div className="flex flex-1 flex-col p-4 md:p-6 pt-6 gap-6">
-          {children}
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+  return <SidebarProvider>
+    <TenantSidebar role="staff" />
+    <SidebarInset>
+      <TrialBanner domain={domain} />
+      <DashboardHeader domain={domain} />
+      <div className="flex flex-1 flex-col gap-6 p-4 pt-6 md:p-6">{children}</div>
+    </SidebarInset>
+  </SidebarProvider>;
 }
