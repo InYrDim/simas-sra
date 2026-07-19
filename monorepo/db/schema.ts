@@ -3,6 +3,7 @@ import {
   boolean,
   check,
   index,
+  int,
   json,
   mysqlEnum,
   mysqlTable,
@@ -75,6 +76,25 @@ export const providerAdmin = mysqlTable("provider_admin", {
   createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
 });
 
+export const applicant = mysqlTable("applicant", {
+  userId: varchar("user_id", { length: 36 })
+    .primaryKey()
+    .references(() => user.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+});
+
+export const applicantSchoolBinding = mysqlTable("applicant_school_binding", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  userId: varchar("user_id", { length: 36 })
+    .notNull()
+    .unique("applicant_school_binding_user_id_unique")
+    .references(() => user.id),
+  canonicalNpsn: varchar("canonical_npsn", { length: 8 })
+    .notNull()
+    .unique("applicant_school_binding_canonical_npsn_unique"),
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+});
+
 export const simasApplication = mysqlTable(
   "simas_application",
   {
@@ -100,10 +120,38 @@ export const simasApplication = mysqlTable(
     approvedTenantId: varchar("approved_tenant_id", { length: 36 }).references(
       (): AnyMySqlColumn => tenant.id,
     ),
+    ownerUserId: varchar("owner_user_id", { length: 36 }).references(
+      () => user.id,
+    ),
+    bindingId: varchar("binding_id", { length: 36 }).references(
+      () => applicantSchoolBinding.id,
+    ),
+    attemptNumber: int("attempt_number"),
+    idempotencyKey: varchar("idempotency_key", { length: 255 }),
+    payloadHash: varchar("payload_hash", { length: 64 }),
+    pendingBindingId: varchar("pending_binding_id", { length: 36 })
+      .generatedAlwaysAs(
+        sql`CASE WHEN status = 'pending' THEN binding_id ELSE NULL END`,
+      ),
   },
   (table) => [
     unique("simas_application_approved_tenant_id_unique").on(
       table.approvedTenantId,
+    ),
+    unique("simas_application_binding_attempt_unique").on(
+      table.bindingId,
+      table.attemptNumber,
+    ),
+    unique("simas_application_owner_idempotency_unique").on(
+      table.ownerUserId,
+      table.idempotencyKey,
+    ),
+    unique("simas_application_pending_binding_unique").on(
+      table.pendingBindingId,
+    ),
+    check(
+      "simas_application_attempt_number_check",
+      sql`${table.attemptNumber} IS NULL OR ${table.attemptNumber} > 0`,
     ),
     check(
       "simas_application_decision_state_check",
@@ -206,6 +254,8 @@ export const schemaRelations = defineRelations(
     tenant,
     user,
     providerAdmin,
+    applicant,
+    applicantSchoolBinding,
     simasApplication,
     schoolAdminActivation,
     session,
@@ -230,6 +280,18 @@ export const schemaRelations = defineRelations(
         from: r.user.id,
         to: r.providerAdmin.userId,
       }),
+      applicant: r.one.applicant({
+        from: r.user.id,
+        to: r.applicant.userId,
+      }),
+      applicantSchoolBinding: r.one.applicantSchoolBinding({
+        from: r.user.id,
+        to: r.applicantSchoolBinding.userId,
+      }),
+      ownedApplications: r.many.simasApplication({
+        from: r.user.id,
+        to: r.simasApplication.ownerUserId,
+      }),
       schoolAdminActivation: r.one.schoolAdminActivation({
         from: r.user.id,
         to: r.schoolAdminActivation.userId,
@@ -240,6 +302,16 @@ export const schemaRelations = defineRelations(
     providerAdmin: {
       user: r.one.user({ from: r.providerAdmin.userId, to: r.user.id }),
       decidedApplications: r.many.simasApplication(),
+    },
+    applicant: {
+      user: r.one.user({ from: r.applicant.userId, to: r.user.id }),
+    },
+    applicantSchoolBinding: {
+      user: r.one.user({
+        from: r.applicantSchoolBinding.userId,
+        to: r.user.id,
+      }),
+      applications: r.many.simasApplication(),
     },
     simasApplication: {
       decidedByProviderAdmin: r.one.providerAdmin({
@@ -253,6 +325,14 @@ export const schemaRelations = defineRelations(
       sourceTenant: r.one.tenant({
         from: r.simasApplication.id,
         to: r.tenant.sourceApplicationId,
+      }),
+      owner: r.one.user({
+        from: r.simasApplication.ownerUserId,
+        to: r.user.id,
+      }),
+      binding: r.one.applicantSchoolBinding({
+        from: r.simasApplication.bindingId,
+        to: r.applicantSchoolBinding.id,
       }),
     },
     schoolAdminActivation: {
