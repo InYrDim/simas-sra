@@ -4,15 +4,15 @@
 
 **Blocked by:** 09 — Siapkan migrasi aman untuk identitas Pemohon.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Registrasi publik membuat user, credential account, dan Pemohon secara atomik tanpa menerima role atau Tenant dari client.
-- [ ] Pemohon baru belum terikat ke NPSN sampai Pengajuan pertama berhasil dikirim.
-- [ ] `/apply` anonim menampilkan pengantar serta link login dan registrasi dengan intent apply.
-- [ ] Hanya enum intent `apply` yang dikenali; URL bebas, nilai unknown, encoded bypass, dan callback-like input diabaikan serta dicatat dalam structured security log.
-- [ ] Resolver identitas menghasilkan tepat satu hasil Provider Admin, Pemohon, Tenant member, atau invalid berdasarkan relasi server.
-- [ ] Resolver tujuan mengarahkan Provider Admin ke Provider, Pemohon ke `/apply`, Tenant member ke dashboard Tenant, activation wajib ke pergantian password, dan invalid identity ke access error.
-- [ ] User bersesi yang membuka login atau registrasi langsung diarahkan menurut identitas dan harus logout untuk mengganti akun.
-- [ ] Pemohon tanpa Pengajuan melihat identitas akun, empty history, dan tindakan membuat Pengajuan pertama.
-- [ ] Access error hanya menampilkan penjelasan aman, kontak Provider, dan logout; detail invariant hanya masuk log server.
-- [ ] Test service dan route mencakup setiap identity path, nol path, multi-path, Tenant hilang, serta identity yang selalu mengalahkan intent.
+- [x] Registrasi publik membuat user, credential account, dan Pemohon secara atomik tanpa menerima role atau Tenant dari client.
+- [x] Pemohon baru belum terikat ke NPSN sampai Pengajuan pertama berhasil dikirim.
+- [x] `/apply` anonim menampilkan pengantar serta link login dan registrasi dengan intent apply.
+- [x] Hanya enum intent `apply` yang dikenali; URL bebas, nilai unknown, encoded bypass, dan callback-like input diabaikan serta dicatat dalam structured security log.
+- [x] Resolver identitas menghasilkan tepat satu hasil Provider Admin, Pemohon, Tenant member, atau invalid berdasarkan relasi server.
+- [x] Resolver tujuan mengarahkan Provider Admin ke Provider, Pemohon ke `/apply`, Tenant member ke dashboard Tenant, activation wajib ke pergantian password, dan invalid identity ke access error.
+- [x] User bersesi yang membuka login atau registrasi langsung diarahkan menurut identitas dan harus logout untuk mengganti akun.
+- [x] Pemohon tanpa Pengajuan melihat identitas akun, empty history, dan tindakan membuat Pengajuan pertama.
+- [x] Access error hanya menampilkan penjelasan aman, kontak Provider, dan logout; detail invariant hanya masuk log server.
+- [x] Test service dan route mencakup setiap identity path, nol path, multi-path, Tenant hilang, serta identity yang selalu mengalahkan intent.
