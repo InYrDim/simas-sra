@@ -225,6 +225,51 @@ export const academicYearHistory = mysqlTable(
   ],
 );
 
+export const subject = mysqlTable(
+  "subject",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    code: varchar("code", { length: 30 }).notNull(),
+    normalizedCode: varchar("normalized_code", { length: 30 }).notNull(),
+    name: varchar("name", { length: 150 }).notNull(),
+    normalizedName: varchar("normalized_name", { length: 150 }).notNull(),
+    educationLevels: varchar("education_levels", { length: 50 }).notNull(),
+    description: text("description"),
+    archived: boolean("archived").default(false).notNull(),
+    archivedAt: timestamp("archived_at", { fsp: 3 }),
+    version: int("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("subject_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("subject_tenant_normalized_code_unique").on(table.tenantId, table.normalizedCode),
+    unique("subject_tenant_normalized_name_unique").on(table.tenantId, table.normalizedName),
+    index("subject_tenant_archive_name_idx").on(table.tenantId, table.archived, table.normalizedName),
+    check("subject_version_check", sql`${table.version} > 0`),
+  ],
+);
+
+export const subjectHistory = mysqlTable(
+  "subject_history",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    subjectId: varchar("subject_id", { length: 36 }).notNull(),
+    actorUserId: varchar("actor_user_id", { length: 36 }).notNull().references(() => user.id),
+    operation: mysqlEnum("operation", ["created", "edited", "archived", "reactivated"]).notNull(),
+    fromVersion: int("from_version").notNull(),
+    toVersion: int("to_version").notNull(),
+    occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.tenantId, table.subjectId], foreignColumns: [subject.tenantId, subject.id], name: "subject_history_tenant_subject_fkey" }),
+    index("subject_history_tenant_subject_idx").on(table.tenantId, table.subjectId, table.occurredAt),
+    check("subject_history_version_check", sql`${table.fromVersion} >= 0 AND ${table.toVersion} = ${table.fromVersion} + 1`),
+  ],
+);
+
 export const user = mysqlTable("user", {
   id: varchar("id", { length: 36 }).primaryKey(),
   tenantId: varchar("tenant_id", { length: 36 }).references(() => tenant.id),
@@ -488,6 +533,8 @@ export const schemaRelations = defineRelations(
     academicYear,
     academicSemester,
     academicYearHistory,
+    subject,
+    subjectHistory,
     user,
     providerAdmin,
     applicant,
