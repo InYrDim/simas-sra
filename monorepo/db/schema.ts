@@ -30,7 +30,7 @@ export const tenant = mysqlTable(
     trialStartedAt: timestamp("trial_started_at", { fsp: 3 }),
     trialEndsAt: timestamp("trial_ends_at", { fsp: 3 }),
     settings: json("settings"),
-    operationalStatus: mysqlEnum("operational_status", ["active", "closed"]),
+    operationalStatus: mysqlEnum("operational_status", ["active", "suspended", "closed"]),
     reconciliationStatus: mysqlEnum("reconciliation_status", [
       "not_required",
       "needs_reconciliation",

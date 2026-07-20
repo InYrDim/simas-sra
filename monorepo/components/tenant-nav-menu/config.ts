@@ -45,17 +45,17 @@ export const tenantMenuItems: TenantNavItem[] = [
   {
     title: "Master Data",
     icon: Database,
-    roles: ["*"],
+    roles: ["school-admin"],
     group: "Administrasi",
     items: [
-      { title: "Profil Sekolah", url: "/master/profil", roles: ["*"] },
-      { title: "Siswa", url: "/master/siswa", roles: ["*"] },
-      { title: "Guru", url: "/master/guru", roles: ["*"] },
-      { title: "Staf", url: "/master/staf", roles: ["*"] },
-      { title: "Mata Pelajaran", url: "/master/mapel", roles: ["*"] },
-      { title: "Rombongan Belajar", url: "/master/rombel", roles: ["*"] },
-      { title: "Sarana & Prasarana", url: "/master/sarpras", roles: ["*"] },
-      { title: "Organisasi", url: "/master/organisasi", roles: ["*"] }
+      { title: "Profil Sekolah", url: "/master/profil", roles: ["school-admin"] },
+      { title: "Siswa", url: "/master/siswa", roles: ["school-admin"] },
+      { title: "Guru", url: "/master/guru", roles: ["school-admin"] },
+      { title: "Staf", url: "/master/staf", roles: ["school-admin"] },
+      { title: "Mata Pelajaran", url: "/master/mapel", roles: ["school-admin"] },
+      { title: "Rombongan Belajar", url: "/master/rombel", roles: ["school-admin"] },
+      { title: "Sarana & Prasarana", url: "/master/sarpras", roles: ["school-admin"] },
+      { title: "Organisasi", url: "/master/organisasi", roles: ["school-admin"] }
     ]
   },
   {

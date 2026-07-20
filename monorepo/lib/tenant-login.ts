@@ -66,6 +66,12 @@ export async function resolveTenantPageAccess(
   if (identity.kind === "tenant-member" && identity.tenantId === requestedTenant.id && !identity.passwordChangeRequired) {
     return { kind: "authorized", tenant: requestedTenant };
   }
+  const masterDataPrefix = `/${requestedDomain}/master`;
+  if (
+    identity.kind === "tenant-member" &&
+    identity.tenantId !== requestedTenant.id &&
+    (continuation === masterDataPrefix || continuation?.startsWith(`${masterDataPrefix}/`))
+  ) return { kind: "tenant-not-found" };
   return { kind: "redirect", destination: tenantContextDestination(identity, requestedTenant) };
 }
 
