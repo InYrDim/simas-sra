@@ -56,6 +56,7 @@ export const tenantMenuItems: TenantNavItem[] = [
       { title: "Mata Pelajaran", url: "/master/mapel", roles: ["school-admin"] },
       { title: "Rombongan Belajar", url: "/master/rombel", roles: ["school-admin"] },
       { title: "Sarana & Prasarana", url: "/master/sarpras", roles: ["school-admin"] },
+      { title: "Aset/Barang", url: "/master/sarpras/aset", roles: ["school-admin"] },
       { title: "Organisasi", url: "/master/organisasi", roles: ["school-admin"] }
     ]
   },

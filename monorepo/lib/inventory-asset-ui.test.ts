@@ -1,0 +1,2 @@
+import assert from "node:assert/strict"; import { readFile } from "node:fs/promises"; import test from "node:test";
+test("Sarana & Prasarana shares a responsive workspace for locations and Aset/Barang",async()=>{const source=await readFile(new URL("../app/(tenant)/[domain]/(authenticated)/master/sarpras/aset/page.tsx",import.meta.url),"utf8");for(const text of ["MasterDataWorkspace","Aset/Barang","Kode inventaris","Mode pelacakan","Riwayat inventaris","Alasan","Arsipkan aset","Aktifkan kembali"])assert.match(source,new RegExp(text));assert.match(source,/sm:grid-cols-2/);});

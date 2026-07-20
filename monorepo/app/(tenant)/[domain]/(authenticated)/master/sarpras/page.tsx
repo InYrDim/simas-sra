@@ -1,3 +1,4 @@
+
 import { createLocationAction,editLocationAction,manageLocationAction } from "./actions";
 import { MasterDataWorkspace } from "@/components/master-data/master-data-workspace";
 import { createLocationService,LOCATION_TYPES,type Location } from "@/lib/location";import { locationStore } from "@/lib/location-data";import { queryLocations } from "@/lib/location-query";import type { MasterDataSearchParams } from "@/lib/master-data-workspace";import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
