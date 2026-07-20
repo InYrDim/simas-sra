@@ -312,6 +312,29 @@ export const schoolPerson = mysqlTable(
   ],
 );
 
+export const schoolPersonAudit = mysqlTable(
+  "school_person_audit",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    personId: varchar("person_id", { length: 36 }).notNull(),
+    actorUserId: varchar("actor_user_id", { length: 36 }).notNull(),
+    operation: mysqlEnum("operation", ["archived"]).notNull(),
+    affectedProfiles: json("affected_profiles").notNull(),
+    fromVersion: int("from_version").notNull(),
+    toVersion: int("to_version").notNull(),
+    sensitiveBefore: json("sensitive_before"),
+    sensitiveAfter: json("sensitive_after"),
+    reason: varchar("reason", { length: 1000 }),
+    occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.tenantId, table.personId], foreignColumns: [schoolPerson.tenantId, schoolPerson.id], name: "school_person_audit_tenant_person_fkey" }),
+    foreignKey({ columns: [table.tenantId, table.actorUserId], foreignColumns: [user.tenantId, user.id], name: "school_person_audit_tenant_actor_fkey" }),
+    index("school_person_audit_tenant_person_idx").on(table.tenantId, table.personId, table.occurredAt),
+  ],
+);
+
 export const studentProfile = mysqlTable(
   "student_profile",
   {
