@@ -1,7 +1,7 @@
 import type { MasterDataFeaturePolicy } from "@/lib/tenant-master-data-access";
 
 export function parseMasterDataFeaturePolicy(settings: unknown): MasterDataFeaturePolicy {
-  const disabled = { read: false, write: false, importDownload: false, importValidation: false } as const;
+  const disabled = { read: false, write: false, importDownload: false, importValidation: false, importExecution: false } as const;
   if (!settings || typeof settings !== "object") return disabled;
   const features = (settings as Record<string, unknown>).features;
   if (!features || typeof features !== "object") return disabled;
@@ -11,5 +11,6 @@ export function parseMasterDataFeaturePolicy(settings: unknown): MasterDataFeatu
     write: values.masterDataWrite === true,
     importDownload: values.masterDataImportDownload === true,
     importValidation: values.masterDataImportValidation === true,
+    importExecution: values.masterDataImportExecution === true,
   };
 }

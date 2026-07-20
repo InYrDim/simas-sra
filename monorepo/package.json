@@ -22,7 +22,8 @@
     "db:studio": "drizzle-kit studio",
     "provider-admin:provision": "tsx scripts/provision-provider-admin.ts",
     "provider-admin:deprovision": "tsx scripts/deprovision-provider-admin.ts",
-    "worker:people-import-validation": "tsx scripts/run-people-import-validation.ts"
+    "worker:people-import-validation": "tsx scripts/run-people-import-validation.ts",
+    "worker:people-import-execution": "tsx scripts/run-people-import-execution.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
