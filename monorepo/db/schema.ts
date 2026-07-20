@@ -270,6 +270,86 @@ export const subjectHistory = mysqlTable(
   ],
 );
 
+export const schoolPerson = mysqlTable(
+  "school_person",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    fullName: varchar("full_name", { length: 150 }).notNull(),
+    normalizedName: varchar("normalized_name", { length: 150 }).notNull(),
+    preferredName: varchar("preferred_name", { length: 150 }),
+    birthPlace: varchar("birth_place", { length: 100 }).notNull(),
+    normalizedBirthPlace: varchar("normalized_birth_place", { length: 100 }).notNull(),
+    birthDate: date("birth_date", { mode: "string" }).notNull(),
+    gender: mysqlEnum("gender", ["male", "female"]).notNull(),
+    nik: varchar("nik", { length: 16 }),
+    nip: varchar("nip", { length: 18 }),
+    religion: varchar("religion", { length: 50 }),
+    street: varchar("street", { length: 255 }).notNull(),
+    village: varchar("village", { length: 100 }),
+    district: varchar("district", { length: 100 }),
+    city: varchar("city", { length: 100 }),
+    province: varchar("province", { length: 100 }),
+    postalCode: varchar("postal_code", { length: 10 }),
+    phone: varchar("phone", { length: 20 }),
+    email: varchar("email", { length: 255 }),
+    accountUserId: varchar("account_user_id", { length: 36 }),
+    archived: boolean("archived").default(false).notNull(),
+    version: int("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("school_person_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("school_person_tenant_nik_unique").on(table.tenantId, table.nik),
+    unique("school_person_tenant_nip_unique").on(table.tenantId, table.nip),
+    unique("school_person_tenant_account_unique").on(table.tenantId, table.accountUserId),
+    index("school_person_tenant_name_idx").on(table.tenantId, table.normalizedName),
+    foreignKey({ columns: [table.tenantId, table.accountUserId], foreignColumns: [user.tenantId, user.id], name: "school_person_tenant_account_fkey" }),
+    check("school_person_nik_check", sql`${table.nik} IS NULL OR ${table.nik} REGEXP '^[0-9]{16}$'`),
+    check("school_person_nip_check", sql`${table.nip} IS NULL OR ${table.nip} REGEXP '^[0-9]{18}$'`),
+    check("school_person_version_check", sql`${table.version} > 0`),
+  ],
+);
+
+export const studentProfile = mysqlTable(
+  "student_profile",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    personId: varchar("person_id", { length: 36 }).notNull(),
+    nis: varchar("nis", { length: 50 }).notNull(),
+    normalizedNis: varchar("normalized_nis", { length: 50 }).notNull(),
+    nisn: varchar("nisn", { length: 10 }),
+    externalStudentId: varchar("external_student_id", { length: 100 }),
+    entryDate: date("entry_date", { mode: "string" }).notNull(),
+    status: mysqlEnum("status", ["active", "graduated", "transferred", "withdrawn"]).default("active").notNull(),
+    archived: boolean("archived").default(false).notNull(),
+    version: int("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("student_profile_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("student_profile_tenant_person_unique").on(table.tenantId, table.personId),
+    unique("student_profile_tenant_nis_unique").on(table.tenantId, table.normalizedNis),
+    unique("student_profile_tenant_nisn_unique").on(table.tenantId, table.nisn),
+    foreignKey({ columns: [table.tenantId, table.personId], foreignColumns: [schoolPerson.tenantId, schoolPerson.id], name: "student_profile_tenant_person_fkey" }),
+    index("student_profile_tenant_status_archive_idx").on(table.tenantId, table.status, table.archived),
+    check("student_profile_nisn_check", sql`${table.nisn} IS NULL OR ${table.nisn} REGEXP '^[0-9]{10}$'`),
+    check("student_profile_version_check", sql`${table.version} > 0`),
+  ],
+);
+
+export const studentAudit = mysqlTable(
+  "student_audit",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), personId: varchar("person_id", { length: 36 }).notNull(), studentId: varchar("student_id", { length: 36 }), actorUserId: varchar("actor_user_id", { length: 36 }).notNull().references(() => user.id),
+    operation: mysqlEnum("operation", ["created-person", "created-student", "attached-student", "edited"]).notNull(), fromPersonVersion: int("from_person_version").notNull(), toPersonVersion: int("to_person_version").notNull(), fromStudentVersion: int("from_student_version").notNull(), toStudentVersion: int("to_student_version").notNull(), sensitiveBefore: json("sensitive_before"), sensitiveAfter: json("sensitive_after"), occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [foreignKey({ columns: [table.tenantId, table.personId], foreignColumns: [schoolPerson.tenantId, schoolPerson.id], name: "student_audit_tenant_person_fkey" }), foreignKey({ columns: [table.tenantId, table.studentId], foreignColumns: [studentProfile.tenantId, studentProfile.id], name: "student_audit_tenant_student_fkey" }), index("student_audit_tenant_student_idx").on(table.tenantId, table.studentId, table.occurredAt)],
+);
+
 export const user = mysqlTable("user", {
   id: varchar("id", { length: 36 }).primaryKey(),
   tenantId: varchar("tenant_id", { length: 36 }).references(() => tenant.id),
@@ -290,7 +370,7 @@ export const user = mysqlTable("user", {
     .defaultNow()
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
-});
+}, (table) => [unique("user_tenant_id_id_unique").on(table.tenantId, table.id)]);
 
 export const providerAdmin = mysqlTable("provider_admin", {
   userId: varchar("user_id", { length: 36 })
