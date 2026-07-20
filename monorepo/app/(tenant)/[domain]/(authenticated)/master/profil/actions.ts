@@ -1,7 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
+import { createHeadmasterAssignmentService } from "@/lib/headmaster-assignment";
+import { headmasterAssignmentStore } from "@/lib/headmaster-assignment-data";
 import { createGetSchoolProfileQuery, createUpdateSchoolProfileCommand } from "@/lib/school-profile";
 import { schoolProfileStore } from "@/lib/school-profile-data";
 import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
@@ -33,6 +36,13 @@ const fields = ["displayName", "street", "village", "district", "city", "provinc
 
 function valuesFrom(formData: FormData): SchoolProfileFormValues {
   return Object.fromEntries(fields.map((field) => [field, String(formData.get(field) ?? "")])) as unknown as SchoolProfileFormValues;
+}
+
+export async function assignHeadmasterAction(domain: string, formData: FormData) {
+  const principal = await enforceMasterDataAccess(domain, "write");
+  const result = await createHeadmasterAssignmentService({ store: headmasterAssignmentStore }).assign(principal, { teacherId: String(formData.get("teacherId") ?? ""), effectiveDate: String(formData.get("effectiveDate") ?? ""), reason: String(formData.get("reason") ?? "") });
+  revalidatePath(`/${domain}/master/profil`);
+  redirect(`/${domain}/master/profil?headmaster=${result.ok ? "saved" : result.code}`);
 }
 
 export async function updateSchoolProfileAction(domain: string, _previous: SchoolProfileFormState, formData: FormData): Promise<SchoolProfileFormState> {

@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
 
+import { HeadmasterHistory } from "@/app/(tenant)/[domain]/(authenticated)/master/profil/headmaster-history";
 import { SchoolProfileForm } from "@/app/(tenant)/[domain]/(authenticated)/master/profil/school-profile-form";
 import { SchoolProfileHistory } from "@/app/(tenant)/[domain]/(authenticated)/master/profil/school-profile-history";
+import { createHeadmasterAssignmentService } from "@/lib/headmaster-assignment";
+import { headmasterAssignmentStore } from "@/lib/headmaster-assignment-data";
 import { createListSchoolAccreditationsQuery } from "@/lib/school-accreditation";
 import { createGetSchoolProfileQuery } from "@/lib/school-profile";
 import { schoolProfileStore } from "@/lib/school-profile-data";
@@ -15,13 +18,16 @@ const labels: Record<string, string> = {
   website: "Website HTTPS", coordinates: "Koordinat", description: "Deskripsi",
 };
 
-export default async function ProfilSekolahPage({ params }: { params: Promise<{ domain: string }> }) {
-  const { domain } = await params;
+export default async function ProfilSekolahPage({ params, searchParams }: { params: Promise<{ domain: string }>; searchParams: Promise<{ headmaster?: string }> }) {
+  const [{ domain }, query] = await Promise.all([params, searchParams]);
   const principal = await enforceMasterDataAccess(domain, "read");
-  const [result, accreditationResult] = await Promise.all([
-    createGetSchoolProfileQuery({ store: schoolProfileStore })(principal),
-    createListSchoolAccreditationsQuery({ store: schoolAccreditationStore })(principal),
-  ]);
+  const headmasterService = createHeadmasterAssignmentService({ store: headmasterAssignmentStore });
+    const [result, accreditationResult, headmasterProfile, eligibleTeachers] = await Promise.all([
+      createGetSchoolProfileQuery({ store: schoolProfileStore })(principal),
+      createListSchoolAccreditationsQuery({ store: schoolAccreditationStore })(principal),
+      headmasterService.getProfile(principal),
+      headmasterService.listEligibleTeachers(principal),
+    ]);
   if (!result.ok) notFound();
   const { profile } = result;
   const initial = {
@@ -52,6 +58,7 @@ export default async function ProfilSekolahPage({ params }: { params: Promise<{ 
         <div className="mt-4 space-y-4"><div><h3 className="text-sm font-medium">Wajib belum lengkap</h3>{profile.completeness.requiredMissing.length ? <ul className="mt-2 list-disc pl-5 text-sm text-destructive">{profile.completeness.requiredMissing.map((field) => <li key={field}>{labels[field] ?? field}</li>)}</ul> : <p className="mt-2 text-sm text-muted-foreground">Semua field wajib telah lengkap.</p>}</div>
         <div><h3 className="text-sm font-medium">Rekomendasi belum lengkap</h3>{profile.completeness.recommendedMissing.length ? <ul className="mt-2 list-disc pl-5 text-sm text-muted-foreground">{profile.completeness.recommendedMissing.map((field) => <li key={field}>{labels[field] ?? field}</li>)}</ul> : <p className="mt-2 text-sm text-muted-foreground">Semua rekomendasi telah lengkap.</p>}</div></div></div></aside>
     </section>
+    <HeadmasterHistory domain={domain} current={headmasterProfile.current} history={headmasterProfile.history} teachers={eligibleTeachers} readOnly={!principal.capabilities.write} result={query.headmaster} />
     <SchoolProfileHistory domain={domain} logoAssetId={profile.logoAssetId} readOnly={!principal.capabilities.write} records={accreditationResult.records} />
   </main>;
 }
