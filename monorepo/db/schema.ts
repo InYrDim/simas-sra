@@ -2,6 +2,7 @@ import { defineRelations, sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  decimal,
   index,
   int,
   json,
@@ -54,6 +55,55 @@ export const tenant = mysqlTable(
       "tenant_deletion_waiting_days_check",
       sql`${table.deletionWaitingDays} IS NULL OR (${table.deletionWaitingDays} >= 1 AND ${table.deletionWaitingDays} <= 365)`,
     ),
+  ],
+);
+
+export const schoolProfile = mysqlTable(
+  "school_profile",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    displayName: varchar("display_name", { length: 255 }).notNull(),
+    addressStreet: varchar("address_street", { length: 255 }).default("").notNull(),
+    addressVillage: varchar("address_village", { length: 255 }).default("").notNull(),
+    addressDistrict: varchar("address_district", { length: 255 }).default("").notNull(),
+    addressCity: varchar("address_city", { length: 255 }).default("").notNull(),
+    addressProvince: varchar("address_province", { length: 255 }).default("").notNull(),
+    addressPostalCode: varchar("address_postal_code", { length: 5 }).default("").notNull(),
+    institutionalEmail: varchar("institutional_email", { length: 255 }),
+    institutionalPhone: varchar("institutional_phone", { length: 32 }),
+    website: varchar("website", { length: 2048 }),
+    latitude: decimal("latitude", { precision: 10, scale: 7 }),
+    longitude: decimal("longitude", { precision: 10, scale: 7 }),
+    description: text("description"),
+    version: int("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("school_profile_tenant_id_unique").on(table.tenantId),
+    check("school_profile_version_check", sql`${table.version} > 0`),
+    check("school_profile_latitude_check", sql`${table.latitude} IS NULL OR (${table.latitude} >= -90 AND ${table.latitude} <= 90)`),
+    check("school_profile_longitude_check", sql`${table.longitude} IS NULL OR (${table.longitude} >= -180 AND ${table.longitude} <= 180)`),
+    check("school_profile_coordinates_check", sql`(${table.latitude} IS NULL) = (${table.longitude} IS NULL)`),
+  ],
+);
+
+export const schoolProfileAudit = mysqlTable(
+  "school_profile_audit",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    profileId: varchar("profile_id", { length: 36 }).notNull().references(() => schoolProfile.id),
+    actorUserId: varchar("actor_user_id", { length: 36 }).notNull().references(() => user.id),
+    operation: varchar("operation", { length: 100 }).notNull(),
+    fromVersion: int("from_version").notNull(),
+    toVersion: int("to_version").notNull(),
+    occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    index("school_profile_audit_tenant_profile_idx").on(table.tenantId, table.profileId, table.occurredAt),
+    check("school_profile_audit_version_check", sql`${table.fromVersion} > 0 AND ${table.toVersion} = ${table.fromVersion} + 1`),
   ],
 );
 
@@ -313,6 +363,8 @@ export const verification = mysqlTable(
 export const schemaRelations = defineRelations(
   {
     tenant,
+    schoolProfile,
+    schoolProfileAudit,
     user,
     providerAdmin,
     applicant,
@@ -336,6 +388,17 @@ export const schemaRelations = defineRelations(
       }),
       users: r.many.user(),
       temporaryCredentialActivations: r.many.temporaryCredentialActivation(),
+      schoolProfile: r.one.schoolProfile({ from: r.tenant.id, to: r.schoolProfile.tenantId }),
+      schoolProfileAudits: r.many.schoolProfileAudit(),
+    },
+    schoolProfile: {
+      tenant: r.one.tenant({ from: r.schoolProfile.tenantId, to: r.tenant.id }),
+      audits: r.many.schoolProfileAudit(),
+    },
+    schoolProfileAudit: {
+      tenant: r.one.tenant({ from: r.schoolProfileAudit.tenantId, to: r.tenant.id }),
+      profile: r.one.schoolProfile({ from: r.schoolProfileAudit.profileId, to: r.schoolProfile.id }),
+      actor: r.one.user({ from: r.schoolProfileAudit.actorUserId, to: r.user.id }),
     },
     user: {
       tenant: r.one.tenant({ from: r.user.tenantId, to: r.tenant.id }),
