@@ -49,6 +49,7 @@ export const tenantMenuItems: TenantNavItem[] = [
     group: "Administrasi",
     items: [
       { title: "Profil Sekolah", url: "/master/profil", roles: ["school-admin"] },
+      { title: "Tahun Ajaran", url: "/master/tahun-ajaran", roles: ["school-admin"] },
       { title: "Siswa", url: "/master/siswa", roles: ["school-admin"] },
       { title: "Guru", url: "/master/guru", roles: ["school-admin"] },
       { title: "Staf", url: "/master/staf", roles: ["school-admin"] },

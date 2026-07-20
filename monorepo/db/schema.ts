@@ -3,6 +3,7 @@ import {
   boolean,
   check,
   decimal,
+  date,
   foreignKey,
   index,
   int,
@@ -156,6 +157,71 @@ export const schoolProfileAudit = mysqlTable(
   (table) => [
     index("school_profile_audit_tenant_profile_idx").on(table.tenantId, table.profileId, table.occurredAt),
     check("school_profile_audit_version_check", sql`${table.fromVersion} > 0 AND ${table.toVersion} = ${table.fromVersion} + 1`),
+  ],
+);
+
+export const academicYear = mysqlTable(
+  "academic_year",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    label: varchar("label", { length: 100 }).notNull(),
+    startDate: date("start_date", { mode: "string" }).notNull(),
+    endDate: date("end_date", { mode: "string" }).notNull(),
+    lifecycle: mysqlEnum("lifecycle", ["draft", "active", "closed", "cancelled"]).default("draft").notNull(),
+    archived: boolean("archived").default(false).notNull(),
+    activeSlot: varchar("active_slot", { length: 36 }).generatedAlwaysAs(sql`CASE WHEN lifecycle = 'active' AND archived = false THEN tenant_id ELSE NULL END`),
+    version: int("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("academic_year_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("academic_year_tenant_label_unique").on(table.tenantId, table.label),
+    unique("academic_year_active_slot_unique").on(table.activeSlot),
+    index("academic_year_tenant_period_idx").on(table.tenantId, table.startDate, table.endDate),
+    check("academic_year_period_check", sql`${table.startDate} < ${table.endDate}`),
+    check("academic_year_version_check", sql`${table.version} > 0`),
+  ],
+);
+
+export const academicSemester = mysqlTable(
+  "academic_semester",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    academicYearId: varchar("academic_year_id", { length: 36 }).notNull(),
+    kind: mysqlEnum("kind", ["odd", "even"]).notNull(),
+    startDate: date("start_date", { mode: "string" }).notNull(),
+    endDate: date("end_date", { mode: "string" }).notNull(),
+    status: mysqlEnum("status", ["pending", "active", "completed"]).default("pending").notNull(),
+    activeSlot: varchar("active_slot", { length: 36 }).generatedAlwaysAs(sql`CASE WHEN status = 'active' THEN tenant_id ELSE NULL END`),
+  },
+  (table) => [
+    unique("academic_semester_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("academic_semester_year_kind_unique").on(table.academicYearId, table.kind),
+    unique("academic_semester_active_slot_unique").on(table.activeSlot),
+    foreignKey({ columns: [table.tenantId, table.academicYearId], foreignColumns: [academicYear.tenantId, academicYear.id], name: "academic_semester_tenant_year_fkey" }),
+    check("academic_semester_period_check", sql`${table.startDate} <= ${table.endDate}`),
+  ],
+);
+
+export const academicYearHistory = mysqlTable(
+  "academic_year_history",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    academicYearId: varchar("academic_year_id", { length: 36 }).notNull(),
+    actorUserId: varchar("actor_user_id", { length: 36 }).notNull().references(() => user.id),
+    operation: varchar("operation", { length: 50 }).notNull(),
+    effectiveDate: date("effective_date", { mode: "string" }).notNull(),
+    occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull(),
+    fromLifecycle: mysqlEnum("from_lifecycle", ["draft", "active", "closed", "cancelled"]),
+    toLifecycle: mysqlEnum("to_lifecycle", ["draft", "active", "closed", "cancelled"]).notNull(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.tenantId, table.academicYearId], foreignColumns: [academicYear.tenantId, academicYear.id], name: "academic_year_history_tenant_year_fkey" }),
+    index("academic_year_history_tenant_year_idx").on(table.tenantId, table.academicYearId, table.occurredAt),
   ],
 );
 
@@ -419,6 +485,9 @@ export const schemaRelations = defineRelations(
     schoolAsset,
     schoolAccreditation,
     schoolProfileAudit,
+    academicYear,
+    academicSemester,
+    academicYearHistory,
     user,
     providerAdmin,
     applicant,
