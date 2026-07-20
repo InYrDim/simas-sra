@@ -225,6 +225,54 @@ export const academicYearHistory = mysqlTable(
   ],
 );
 
+export const classGroup = mysqlTable(
+  "class_group",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    academicYearId: varchar("academic_year_id", { length: 36 }).notNull(),
+    educationLevel: mysqlEnum("education_level", ["SD", "SMP", "SMA", "SMK"]).notNull(),
+    grade: int("grade").notNull(),
+    groupName: varchar("group_name", { length: 100 }).notNull(),
+    normalizedGroupName: varchar("normalized_group_name", { length: 100 }).notNull(),
+    code: varchar("code", { length: 30 }),
+    normalizedCode: varchar("normalized_code", { length: 30 }),
+    capacity: int("capacity"),
+    primaryLocationId: varchar("primary_location_id", { length: 36 }),
+    lifecycle: mysqlEnum("lifecycle", ["draft", "active", "closed", "cancelled"]).default("draft").notNull(),
+    archived: boolean("archived").default(false).notNull(),
+    archivedAt: timestamp("archived_at", { fsp: 3 }),
+    archiveReason: varchar("archive_reason", { length: 1000 }),
+    version: int("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("class_group_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("class_group_year_name_unique").on(table.tenantId, table.academicYearId, table.normalizedGroupName),
+    unique("class_group_tenant_code_unique").on(table.tenantId, table.normalizedCode),
+    foreignKey({ columns: [table.tenantId, table.academicYearId], foreignColumns: [academicYear.tenantId, academicYear.id], name: "class_group_tenant_year_fkey" }),
+    index("class_group_tenant_archive_name_idx").on(table.tenantId, table.archived, table.normalizedGroupName),
+    check("class_group_grade_check", sql`${table.grade} BETWEEN 1 AND 12`),
+    check("class_group_capacity_check", sql`${table.capacity} IS NULL OR (${table.capacity} BETWEEN 1 AND 999)`),
+    check("class_group_version_check", sql`${table.version} > 0`),
+  ],
+);
+
+export const classGroupHistory = mysqlTable(
+  "class_group_history",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), classGroupId: varchar("class_group_id", { length: 36 }).notNull(), actorUserId: varchar("actor_user_id", { length: 36 }).notNull(), operation: varchar("operation", { length: 50 }).notNull(), fromVersion: int("from_version").notNull(), toVersion: int("to_version").notNull(), reason: varchar("reason", { length: 1000 }).notNull(), occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [foreignKey({ columns: [table.tenantId, table.classGroupId], foreignColumns: [classGroup.tenantId, classGroup.id], name: "class_group_history_tenant_group_fkey" }), foreignKey({ columns: [table.tenantId, table.actorUserId], foreignColumns: [user.tenantId, user.id], name: "class_group_history_tenant_actor_fkey" }), index("class_group_history_tenant_group_idx").on(table.tenantId, table.classGroupId, table.occurredAt), check("class_group_history_version_check", sql`${table.fromVersion} >= 0 AND ${table.toVersion} = ${table.fromVersion} + 1`)],
+);
+
+export const classGroupRelationship = mysqlTable(
+  "class_group_relationship",
+  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), classGroupId: varchar("class_group_id", { length: 36 }).notNull(), kind: varchar("kind", { length: 50 }).notNull(), label: varchar("label", { length: 255 }).notNull(), active: boolean("active").default(true).notNull() },
+  (table) => [foreignKey({ columns: [table.tenantId, table.classGroupId], foreignColumns: [classGroup.tenantId, classGroup.id], name: "class_group_relationship_tenant_group_fkey" }), index("class_group_relationship_tenant_active_idx").on(table.tenantId, table.classGroupId, table.active)],
+);
+
 export const subject = mysqlTable(
   "subject",
   {
@@ -696,6 +744,9 @@ export const schemaRelations = defineRelations(
     academicYear,
     academicSemester,
     academicYearHistory,
+    classGroup,
+    classGroupHistory,
+    classGroupRelationship,
     subject,
     subjectHistory,
     user,

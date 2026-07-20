@@ -1,0 +1,18 @@
+import { and, asc, eq, sql } from "drizzle-orm";
+
+import { db } from "@/db";
+import { academicYear, classGroup, classGroupHistory, classGroupRelationship, tenant, user } from "@/db/schema";
+import type { ClassGroup, ClassGroupStore } from "@/lib/class-group";
+
+async function listWith(executor: Pick<typeof db, "select">, tenantId: string): Promise<ClassGroup[]> { return executor.select().from(classGroup).where(eq(classGroup.tenantId, tenantId)).orderBy(asc(classGroup.normalizedGroupName), asc(classGroup.id)); }
+async function referencesWith(executor: Pick<typeof db, "select">, tenantId: string) { const years = await executor.select({ id: academicYear.id, tenantId: academicYear.tenantId, label: academicYear.label, lifecycle: academicYear.lifecycle, archived: academicYear.archived }).from(academicYear).where(eq(academicYear.tenantId, tenantId)); return { academicYears: years, locations: [] }; }
+
+export const classGroupStore: ClassGroupStore = {
+  list: (tenantId) => listWith(db, tenantId), references: (tenantId) => referencesWith(db, tenantId),
+  transaction(tenantId, work) { return db.transaction(async (tx) => { await tx.execute(sql`SELECT ${tenant.id} FROM ${tenant} WHERE ${tenant.id} = ${tenantId} FOR UPDATE`); return work({
+    list: () => listWith(tx, tenantId), references: () => referencesWith(tx, tenantId),
+    blockers: (id) => tx.select().from(classGroupRelationship).where(and(eq(classGroupRelationship.tenantId, tenantId), eq(classGroupRelationship.classGroupId, id), eq(classGroupRelationship.active, true))),
+    async save(group, expectedVersion) { if (group.tenantId !== tenantId) throw new Error("Cross-Tenant Rombel write denied"); if (expectedVersion === 0) { await tx.insert(classGroup).values(group); return true; } const result = await tx.update(classGroup).set({ academicYearId: group.academicYearId, educationLevel: group.educationLevel, grade: group.grade, groupName: group.groupName, normalizedGroupName: group.normalizedGroupName, code: group.code, normalizedCode: group.normalizedCode, capacity: group.capacity, primaryLocationId: group.primaryLocationId, lifecycle: group.lifecycle, archived: group.archived, archivedAt: group.archivedAt, archiveReason: group.archiveReason, version: group.version, updatedAt: group.updatedAt }).where(and(eq(classGroup.tenantId, tenantId), eq(classGroup.id, group.id), eq(classGroup.version, expectedVersion))); return result[0].affectedRows === 1; },
+    async appendHistory(event) { if (event.tenantId !== tenantId) throw new Error("Cross-Tenant Rombel history denied"); const [actor] = await tx.select({ id: user.id }).from(user).where(and(eq(user.tenantId, tenantId), eq(user.id, event.actorUserId))).limit(1); if (!actor) throw new Error("Rombel actor is not a Tenant member"); await tx.insert(classGroupHistory).values(event); },
+  }); }); },
+};
