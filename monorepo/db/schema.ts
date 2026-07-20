@@ -30,6 +30,12 @@ export const tenant = mysqlTable(
     trialStartedAt: timestamp("trial_started_at", { fsp: 3 }),
     trialEndsAt: timestamp("trial_ends_at", { fsp: 3 }),
     settings: json("settings"),
+    operationalStatus: mysqlEnum("operational_status", ["active", "closed"]),
+    reconciliationStatus: mysqlEnum("reconciliation_status", [
+      "not_required",
+      "needs_reconciliation",
+    ]),
+    deletionWaitingDays: int("deletion_waiting_days"),
     createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { fsp: 3 })
       .defaultNow()
@@ -43,6 +49,10 @@ export const tenant = mysqlTable(
         (${table.onboardingCompletedAt} IS NULL AND ${table.trialStartedAt} IS NULL AND ${table.trialEndsAt} IS NULL)
         OR (${table.onboardingCompletedAt} IS NOT NULL AND ${table.trialStartedAt} = ${table.onboardingCompletedAt} AND ${table.trialEndsAt} = DATE_ADD(${table.trialStartedAt}, INTERVAL 1 MONTH))
       )`,
+    ),
+    check(
+      "tenant_deletion_waiting_days_check",
+      sql`${table.deletionWaitingDays} IS NULL OR (${table.deletionWaitingDays} >= 1 AND ${table.deletionWaitingDays} <= 365)`,
     ),
   ],
 );
@@ -190,6 +200,26 @@ export const temporaryCredentialActivation = mysqlTable(
   ],
 );
 
+export const tenantOperationalMigrationCheckpoint = mysqlTable(
+  "tenant_operational_migration_checkpoint",
+  {
+    migrationKey: varchar("migration_key", { length: 100 }).primaryKey(),
+    lastTenantId: varchar("last_tenant_id", { length: 36 }),
+    examinedCount: int("examined_count").default(0).notNull(),
+    migratedCount: int("migrated_count").default(0).notNull(),
+    reconciliationCount: int("reconciliation_count").default(0).notNull(),
+    accessDifferenceCount: int("access_difference_count").default(0).notNull(),
+    completedAt: timestamp("completed_at", { fsp: 3 }),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
+  },
+  (table) => [
+    check("tenant_operational_migration_examined_check", sql`${table.examinedCount} >= 0`),
+    check("tenant_operational_migration_migrated_check", sql`${table.migratedCount} >= 0`),
+    check("tenant_operational_migration_reconciliation_check", sql`${table.reconciliationCount} >= 0`),
+    check("tenant_operational_migration_access_difference_check", sql`${table.accessDifferenceCount} >= 0`),
+  ],
+);
+
 export const transactionalOutbox = mysqlTable(
   "transactional_outbox",
   {
@@ -197,6 +227,9 @@ export const transactionalOutbox = mysqlTable(
     eventType: varchar("event_type", { length: 100 }).notNull(),
     aggregateType: varchar("aggregate_type", { length: 64 }).notNull(),
     aggregateId: varchar("aggregate_id", { length: 36 }).notNull(),
+    eventIdentity: varchar("event_identity", { length: 255 })
+      .default("legacy")
+      .notNull(),
     payload: json("payload").notNull(),
     occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull(),
     publishedAt: timestamp("published_at", { fsp: 3 }),
@@ -204,10 +237,11 @@ export const transactionalOutbox = mysqlTable(
     lastError: text("last_error"),
   },
   (table) => [
-    unique("transactional_outbox_event_aggregate_unique").on(
+    unique("transactional_outbox_event_identity_unique").on(
       table.eventType,
       table.aggregateType,
       table.aggregateId,
+      table.eventIdentity,
     ),
     index("transactional_outbox_pending_idx").on(
       table.publishedAt,
@@ -285,6 +319,7 @@ export const schemaRelations = defineRelations(
     applicantSchoolBinding,
     simasApplication,
     temporaryCredentialActivation,
+    tenantOperationalMigrationCheckpoint,
     transactionalOutbox,
     session,
     account,

@@ -25,6 +25,7 @@ import {
   transactionalOutbox,
   user,
 } from "@/db/schema";
+import { outboxEventIdentity } from "@/lib/outbox-event-identity";
 import {
   ApprovalConflictError,
   type ApplicationApprovalStore,
@@ -290,6 +291,9 @@ export function createApplicationApprovalStore(options: Readonly<{
               onboardingCompletedAt: null,
               trialStartedAt: null,
               trialEndsAt: null,
+              operationalStatus: "active",
+              reconciliationStatus: "not_required",
+              deletionWaitingDays: 30,
             });
             await afterStep("tenant-created");
 
@@ -335,6 +339,10 @@ export function createApplicationApprovalStore(options: Readonly<{
               eventType: "simas.application.approved",
               aggregateType: "simas_application",
               aggregateId: values.applicationId,
+              eventIdentity: outboxEventIdentity({
+                kind: "transition",
+                transitionId: values.outboxEventId,
+              }),
               payload: {
                 applicationId: values.applicationId,
                 bindingId: values.bindingId,

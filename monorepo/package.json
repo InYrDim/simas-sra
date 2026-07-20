@@ -17,6 +17,8 @@
     "db:audit:applicant-identities": "tsx scripts/migrate-applicant-identities.ts audit",
     "db:verify:applicant-cutover": "tsx scripts/migrate-applicant-identities.ts verify",
     "db:backfill:applicant-identities": "tsx scripts/migrate-applicant-identities.ts backfill",
+    "db:backfill:tenant-operational": "tsx scripts/migrate-tenant-operational-model.ts backfill",
+    "db:verify:tenant-operational": "tsx scripts/migrate-tenant-operational-model.ts verify",
     "db:studio": "drizzle-kit studio",
     "provider-admin:provision": "tsx scripts/provision-provider-admin.ts",
     "provider-admin:deprovision": "tsx scripts/deprovision-provider-admin.ts"
