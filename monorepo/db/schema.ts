@@ -325,6 +325,8 @@ export const studentProfile = mysqlTable(
     entryDate: date("entry_date", { mode: "string" }).notNull(),
     status: mysqlEnum("status", ["active", "graduated", "transferred", "withdrawn"]).default("active").notNull(),
     archived: boolean("archived").default(false).notNull(),
+    archivedAt: timestamp("archived_at", { fsp: 3 }),
+    archiveReason: varchar("archive_reason", { length: 500 }),
     version: int("version").default(1).notNull(),
     createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
     updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
@@ -341,11 +343,27 @@ export const studentProfile = mysqlTable(
   ],
 );
 
+export const studentLifecyclePeriod = mysqlTable(
+  "student_lifecycle_period",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), studentId: varchar("student_id", { length: 36 }).notNull(), status: mysqlEnum("status", ["active", "graduated", "transferred", "withdrawn"]).notNull(), startedAt: date("started_at", { mode: "string" }).notNull(), endedAt: date("ended_at", { mode: "string" }), reason: varchar("reason", { length: 500 }).notNull(), notes: text("notes"), corrected: boolean("corrected").default(false).notNull(), createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull(), createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [foreignKey({ columns: [table.tenantId, table.studentId], foreignColumns: [studentProfile.tenantId, studentProfile.id], name: "student_lifecycle_period_tenant_student_fkey" }), foreignKey({ columns: [table.tenantId, table.createdByUserId], foreignColumns: [user.tenantId, user.id], name: "student_lifecycle_period_tenant_actor_fkey" }), index("student_lifecycle_period_tenant_student_idx").on(table.tenantId, table.studentId, table.startedAt), check("student_lifecycle_period_range_check", sql`${table.endedAt} IS NULL OR ${table.endedAt} >= ${table.startedAt}`)],
+);
+
+export const studentRelationship = mysqlTable(
+  "student_relationship",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), studentId: varchar("student_id", { length: 36 }).notNull(), kind: varchar("kind", { length: 50 }).notNull(), label: varchar("label", { length: 255 }).notNull(), active: boolean("active").default(true).notNull(),
+  },
+  (table) => [foreignKey({ columns: [table.tenantId, table.studentId], foreignColumns: [studentProfile.tenantId, studentProfile.id], name: "student_relationship_tenant_student_fkey" }), index("student_relationship_tenant_student_active_idx").on(table.tenantId, table.studentId, table.active)],
+);
+
 export const studentAudit = mysqlTable(
   "student_audit",
   {
     id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), personId: varchar("person_id", { length: 36 }).notNull(), studentId: varchar("student_id", { length: 36 }), actorUserId: varchar("actor_user_id", { length: 36 }).notNull().references(() => user.id),
-    operation: mysqlEnum("operation", ["created-person", "created-student", "attached-student", "edited"]).notNull(), fromPersonVersion: int("from_person_version").notNull(), toPersonVersion: int("to_person_version").notNull(), fromStudentVersion: int("from_student_version").notNull(), toStudentVersion: int("to_student_version").notNull(), sensitiveBefore: json("sensitive_before"), sensitiveAfter: json("sensitive_after"), occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull(),
+    operation: mysqlEnum("operation", ["created-person", "created-student", "attached-student", "edited", "status-transitioned", "graduation-corrected", "archive-denied", "archived", "reactivated"]).notNull(), fromPersonVersion: int("from_person_version").notNull(), toPersonVersion: int("to_person_version").notNull(), fromStudentVersion: int("from_student_version").notNull(), toStudentVersion: int("to_student_version").notNull(), sensitiveBefore: json("sensitive_before"), sensitiveAfter: json("sensitive_after"), lifecycleBefore: json("lifecycle_before"), lifecycleAfter: json("lifecycle_after"), reason: varchar("reason", { length: 1000 }), occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull(),
   },
   (table) => [foreignKey({ columns: [table.tenantId, table.personId], foreignColumns: [schoolPerson.tenantId, schoolPerson.id], name: "student_audit_tenant_person_fkey" }), foreignKey({ columns: [table.tenantId, table.studentId], foreignColumns: [studentProfile.tenantId, studentProfile.id], name: "student_audit_tenant_student_fkey" }), index("student_audit_tenant_student_idx").on(table.tenantId, table.studentId, table.occurredAt)],
 );
