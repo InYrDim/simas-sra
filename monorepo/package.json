@@ -21,7 +21,8 @@
     "db:verify:tenant-operational": "tsx scripts/migrate-tenant-operational-model.ts verify",
     "db:studio": "drizzle-kit studio",
     "provider-admin:provision": "tsx scripts/provision-provider-admin.ts",
-    "provider-admin:deprovision": "tsx scripts/deprovision-provider-admin.ts"
+    "provider-admin:deprovision": "tsx scripts/deprovision-provider-admin.ts",
+    "worker:people-import-validation": "tsx scripts/run-people-import-validation.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -35,7 +36,9 @@
     "dotenv": "^17.4.2",
     "drizzle-orm": "1.0.0-rc.4",
     "embla-carousel-react": "^8.6.0",
+    "exceljs": "^4.4.0",
     "input-otp": "^1.4.2",
+    "jszip": "^3.10.1",
     "lucide-react": "^1.24.0",
     "mysql2": "^3.23.0",
     "next": "16.2.10",

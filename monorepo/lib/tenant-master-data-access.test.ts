@@ -87,7 +87,7 @@ test("Tenant lifecycle grants full, read-only, or no capabilities", () => {
   assert.equal(authorizeMasterDataAccess({
     ...expired,
     operation: "download-template",
-    tenant: { ...expired.tenant!, featurePolicy: { read: true, write: false } },
+    tenant: { ...expired.tenant!, featurePolicy: { read: true, write: false, importDownload: true } },
   }).kind, "authorized");
 
   const suspended = snapshot({ tenant: { ...snapshot().tenant!, operationalStatus: "suspended" } });
@@ -100,7 +100,7 @@ test("Tenant lifecycle grants full, read-only, or no capabilities", () => {
       capabilities: { read: true, write: false, downloadTemplate: false },
     },
   });
-  assert.deepEqual(authorizeMasterDataAccess({ ...suspended, operation: "download-template" }), {
+  assert.deepEqual(authorizeMasterDataAccess({ ...suspended, operation: "download-template", tenant: { ...suspended.tenant!, featurePolicy: { ...suspended.tenant!.featurePolicy, importDownload: true } } }), {
     kind: "forbidden", reason: "read-only",
   });
 

@@ -1,7 +1,7 @@
 import type { TenantRole } from "@/types/TenantRole";
 
-export type MasterDataOperation = "read" | "write" | "download-template";
-export type MasterDataFeaturePolicy = Readonly<{ read: boolean; write: boolean }>;
+export type MasterDataOperation = "read" | "write" | "download-template" | "validate-import";
+export type MasterDataFeaturePolicy = Readonly<{ read: boolean; write: boolean; importDownload?: boolean; importValidation?: boolean }>;
 export type MasterDataCapabilities = Readonly<{
   read: boolean;
   write: boolean;
@@ -63,13 +63,17 @@ export function authorizeMasterDataAccess(snapshot: MasterDataAccessSnapshot): M
   const capabilities = capabilitiesFor(snapshot);
   if (!capabilities) return { kind: "not-found" };
 
-  const featureEnabled = snapshot.operation === "write"
-    ? tenant.featurePolicy.write
-    : tenant.featurePolicy.read;
+  const featureEnabled = snapshot.operation === "download-template"
+    ? tenant.featurePolicy.importDownload === true
+    : snapshot.operation === "validate-import"
+      ? tenant.featurePolicy.importValidation === true
+      : snapshot.operation === "write"
+        ? tenant.featurePolicy.write
+        : tenant.featurePolicy.read;
   if (!featureEnabled) return { kind: "forbidden", reason: "feature-disabled" };
 
   if (
-    (snapshot.operation === "write" && !capabilities.write) ||
+    ((snapshot.operation === "write" || snapshot.operation === "validate-import") && !capabilities.write) ||
     (snapshot.operation === "download-template" && !capabilities.downloadTemplate)
   ) return { kind: "forbidden", reason: "read-only" };
 
