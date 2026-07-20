@@ -22,6 +22,7 @@ const selection = {
   latitude: schoolProfile.latitude,
   longitude: schoolProfile.longitude,
   description: schoolProfile.description,
+  logoAssetId: schoolProfile.logoAssetId,
   version: schoolProfile.version,
   createdAt: schoolProfile.createdAt,
   updatedAt: schoolProfile.updatedAt,
@@ -49,6 +50,7 @@ function mapProfile(row: ProfileRow): SchoolProfile {
     latitude: row.latitude === null ? null : Number(row.latitude),
     longitude: row.longitude === null ? null : Number(row.longitude),
     description: row.description,
+    logoAssetId: row.logoAssetId,
     version: row.version,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -86,7 +88,7 @@ export const schoolProfileStore: SchoolProfileStore = {
           addressProvince: profile.address.province, addressPostalCode: profile.address.postalCode,
           institutionalEmail: profile.institutionalEmail, institutionalPhone: profile.institutionalPhone,
           website: profile.website, latitude: profile.latitude?.toString(), longitude: profile.longitude?.toString(),
-          description: profile.description, version: profile.version,
+          description: profile.description, logoAssetId: profile.logoAssetId, version: profile.version,
           createdAt: profile.createdAt, updatedAt: profile.updatedAt,
         }).onDuplicateKeyUpdate({ set: { id: sql`${schoolProfile.id}` } });
         const [row] = await selectProfile(transaction, profile.tenantId);

@@ -29,6 +29,7 @@ export type SchoolProfile = Readonly<{
   latitude: number | null;
   longitude: number | null;
   description: string | null;
+  logoAssetId: string | null;
   version: number;
   createdAt: Date;
   updatedAt: Date;
@@ -118,7 +119,7 @@ export function createGetSchoolProfileQuery(dependencies: {
         displayName: provider.officialName,
         address: emptyAddress,
         institutionalEmail: null, institutionalPhone: null, website: null,
-        latitude: null, longitude: null, description: null,
+        latitude: null, longitude: null, description: null, logoAssetId: null,
         version: 1, createdAt: timestamp, updatedAt: timestamp,
       });
       return { ok: true, profile: view(created) } as const;

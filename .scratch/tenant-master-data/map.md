@@ -30,6 +30,7 @@ A decision-complete implementation specification for nine functional Tenant Mast
 - [Define the consistent Master Data UX](./issues/08-define-consistent-master-data-ux.md) — A task-oriented `/master` overview leads into consistent split list/detail entity workspaces with URL-backed state, domain-specific forms and lifecycle actions, responsive behavior, and accessible loading/error/empty patterns.
 - [Plan the Master Data implementation sequence and validation](./issues/09-plan-master-data-implementation-and-validation.md) — Deployment-safe vertical slices use additive migrations, evidence-gated feature-flag rollout, real-MySQL and browser validation, invariant reconciliation, durable import jobs, and targeted rollback/repair.
 - [Implement basic School Profile management](./issues/03-manage-basic-school-profile.md) — Tenant profiles are lazy and unique, Provider identity remains read-only, operational edits use allowlisted validation and optimistic concurrency, and audit writes are transactionally atomic.
+- [Manage school logo and accreditation history](./issues/04-manage-school-logo-and-accreditation.md) — Tenant-scoped protected logo storage validates actual image content with atomic cleanup, while accreditation corrections append replacements and preserve invalidated history without overlapping periods.
 
 ## Not yet specified
 

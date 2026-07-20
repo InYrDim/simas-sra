@@ -5,8 +5,11 @@ import test, { after } from "node:test";
 import mysql from "mysql2/promise";
 
 import { closeDatabasePool } from "@/db";
+import { createAddSchoolAccreditationCommand, createCorrectSchoolAccreditationCommand } from "@/lib/school-accreditation";
 import { createGetSchoolProfileQuery, createUpdateSchoolProfileCommand } from "@/lib/school-profile";
+import { createInMemorySchoolAssetStorage, createUploadSchoolLogoCommand } from "@/lib/school-profile-assets";
 import { schoolProfileStore } from "@/lib/school-profile-data";
+import { schoolAccreditationStore, schoolAssetStore } from "@/lib/school-profile-history-data";
 import type { MasterDataPrincipal } from "@/lib/tenant-master-data-access";
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -36,6 +39,9 @@ async function fixture() {
 async function cleanup(data: Awaited<ReturnType<typeof fixture>>) {
   try {
     await data.connection.execute("SET FOREIGN_KEY_CHECKS = 0");
+    await data.connection.execute("UPDATE `school_profile` SET `logo_asset_id`=NULL WHERE `tenant_id`=?", [data.tenantId]);
+    await data.connection.execute("DELETE FROM `school_accreditation` WHERE `tenant_id`=?", [data.tenantId]);
+    await data.connection.execute("DELETE FROM `school_asset` WHERE `tenant_id`=?", [data.tenantId]);
     await data.connection.execute("DELETE FROM `school_profile_audit` WHERE `tenant_id`=?", [data.tenantId]);
     await data.connection.execute("DELETE FROM `school_profile` WHERE `tenant_id`=?", [data.tenantId]);
     await data.connection.execute("UPDATE `user` SET `tenant_id`=NULL, `tenant_role`=NULL WHERE `id`=?", [data.ownerId]);
@@ -73,6 +79,47 @@ mysqlTest("MySQL keeps lazy creation unique and enforces Tenant-scoped optimisti
     assert.deepEqual(await query(otherPrincipal), { ok: false, code: "not-found" });
     const [persisted] = await data.connection.execute<mysql.RowDataPacket[]>("SELECT `display_name`,`version` FROM `school_profile` WHERE `tenant_id`=?", [data.tenantId]);
     assert.deepEqual({ displayName: persisted[0].display_name, version: persisted[0].version }, { displayName: "SMA Integrasi Operasional", version: 2 });
+  } finally { await cleanup(data); }
+});
+
+mysqlTest("MySQL persists one Tenant logo atomically and cleans storage after a database failure", async () => {
+  const data = await fixture();
+  const storage = createInMemorySchoolAssetStorage();
+  const bytes = new Uint8Array(24);
+  bytes.set([137, 80, 78, 71, 13, 10, 26, 10]);
+  bytes.set([0, 0, 0, 13, 73, 72, 68, 82], 8);
+  new DataView(bytes.buffer).setUint32(16, 256);
+  new DataView(bytes.buffer).setUint32(20, 256);
+  try {
+    await createGetSchoolProfileQuery({ store: schoolProfileStore })(data.principal);
+    const upload = createUploadSchoolLogoCommand({ storage, store: schoolAssetStore, retentionDays: 30, id: () => randomUUID() });
+    const result = await upload(data.principal, { bytes, fileName: "logo.png", declaredMimeType: "image/png" });
+    assert.equal(result.ok, true);
+    const [profiles] = await data.connection.execute<mysql.RowDataPacket[]>("SELECT `logo_asset_id` FROM `school_profile` WHERE `tenant_id`=?", [data.tenantId]);
+    assert.equal(profiles[0].logo_asset_id, result.ok ? result.asset.id : null);
+
+    const failedId = randomUUID();
+    await assert.rejects(createUploadSchoolLogoCommand({ storage, store: schoolAssetStore, retentionDays: 30, id: () => failedId })({ ...data.principal, userId: randomUUID() }, { bytes, fileName: "logo.png", declaredMimeType: "image/png" }));
+    await assert.rejects(storage.read(data.tenantId, `tenants/${data.tenantId}/school-profile/logo/${failedId}.png`), /not found/i);
+    const [assets] = await data.connection.execute<mysql.RowDataPacket[]>("SELECT `id` FROM `school_asset` WHERE `tenant_id`=?", [data.tenantId]);
+    assert.equal(assets.length, 1);
+  } finally { await cleanup(data); }
+});
+
+mysqlTest("MySQL serializes accreditation periods and rolls back a failed correction", async () => {
+  const data = await fixture();
+  try {
+    await createGetSchoolProfileQuery({ store: schoolProfileStore })(data.principal);
+    const input = { rating: "A", certificateNumber: "SK-001", issuingInstitution: "BAN-S/M", determinationDate: "2024-01-01", expiryDate: "2028-12-31" } as const;
+    const added = await createAddSchoolAccreditationCommand({ store: schoolAccreditationStore, id: () => randomUUID() })(data.principal, input);
+    assert.equal(added.ok, true);
+    const overlap = await createAddSchoolAccreditationCommand({ store: schoolAccreditationStore, id: () => randomUUID() })(data.principal, { ...input, certificateNumber: "SK-002", determinationDate: "2028-01-01" });
+    assert.deepEqual(overlap, { ok: false, code: "overlap" });
+    if (!added.ok) return;
+    await assert.rejects(createCorrectSchoolAccreditationCommand({ store: schoolAccreditationStore, id: () => randomUUID() })({ ...data.principal, userId: randomUUID() }, added.record.id, { ...input, rating: "B", correctionReason: "Koreksi" }));
+    const [rows] = await data.connection.execute<mysql.RowDataPacket[]>("SELECT `rating`,`invalidated_at` FROM `school_accreditation` WHERE `tenant_id`=?", [data.tenantId]);
+    assert.equal(rows.length, 1);
+    assert.deepEqual({ rating: rows[0].rating, invalidatedAt: rows[0].invalidated_at }, { rating: "A", invalidatedAt: null });
   } finally { await cleanup(data); }
 });
 

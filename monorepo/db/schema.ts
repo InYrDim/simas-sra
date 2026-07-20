@@ -3,6 +3,7 @@ import {
   boolean,
   check,
   decimal,
+  foreignKey,
   index,
   int,
   json,
@@ -76,16 +77,67 @@ export const schoolProfile = mysqlTable(
     latitude: decimal("latitude", { precision: 10, scale: 7 }),
     longitude: decimal("longitude", { precision: 10, scale: 7 }),
     description: text("description"),
+    logoAssetId: varchar("logo_asset_id", { length: 36 }),
     version: int("version").default(1).notNull(),
     createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
   },
   (table) => [
     unique("school_profile_tenant_id_unique").on(table.tenantId),
+    unique("school_profile_tenant_id_id_unique").on(table.tenantId, table.id),
     check("school_profile_version_check", sql`${table.version} > 0`),
     check("school_profile_latitude_check", sql`${table.latitude} IS NULL OR (${table.latitude} >= -90 AND ${table.latitude} <= 90)`),
     check("school_profile_longitude_check", sql`${table.longitude} IS NULL OR (${table.longitude} >= -180 AND ${table.longitude} <= 180)`),
     check("school_profile_coordinates_check", sql`(${table.latitude} IS NULL) = (${table.longitude} IS NULL)`),
+  ],
+);
+
+export const schoolAsset = mysqlTable(
+  "school_asset",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    storageKey: varchar("storage_key", { length: 700 }).notNull(),
+    mimeType: mysqlEnum("mime_type", ["image/png", "image/jpeg", "image/webp"]).notNull(),
+    byteSize: int("byte_size").notNull(),
+    width: int("width").notNull(),
+    height: int("height").notNull(),
+    createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull().references(() => user.id),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("school_asset_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("school_asset_storage_key_unique").on(table.storageKey),
+    check("school_asset_size_check", sql`${table.byteSize} > 0 AND ${table.byteSize} <= 2097152`),
+    check("school_asset_dimensions_check", sql`${table.width} >= 256 AND ${table.height} >= 256 AND ${table.width} = ${table.height}`),
+  ],
+);
+
+export const schoolAccreditation = mysqlTable(
+  "school_accreditation",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    profileId: varchar("profile_id", { length: 36 }).notNull().references(() => schoolProfile.id),
+    rating: mysqlEnum("rating", ["A", "B", "C", "Terakreditasi", "Tidak Terakreditasi"]).notNull(),
+    certificateNumber: varchar("certificate_number", { length: 100 }).notNull(),
+    issuingInstitution: varchar("issuing_institution", { length: 150 }).notNull(),
+    determinationDate: varchar("determination_date", { length: 10 }).notNull(),
+    expiryDate: varchar("expiry_date", { length: 10 }),
+    supersedesId: varchar("supersedes_id", { length: 36 }),
+    correctionId: varchar("correction_id", { length: 36 }),
+    invalidationReason: varchar("invalidation_reason", { length: 500 }),
+    invalidatedAt: timestamp("invalidated_at", { fsp: 3 }),
+    createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull().references(() => user.id),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("school_accreditation_tenant_id_id_unique").on(table.tenantId, table.id),
+    foreignKey({ columns: [table.tenantId, table.profileId], foreignColumns: [schoolProfile.tenantId, schoolProfile.id], name: "school_accreditation_tenant_profile_fkey" }),
+    foreignKey({ columns: [table.tenantId, table.supersedesId], foreignColumns: [table.tenantId, table.id], name: "school_accreditation_tenant_supersedes_fkey" }),
+    foreignKey({ columns: [table.tenantId, table.correctionId], foreignColumns: [table.tenantId, table.id], name: "school_accreditation_tenant_correction_fkey" }),
+    index("school_accreditation_tenant_period_idx").on(table.tenantId, table.determinationDate, table.expiryDate),
+    check("school_accreditation_period_check", sql`${table.expiryDate} IS NULL OR ${table.expiryDate} >= ${table.determinationDate}`),
   ],
 );
 
@@ -364,6 +416,8 @@ export const schemaRelations = defineRelations(
   {
     tenant,
     schoolProfile,
+    schoolAsset,
+    schoolAccreditation,
     schoolProfileAudit,
     user,
     providerAdmin,
@@ -389,11 +443,25 @@ export const schemaRelations = defineRelations(
       users: r.many.user(),
       temporaryCredentialActivations: r.many.temporaryCredentialActivation(),
       schoolProfile: r.one.schoolProfile({ from: r.tenant.id, to: r.schoolProfile.tenantId }),
+      schoolAssets: r.many.schoolAsset(),
+      schoolAccreditations: r.many.schoolAccreditation(),
       schoolProfileAudits: r.many.schoolProfileAudit(),
     },
     schoolProfile: {
       tenant: r.one.tenant({ from: r.schoolProfile.tenantId, to: r.tenant.id }),
+      logoAsset: r.one.schoolAsset({ from: [r.schoolProfile.tenantId, r.schoolProfile.logoAssetId], to: [r.schoolAsset.tenantId, r.schoolAsset.id] }),
+      accreditations: r.many.schoolAccreditation(),
       audits: r.many.schoolProfileAudit(),
+    },
+    schoolAsset: {
+      tenant: r.one.tenant({ from: r.schoolAsset.tenantId, to: r.tenant.id }),
+      profile: r.one.schoolProfile({ from: [r.schoolAsset.tenantId, r.schoolAsset.id], to: [r.schoolProfile.tenantId, r.schoolProfile.logoAssetId] }),
+      creator: r.one.user({ from: r.schoolAsset.createdByUserId, to: r.user.id }),
+    },
+    schoolAccreditation: {
+      tenant: r.one.tenant({ from: r.schoolAccreditation.tenantId, to: r.tenant.id }),
+      profile: r.one.schoolProfile({ from: r.schoolAccreditation.profileId, to: r.schoolProfile.id }),
+      creator: r.one.user({ from: r.schoolAccreditation.createdByUserId, to: r.user.id }),
     },
     schoolProfileAudit: {
       tenant: r.one.tenant({ from: r.schoolProfileAudit.tenantId, to: r.tenant.id }),

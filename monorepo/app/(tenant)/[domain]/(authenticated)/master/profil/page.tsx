@@ -1,8 +1,11 @@
 import { notFound } from "next/navigation";
 
 import { SchoolProfileForm } from "@/app/(tenant)/[domain]/(authenticated)/master/profil/school-profile-form";
+import { SchoolProfileHistory } from "@/app/(tenant)/[domain]/(authenticated)/master/profil/school-profile-history";
+import { createListSchoolAccreditationsQuery } from "@/lib/school-accreditation";
 import { createGetSchoolProfileQuery } from "@/lib/school-profile";
 import { schoolProfileStore } from "@/lib/school-profile-data";
+import { schoolAccreditationStore } from "@/lib/school-profile-history-data";
 import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
 
 const labels: Record<string, string> = {
@@ -15,7 +18,10 @@ const labels: Record<string, string> = {
 export default async function ProfilSekolahPage({ params }: { params: Promise<{ domain: string }> }) {
   const { domain } = await params;
   const principal = await enforceMasterDataAccess(domain, "read");
-  const result = await createGetSchoolProfileQuery({ store: schoolProfileStore })(principal);
+  const [result, accreditationResult] = await Promise.all([
+    createGetSchoolProfileQuery({ store: schoolProfileStore })(principal),
+    createListSchoolAccreditationsQuery({ store: schoolAccreditationStore })(principal),
+  ]);
   if (!result.ok) notFound();
   const { profile } = result;
   const initial = {
@@ -46,5 +52,6 @@ export default async function ProfilSekolahPage({ params }: { params: Promise<{ 
         <div className="mt-4 space-y-4"><div><h3 className="text-sm font-medium">Wajib belum lengkap</h3>{profile.completeness.requiredMissing.length ? <ul className="mt-2 list-disc pl-5 text-sm text-destructive">{profile.completeness.requiredMissing.map((field) => <li key={field}>{labels[field] ?? field}</li>)}</ul> : <p className="mt-2 text-sm text-muted-foreground">Semua field wajib telah lengkap.</p>}</div>
         <div><h3 className="text-sm font-medium">Rekomendasi belum lengkap</h3>{profile.completeness.recommendedMissing.length ? <ul className="mt-2 list-disc pl-5 text-sm text-muted-foreground">{profile.completeness.recommendedMissing.map((field) => <li key={field}>{labels[field] ?? field}</li>)}</ul> : <p className="mt-2 text-sm text-muted-foreground">Semua rekomendasi telah lengkap.</p>}</div></div></div></aside>
     </section>
+    <SchoolProfileHistory domain={domain} logoAssetId={profile.logoAssetId} readOnly={!principal.capabilities.write} records={accreditationResult.records} />
   </main>;
 }
