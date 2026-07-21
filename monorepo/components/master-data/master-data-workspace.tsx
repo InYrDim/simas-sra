@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { MasterDataFilterForm } from "@/components/master-data/master-data-filter-form";
 import type { MasterDataQuery } from "@/lib/master-data-workspace";
 import { serializeMasterDataQuery } from "@/lib/master-data-workspace";
 import { Input } from "@/components/ui/input";
@@ -9,7 +10,6 @@ import {
   Select,
   SelectContent,
   SelectItem,
-  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -69,10 +69,9 @@ export function MasterDataWorkspace({
         </div>
         {children}
       </header>
-      <form
+      <MasterDataFilterForm
         action={basePath}
         className="grid gap-3 border bg-card p-4 sm:grid-cols-2 lg:grid-cols-5"
-        role="search"
       >
         <Label className="lg:col-span-2">
           <span className="text-sm font-medium">Cari</span>
@@ -101,9 +100,10 @@ export function MasterDataWorkspace({
             <Select
               name={filter.name}
               defaultValue={query.filters[filter.name]?.[0] ?? ""}
+              items={filter.options}
             >
               <SelectTrigger className="mt-1 h-10 w-full">
-                <SelectValue />
+                <SelectValue placeholder="Semua" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">Semua</SelectItem>
@@ -118,7 +118,7 @@ export function MasterDataWorkspace({
         ))}
         <Label>
           <span className="text-sm font-medium">Urutkan</span>
-          <Select name="sort" defaultValue={query.sort}>
+          <Select name="sort" defaultValue={query.sort} items={sorts}>
             <SelectTrigger className="mt-1 h-10 w-full">
               <SelectValue />
             </SelectTrigger>
@@ -133,8 +133,7 @@ export function MasterDataWorkspace({
         </Label>
         <input type="hidden" name="page" value="1" />
         <input type="hidden" name="pageSize" value={query.pageSize} />
-        <Button className="h-10 self-end rounded-full px-4">Terapkan</Button>
-      </form>
+      </MasterDataFilterForm>
       <div className="grid min-h-[28rem] border bg-card lg:grid-cols-[minmax(20rem,2fr)_minmax(22rem,3fr)]">
         <section
           aria-labelledby="list-heading"

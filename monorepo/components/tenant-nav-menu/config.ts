@@ -1,4 +1,4 @@
-import { Home, Database, Calendar, ClipboardCheck, Library, Mail, Settings, UserPlus } from "lucide-react"
+import { Home, Database, Calendar, ClipboardCheck, LayoutDashboard, Library, Mail, Settings, Upload, UserPlus } from "lucide-react"
 import { type TenantNavItem } from "@/types/components/TenantNavItem"
 
 export const tenantMenuItems: TenantNavItem[] = [
@@ -41,6 +41,20 @@ export const tenantMenuItems: TenantNavItem[] = [
       { title: "Jadwal Mengajar", url: "/jadwal/mengajar", roles: ["*"] },
       { title: "Events", url: "/jadwal/events", roles: ["*"] }
     ]
+  },
+  {
+    title: "Overview",
+    icon: LayoutDashboard,
+    url: "/master",
+    roles: ["school-admin"],
+    group: "Administrasi"
+  },
+  {
+    title: "Import",
+    icon: Upload,
+    url: "/master/import",
+    roles: ["school-admin"],
+    group: "Administrasi"
   },
   {
     title: "Master Data",

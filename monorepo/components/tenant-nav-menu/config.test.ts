@@ -15,6 +15,19 @@ test("Master Data and every child menu are visible only to School Admin", () => 
   }
 });
 
+test("Administrasi separates Overview, Import, and Master Data", () => {
+  const administration = tenantMenuItems.filter((item) => item.group === "Administrasi");
+
+  assert.deepEqual(
+    administration.map(({ title, url, roles }) => ({ title, url, roles })),
+    [
+      { title: "Overview", url: "/master", roles: ["school-admin"] },
+      { title: "Import", url: "/master/import", roles: ["school-admin"] },
+      { title: "Master Data", url: undefined, roles: ["school-admin"] },
+    ],
+  );
+});
+
 test("Tenant navigation prefixes every route with the current domain", () => {
   assert.equal(tenantNavigationHref("sekolah-a", "/dashboard"), "/sekolah-a/dashboard");
   assert.equal(tenantNavigationHref("/sekolah-a/", "/master/siswa"), "/sekolah-a/master/siswa");

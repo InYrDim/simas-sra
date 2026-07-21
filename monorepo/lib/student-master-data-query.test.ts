@@ -11,6 +11,27 @@ test("normalizes URL search, lifecycle, archive, sort, pagination, and selected 
   assert.equal(result.total, 1); assert.equal(result.items[0].student.id, "3"); assert.equal(result.query.page, 1); assert.equal(result.query.selected, "3");
 });
 
+test("filters students by gender, class group, account status, and entry year", () => {
+  const matching = record("1", "Aisyah", "00001");
+  const activeAccountInClass: StudentRecord = {
+    ...matching,
+    person: { ...matching.person, accountUserId: "user-1", accountActive: true },
+    student: { ...matching.student, entryDate: "2025-07-01" },
+    classGroupName: "6A",
+  };
+  const other = record("2", "Budi", "00002");
+
+  const result = queryStudents([activeAccountInClass, other], {
+    gender: "female",
+    classGroup: "6A",
+    account: "active",
+    entryYear: "2025",
+  });
+
+  assert.equal(result.total, 1);
+  assert.equal(result.items[0]?.student.id, "1");
+});
+
 test("distinguishes first-use empty and filtered zero results", () => {
   assert.equal(queryStudents([], {}).state, "empty");
   assert.equal(queryStudents([record("1", "Aisyah", "00001")], { q: "tidak ada" }).state, "no-results");
