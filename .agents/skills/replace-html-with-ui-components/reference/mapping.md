@@ -9,7 +9,7 @@ passing `className` on the replacement is enough — don't reproduce base stylin
 |---|---|---|---|
 | `<button>` | `Button` | `button.tsx` | Map visual intent to `variant` (`default`/`outline`/`secondary`/`ghost`/`destructive`/`link`) and `size` (`default`/`xs`/`sm`/`lg`/`icon`/`icon-xs`/`icon-sm`/`icon-lg`) instead of custom classes. Preserve `type`, `onClick`, `disabled`, `form`. |
 | `<a>` styled/behaving like a button | `Button` with `render` prop | `button.tsx` | `<Button render={<a href="...">}>Label</Button>`. Leave plain navigational links as `<a>`. |
-| `<input type="text\|email\|password\|number\|search\|tel\|url\|date\|...">` | `Input` | `input.tsx` | Drop-in; preserve `type`, `value`/`defaultValue`, `onChange`, `name`, `placeholder`, `ref`. |
+| `<input type="text\|email\|password\|number\|search\|tel\|url\|...">` | `Input` | `input.tsx` | Drop-in; preserve `type`, `value`/`defaultValue`, `onChange`, `name`, `placeholder`, `ref`. Does **not** cover `date`/`datetime-local`/`month`/`week`/`time` — see "Composite patterns" below. |
 | `<textarea>` | `Textarea` | `textarea.tsx` | Same prop passthrough as `Input`. |
 | `<input type="checkbox">` (selecting/marking an item, e.g. row selection, "I agree") | `Checkbox` | `checkbox.tsx` | Controlled via `checked`/`onCheckedChange` (base-ui), not `onChange`. |
 | `<input type="checkbox">` used as an on/off setting toggle | `Switch` | `switch.tsx` | Same semantics as Checkbox but visually/semantically a toggle. Pick this when the label reads like a setting ("Enable notifications") rather than a selection. |
@@ -23,6 +23,20 @@ passing `className` on the replacement is enough — don't reproduce base stylin
 | `<progress>` | `Progress` (+ `ProgressTrack`/`ProgressIndicator`, optionally `ProgressLabel`/`ProgressValue`) | `progress.tsx` | `Progress` renders its own track/indicator by default; only add the sub-parts explicitly if customizing. |
 | Multiple `<input maxLength=1>` for OTP/PIN entry | `InputOtp` family | `input-otp.tsx` | |
 | `<input>` with a manual icon/button/addon wrapper div | `InputGroup` family | `input-group.tsx` | |
+
+## Composite patterns (one native tag → a set of components, not a 1:1 swap)
+
+Some native tags don't map to a single replacement component — they map to an
+established *combination* of components. Always grep the codebase for an existing
+instance of the pattern first and mirror it exactly (same imports, structure, and hidden
+form-field trick) instead of inventing a new shape.
+
+| Native | Composite replacement | Notes |
+|---|---|---|
+| `<input type="date">` / `type="datetime-local">` / `type="month">` / `type="week">` | `Popover` + `PopoverTrigger` (rendered as a `Button`) + `PopoverContent` + `Calendar`, plus a hidden `<input type="hidden" name="...">` carrying the formatted value for native/server-action form submission | Canonical example already in this repo: `monorepo/app/(tenant)/[domain]/(authenticated)/master/profil/headmaster-history.tsx` — uses `date-fns` `format()` to display and to populate the hidden input, `CalendarIcon` from `lucide-react` in the trigger, `Calendar mode="single"` with `selected`/`onSelect`. Reuse this exact shape (state for the selected `Date`, hidden input for the actual form field, `Popover` for the trigger/panel). |
+| `<input type="time">` | No dedicated ui widget exists yet — keep `Input` (styled native time input) unless the user asks for a custom time picker to be built | Don't force a composite pattern where none exists in the codebase. |
+| Several `<input type="checkbox">` rendered as filter chips/pills (not a real checklist form field) | `ToggleGroup` with `multiple` selection | Visually and semantically these are toggle buttons, not form checkboxes — check whether the checkboxes are actually submitted as form data (keep `Checkbox`) or purely drive client-side filter state (prefer `ToggleGroup`). |
+| Manual `<input>` + `<ul>` suggestion list wired together by hand for search-as-you-type | `Combobox` (or `Command` inside a `Popover`/`Dialog` for a full palette) | See the ambiguous-case note below; this is listed here too because it's commonly missed since it spans multiple native tags (`input` + `ul`/`li`). |
 
 ## Structure & layout widgets
 

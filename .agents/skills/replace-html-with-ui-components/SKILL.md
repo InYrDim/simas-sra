@@ -28,14 +28,27 @@ and the list of elements that should NOT be replaced.
 
 2. **Inventory candidates.** Use `grep` scoped to the target path (exclude
    `components/ui/**`, `node_modules/**`, `.next/**`) to find native tags/attributes that
-   have a mapping, e.g.:
+   have a mapping. Search by tag name AND by attribute/type — some tags only become
+   replaceable (or need a *composite* replacement) in specific variants, e.g.
+   `<input type="date">` is not just a styled `Input`, it maps to a `Popover`+`Calendar`
+   pattern (see "Composite patterns" in `reference/mapping.md`):
    - `<button`, `<input`, `<select`, `<option`, `<textarea`, `<label`
+   - `<input` type variants specifically: `type="checkbox"`, `type="radio"`,
+     `type="range"`, `type="date"`, `type="datetime-local"`, `type="month"`,
+     `type="week"`, `type="file"`
    - `<table`, `<thead`, `<tbody`, `<tfoot`, `<tr`, `<th`, `<td`, `<caption`
    - `<hr`, `<progress`, `<details`, `<summary`, `<kbd`, `<dialog`
    - `title=` (hover tooltip attribute), `role="alert"`, `role="tablist"`,
      `aria-label="breadcrumb"`
    - hand-rolled patterns: manual backdrop/portal modals, manual dropdown lists with
-     click-outside handlers, `animate-pulse` skeleton divs, spinner SVGs
+     click-outside handlers, `animate-pulse` skeleton divs, spinner SVGs, groups of
+     `<input type="checkbox">` used as filter chips rather than form checklists
+
+   Before deciding how to replace a candidate, grep the rest of the codebase for an
+   existing instance of the same widget already built with `components/ui` (e.g. search
+   for `Calendar`, `Combobox`, `ToggleGroup`, etc.). If precedent exists, mirror that
+   exact pattern instead of inventing a new shape — consistency with existing usage
+   beats a technically-valid but novel structure.
 
 3. **Read before replacing.** For every candidate, read enough surrounding code to
    capture its full behavior: `id`/`name`/`value`/`defaultValue`, `onChange`/`onClick`/
