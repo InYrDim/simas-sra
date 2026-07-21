@@ -42,6 +42,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
+# Persistent private-file volume is mounted at /data at runtime.
+RUN mkdir -p /data/protected && chown -R nextjs:nodejs /data
+
 # Set the correct permission for prerender cache
 RUN mkdir .next
 RUN chown nextjs:nodejs .next
