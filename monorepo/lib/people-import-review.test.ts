@@ -5,6 +5,7 @@ import {
   buildCorrectionWorkbook,
   carryForwardDecisions,
   classifyImportRowIdentity,
+  isImportReviewDecisionAllowed,
   queryImportReview,
   type IdentityCandidate,
   type ReviewRow,
@@ -21,6 +22,11 @@ test("identity review requires explicit strong-link and rejects unsafe exact mat
   assert.equal(classifyImportRowIdentity("student", row().values, [candidate({ hasTargetProfile: true })]).finding?.code, "target-profile-exists");
   assert.equal(classifyImportRowIdentity("student", row().values, [candidate({ compatible: false })]).finding?.code, "shared-data-conflict");
   assert.equal(classifyImportRowIdentity("student", row().values, [candidate(), candidate({ id: "person-2" })]).finding?.code, "ambiguous-identity");
+  const strong = row({ candidates: [candidate()], findings: [{ field: "nik", code: "strong-link", severity: "warning" }] });
+  assert.equal(isImportReviewDecisionAllowed(strong, { action: "link", targetPersonId: "person-1" }), true);
+  assert.equal(isImportReviewDecisionAllowed(strong, { action: "create-distinct" }), false);
+  assert.equal(isImportReviewDecisionAllowed(strong, { action: "skip" }), false);
+  assert.equal(isImportReviewDecisionAllowed(row({ candidates: [candidate()] }), { action: "create-distinct" }), true);
 });
 
 test("review search and filters cover row, names, identifiers, state, and problematic column", () => {
@@ -35,7 +41,7 @@ test("correction workbook excludes candidates and carry-forward requires unchang
   assert.deepEqual(workbook.worksheets.map((x) => x.name), ["Petunjuk", "Data", "Referensi"]);
   assert.equal(JSON.stringify(workbook.getWorksheet("Data")?.getRow(2).values).includes("person-1"), false);
 
-  assert.equal(carryForwardDecisions([source], [row({ id: "new", identityFingerprint: "fp-1" })])[0]?.decision?.action, "link");
+  assert.equal(carryForwardDecisions([source], [row({ id: "new", identityFingerprint: "fp-1", candidates: [candidate()] })])[0]?.decision?.action, "link");
   assert.equal(carryForwardDecisions([source], [row({ id: "changed", identityFingerprint: "fp-2" })])[0]?.decision, null);
   assert.equal(carryForwardDecisions([source], [row({ id: "target-changed", identityFingerprint: "fp-1", candidates: [candidate({ id: "person-2" })] })])[0]?.decision, null);
 });

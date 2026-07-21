@@ -19,6 +19,13 @@ export function classifyImportRowIdentity(_kind: PeopleImportKind, _values: Reco
   return { state: "warning" as const, finding: { field: "nik", code: "strong-link", severity: "warning" as const }, candidates: [match] };
 }
 
+export function isImportReviewDecisionAllowed(row: Pick<ReviewRow, "state" | "findings" | "candidates">, decision: Pick<ReviewDecision, "action" | "targetPersonId">) {
+  if (row.state !== "warning") return false;
+  if (decision.action === "link") return Boolean(decision.targetPersonId && row.candidates.some((candidate) => candidate.id === decision.targetPersonId && candidate.compatible && !candidate.hasTargetProfile));
+  if (decision.targetPersonId) return false;
+  return !row.findings.some((finding) => finding.code === "strong-link") && (decision.action === "create-distinct" || decision.action === "skip");
+}
+
 export function queryImportReview(rows: readonly ReviewRow[], query: { search?: string; state?: string; column?: string }) {
   const search = query.search?.trim().toLocaleLowerCase("id-ID") ?? "";
   return rows.filter((row) => (!query.state || row.state === query.state) && (!query.column || row.findings.some((finding) => finding.field === query.column)) && (!search || String(row.rowNumber).includes(search) || Object.values(row.values).some((value) => value.toLocaleLowerCase("id-ID").includes(search))));
@@ -26,7 +33,7 @@ export function queryImportReview(rows: readonly ReviewRow[], query: { search?: 
 
 export function carryForwardDecisions(previous: readonly ReviewRow[], next: readonly ReviewRow[]) {
   const byFingerprint = new Map(previous.filter((row) => row.decision).map((row) => [row.identityFingerprint, row]));
-  return next.map((row) => { const old = byFingerprint.get(row.identityFingerprint); if (!old?.decision) return row; const target = old.decision.targetPersonId; if (target && row.candidates.length > 0 && !row.candidates.some((candidate) => candidate.id === target)) return row; return { ...row, decision: { ...old.decision } }; });
+  return next.map((row) => { const old = byFingerprint.get(row.identityFingerprint); if (!old?.decision || !isImportReviewDecisionAllowed(row, old.decision)) return row; return { ...row, decision: { ...old.decision } }; });
 }
 
 export async function buildCorrectionWorkbook(kind: PeopleImportKind, rows: readonly ReviewRow[]) {

@@ -23,7 +23,8 @@ export function buildExecutionConfirmation(revisionId: string, rows: ExecutionRo
     else counts.create++;
   }
   const ids = exact.map((row) => row.id);
-  return { revisionId, selectedRowIds: ids, rowSetHash: createHash("sha256").update(`${revisionId}:${ids.join(",")}`).digest("hex"), counts };
+  const frozenDecisions = exact.map((row) => `${row.id}:${row.state}:${row.decision?.action ?? "create"}:${row.decision?.targetPersonId ?? ""}`);
+  return { revisionId, selectedRowIds: ids, rowSetHash: createHash("sha256").update(`${revisionId}:${frozenDecisions.join(",")}`).digest("hex"), counts };
 }
 
 export function createPeopleImportExecutor(store: PeopleImportExecutionStore) {

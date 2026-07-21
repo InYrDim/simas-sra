@@ -30,6 +30,19 @@ test("parser rejects formulas, unsupported versions, ambiguous structure, images
   assert.deepEqual(await parsePeopleImportWorkbook(new Uint8Array(10 * 1024 * 1024 + 1)), { ok: false, code: "file-too-large" });
 });
 
+test("parser revalidates ordinary form rules with stable field findings", async () => {
+  const bytes = await buildPeopleImportTemplate("teacher"), workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(Buffer.from(bytes) as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+  workbook.getWorksheet("Data")!.addRow(["A", "P", "2099-02-31", "female", "123", "123", "Jalan", "G-1", "123", "unknown", "not-a-date"]);
+  const parsed = await parsePeopleImportWorkbook(new Uint8Array(await workbook.xlsx.writeBuffer()));
+  assert.equal(parsed.ok, true); if (!parsed.ok) return;
+  assert.equal(parsed.rows[0]?.state, "rejected");
+  assert.deepEqual(parsed.rows[0]?.findings.map((finding) => [finding.field, finding.code]), [
+    ["fullName", "invalid-length"], ["birthPlace", "invalid-length"], ["birthDate", "future-date"], ["nik", "invalid-length"],
+    ["nip", "invalid-length"], ["serviceStartDate", "invalid-date"], ["nuptk", "invalid-length"], ["employmentType", "invalid-option"],
+  ]);
+});
+
 test("upload stores a Tenant-scoped file and durable validation writes no Master Data", async () => {
   const calls: string[] = []; let claimed = false;
   const store: PeopleImportStore = {

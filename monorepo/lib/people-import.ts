@@ -2,6 +2,9 @@ import { randomUUID } from "node:crypto";
 import ExcelJS from "exceljs";
 import JSZip from "jszip";
 import type { MasterDataPrincipal } from "@/lib/tenant-master-data-access";
+import { SCHOOL_PERSON_RELIGIONS } from "@/lib/student-master-data";
+import { STAFF_EMPLOYMENT_TYPES, STAFF_POSITIONS } from "@/lib/staff-master-data";
+import { TEACHER_EMPLOYMENT_TYPES } from "@/lib/teacher-master-data";
 
 export type PeopleImportKind = "student" | "teacher" | "staff";
 type Column = Readonly<{ key: string; label: string; required?: boolean; identifier?: boolean; date?: boolean; values?: readonly string[] }>;
@@ -19,6 +22,53 @@ export const PEOPLE_IMPORT_CONTRACTS: Record<PeopleImportKind, { version: string
 export type ImportFinding = { field: string; code: string; severity: "warning" | "rejected" };
 export type ImportRow = { rowNumber: number; state: "ready" | "warning" | "rejected"; values: Record<string, string>; findings: ImportFinding[] };
 export type ParseResult = { ok: true; kind: PeopleImportKind; version: string; rows: ImportRow[] } | { ok: false; code: string };
+
+const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
+const collapse = (value: string | undefined) => (value ?? "").trim().replace(/\s+/g, " ");
+const digits = (value: string | undefined) => collapse(value).replace(/[^0-9]/g, "");
+
+export function normalizePeopleImportValues(kind: PeopleImportKind, input: Record<string, string>) {
+  const values = Object.fromEntries(Object.entries(input).map(([key, value]) => [key, collapse(value)]));
+  for (const key of ["nik", "nip", "nisn", "nuptk"] as const) if (key in values) values[key] = digits(values[key]);
+  if (kind === "student" && "nis" in values) values.nis = digits(values.nis);
+  return values;
+}
+
+export function validatePeopleImportValues(kind: PeopleImportKind, input: Record<string, string>, today = new Date().toISOString().slice(0, 10)) {
+  const values = normalizePeopleImportValues(kind, input), findings: ImportFinding[] = [];
+  const reject = (field: string, code: string) => findings.push({ field, code, severity: "rejected" });
+  const required = (field: string) => { if (!values[field]) reject(field, "required"); };
+  for (const field of ["fullName", "birthPlace", "birthDate", "gender", "street"]) required(field);
+  if (values.fullName && (values.fullName.length < 2 || values.fullName.length > 150)) reject("fullName", "invalid-length");
+  if (values.birthPlace && (values.birthPlace.length < 2 || values.birthPlace.length > 100)) reject("birthPlace", "invalid-length");
+  if (values.gender && !["male", "female"].includes(values.gender)) reject("gender", "invalid-option");
+  if (values.birthDate && !validDate(values.birthDate)) reject("birthDate", "invalid-date");
+  else if (values.birthDate > today) reject("birthDate", "future-date");
+  if (values.nik && values.nik.length !== 16) reject("nik", "invalid-length");
+  if (values.nip && values.nip.length !== 18) reject("nip", "invalid-length");
+  if (values.religion && !SCHOOL_PERSON_RELIGIONS.includes(values.religion as (typeof SCHOOL_PERSON_RELIGIONS)[number])) reject("religion", "invalid-option");
+
+  if (kind === "student") {
+    required("nis"); required("entryDate");
+    if (values.nisn && values.nisn.length !== 10) reject("nisn", "invalid-length");
+    if (values.entryDate && !validDate(values.entryDate)) reject("entryDate", "invalid-date");
+  } else {
+    const numberField = kind === "teacher" ? "teacherNumber" : "staffNumber";
+    required(numberField); required("employmentType"); required("serviceStartDate");
+    if (values.serviceStartDate && !validDate(values.serviceStartDate)) reject("serviceStartDate", "invalid-date");
+    if (kind === "teacher") {
+      if (values.nuptk && values.nuptk.length !== 16) reject("nuptk", "invalid-length");
+      if (values.employmentType && !TEACHER_EMPLOYMENT_TYPES.includes(values.employmentType as (typeof TEACHER_EMPLOYMENT_TYPES)[number])) reject("employmentType", "invalid-option");
+    } else {
+      required("position");
+      if (values.position && !STAFF_POSITIONS.includes(values.position as (typeof STAFF_POSITIONS)[number])) reject("position", "invalid-option");
+      if (values.employmentType && !STAFF_EMPLOYMENT_TYPES.includes(values.employmentType as (typeof STAFF_EMPLOYMENT_TYPES)[number])) reject("employmentType", "invalid-option");
+      if (values.position === "other") reject("position", "other-detail-required");
+      if (values.employmentType === "other") reject("employmentType", "other-detail-required");
+    }
+  }
+  return { values, findings };
+}
 
 export async function buildPeopleImportTemplate(kind: PeopleImportKind) {
   const contract = PEOPLE_IMPORT_CONTRACTS[kind], workbook = new ExcelJS.Workbook();
@@ -52,9 +102,10 @@ export async function parsePeopleImportWorkbook(bytes: Uint8Array): Promise<Pars
   const rows: ImportRow[] = [];
   for (let rowNumber = 2; rowNumber <= data.actualRowCount; rowNumber++) {
     const row = data.getRow(rowNumber); if (!row.hasValues) continue; const values: Record<string, string> = {}, findings: ImportFinding[] = [];
-    contract.columns.forEach((column, index) => { const cell = row.getCell(index + 1); if (cell.type === ExcelJS.ValueType.Formula) findings.push({ field: column.key, code: "formula", severity: "rejected" }); const value = String(cell.value ?? "").trim(); values[column.key] = value; if (column.required && !value) findings.push({ field: column.key, code: "required", severity: "rejected" }); if (column.date && value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) findings.push({ field: column.key, code: "date-format", severity: "rejected" }); if (column.values && value && !column.values.includes(value)) findings.push({ field: column.key, code: "invalid-option", severity: "rejected" }); });
+    contract.columns.forEach((column, index) => { const cell = row.getCell(index + 1); if (cell.type === ExcelJS.ValueType.Formula) findings.push({ field: column.key, code: "formula", severity: "rejected" }); values[column.key] = String(cell.value ?? "").trim(); });
     if (findings.some((f) => f.code === "formula")) return { ok: false, code: "formula" };
-    rows.push({ rowNumber, values, findings, state: findings.some((f) => f.severity === "rejected") ? "rejected" : findings.length ? "warning" : "ready" });
+    const validated = validatePeopleImportValues(kind, values); findings.push(...validated.findings);
+    rows.push({ rowNumber, values: validated.values, findings, state: findings.some((f) => f.severity === "rejected") ? "rejected" : findings.length ? "warning" : "ready" });
   }
   return { ok: true, kind, version, rows };
 }

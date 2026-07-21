@@ -19,7 +19,7 @@ export default async function DashboardLayout({ children, params }: {
   if (!isTenantRole(role)) notFound();
 
   return <SidebarProvider>
-    <TenantSidebar role={role} />
+    <TenantSidebar role={role} domain={domain} />
     <SidebarInset>
       <TrialBanner domain={domain} />
       <DashboardHeader domain={domain} />

@@ -17,7 +17,7 @@ const rows: ExecutionRow[] = [
 
 test("confirmation freezes the exact revision and selected row set with outcome counts", () => {
   assert.deepEqual(buildExecutionConfirmation("rev-1", rows, ["r3", "r1", "r2", "r4"]), {
-    revisionId: "rev-1", selectedRowIds: ["r1", "r2", "r3", "r4"], rowSetHash: "38e65eb2f196101c899cacd2ec2fcef6785882a06ca089f3aaf656fb8aa6f297",
+    revisionId: "rev-1", selectedRowIds: ["r1", "r2", "r3", "r4"], rowSetHash: "afab818515cace16602a9a9ffdfeaac0c464879c42b24c51eaa8eb92aebfc76d",
     counts: { create: 1, link: 1, skip: 1, reject: 1 },
   });
   assert.throws(() => buildExecutionConfirmation("rev-1", [{ ...rows[1], decision: null }], ["r2"]), /warning-decision-required/);
