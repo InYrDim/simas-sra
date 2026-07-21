@@ -16,7 +16,7 @@ import { tenantMenuItems } from "@/components/tenant-nav-menu/config"
 
 import { type TenantRole } from "@/types/TenantRole"
 
-export function TenantSidebar({ role, domain }: { role: TenantRole; domain: string }) {
+export function TenantSidebar({ role, domain, tenantName }: { role: TenantRole; domain: string; tenantName?: string }) {
   return (
     <div
       style={
@@ -40,7 +40,14 @@ export function TenantSidebar({ role, domain }: { role: TenantRole; domain: stri
           <div className="bg-sidebar-primary p-1.5 rounded-md shrink-0 flex items-center justify-center">
             <BookOpen className="size-4 text-sidebar-primary-foreground" />
           </div>
-          <span className="font-bold tracking-tight truncate group-data-[collapsible=icon]:hidden">SIMAS</span>
+          <div className="flex flex-col overflow-hidden group-data-[collapsible=icon]:hidden">
+            <span className="font-bold tracking-tight truncate">SIMAS</span>
+            {tenantName && (
+              <span className="text-xs text-sidebar-foreground/70 truncate" title={tenantName}>
+                {tenantName}
+              </span>
+            )}
+          </div>
         </div>
       </SidebarHeader>
 

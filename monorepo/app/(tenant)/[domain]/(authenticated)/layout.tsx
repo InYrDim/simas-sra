@@ -13,13 +13,13 @@ export default async function DashboardLayout({ children, params }: {
   params: Promise<{ domain: string }>;
 }) {
   const { domain } = await params;
-  await enforceTenantPageAccess(domain);
+  const tenant = await enforceTenantPageAccess(domain);
   const session = await auth.api.getSession({ headers: await headers() });
   const role = session?.user.tenantRole;
   if (!isTenantRole(role)) notFound();
 
   return <SidebarProvider>
-    <TenantSidebar role={role} domain={domain} />
+    <TenantSidebar role={role} domain={domain} tenantName={tenant.name} />
     <SidebarInset>
       <TrialBanner domain={domain} />
       <DashboardHeader domain={domain} />
