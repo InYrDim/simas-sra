@@ -36,8 +36,12 @@ export interface PpdbSubmissionStore {
 type SubmitFailure = { ok: false; code: "session-not-open" | "invalid-input" | "registration-code-exhausted" };
 type DecideFailure = { ok: false; code: "not-found" | "conflict" };
 
-function requiredFieldsSatisfied(input: PpdbSubmissionInput, fields: readonly PpdbFormField[]) {
-  if (!input.studentName.trim() || !input.nisn.trim()) return false;
+function requiredFieldsSatisfied(
+  input: PpdbSubmissionInput,
+  fields: readonly PpdbFormField[],
+  nisnRequired: boolean,
+) {
+  if (!input.studentName.trim() || (nisnRequired && !input.nisn.trim())) return false;
   return fields.filter((field) => field.required).every((field) => {
     const value = input.formData[field.id];
     return value !== undefined && value !== null && String(value).trim() !== "";
@@ -60,10 +64,15 @@ export function createPpdbSubmissionService(dependencies: {
 
   return {
     // Anonim: Calon Siswa mengisi tanpa akun. Hanya menerima isian untuk Sesi yang sedang "published".
-    async submit(tenantId: string, sessionId: string, input: PpdbSubmissionInput): Promise<{ ok: true; registrationCode: string } | SubmitFailure> {
+    async submit(
+      tenantId: string,
+      sessionId: string,
+      input: PpdbSubmissionInput,
+      options: Readonly<{ nisnRequired: boolean }> = { nisnRequired: true },
+    ): Promise<{ ok: true; registrationCode: string } | SubmitFailure> {
       const session = await dependencies.store.findPublishedSession(tenantId, sessionId);
       if (!session) return { ok: false, code: "session-not-open" };
-      if (!requiredFieldsSatisfied(input, session.fields)) return { ok: false, code: "invalid-input" };
+      if (!requiredFieldsSatisfied(input, session.fields, options.nisnRequired)) return { ok: false, code: "invalid-input" };
       const timestamp = now();
       for (let attempt = 0; attempt < 5; attempt++) {
         const submission: PpdbSubmission = {
@@ -87,9 +96,17 @@ export function createPpdbSubmissionService(dependencies: {
     },
 
     // Cek status publik pakai ID pendaftaran + NISN — tanpa login.
-    async checkStatus(tenantId: string, registrationCode: string, nisn: string) {
+    async checkStatus(
+      tenantId: string,
+      registrationCode: string,
+      nisn: string,
+      options: Readonly<{ nisnRequired: boolean }> = { nisnRequired: true },
+    ) {
       const submission = await dependencies.store.findByRegistrationCode(tenantId, registrationCode.trim().toUpperCase());
-      if (!submission || submission.nisn !== nisn.trim()) return { ok: false, code: "not-found" } as const;
+      const submittedNisn = nisn.trim();
+      if (!submission || (options.nisnRequired || submission.nisn) && submission.nisn !== submittedNisn) {
+        return { ok: false, code: "not-found" } as const;
+      }
       return { ok: true, studentName: submission.studentName, status: submission.status, score: submission.score } as const;
     },
 

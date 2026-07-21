@@ -30,7 +30,7 @@ const statusBadge: Record<PpdbSubmissionStatus, React.ReactNode> = {
   ),
 }
 
-export function PpdbStatusCheckForm({ domain }: { domain: string }) {
+export function PpdbStatusCheckForm({ domain, nisnRequired }: { domain: string; nisnRequired: boolean }) {
   const [state, formAction, pending] = useActionState(checkPpdbStatusAction.bind(null, domain), initialState)
 
   return (
@@ -38,7 +38,9 @@ export function PpdbStatusCheckForm({ domain }: { domain: string }) {
       <main className="w-full max-w-md bg-white shadow-xl min-h-[100dvh] flex flex-col">
         <header className="px-5 py-4 border-b border-slate-100">
           <h1 className="font-bold text-slate-900">Cek Status Pendaftaran</h1>
-          <p className="text-xs text-slate-500">Masukkan Kode Pendaftaran dan NISN Anda</p>
+          <p className="text-xs text-slate-500">
+            {nisnRequired ? "Masukkan Kode Pendaftaran dan NISN Anda" : "Masukkan Kode Pendaftaran Anda"}
+          </p>
         </header>
 
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
@@ -54,14 +56,16 @@ export function PpdbStatusCheckForm({ domain }: { domain: string }) {
               />
             </div>
             <div>
-              <label className="text-sm font-medium text-slate-700">NISN</label>
+              <label className="text-sm font-medium text-slate-700">
+                NISN{nisnRequired ? "" : " (opsional)"}
+              </label>
               <input
                 type="text"
                 inputMode="numeric"
                 pattern="[0-9]*"
                 name="nisn"
-                required
-                placeholder="10 digit angka"
+                required={nisnRequired}
+                placeholder={nisnRequired ? "10 digit angka" : "Isi jika digunakan saat mendaftar"}
                 className={fieldClassName}
               />
             </div>
@@ -76,7 +80,9 @@ export function PpdbStatusCheckForm({ domain }: { domain: string }) {
 
           {state.status === "not-found" ? (
             <p className="rounded-lg bg-red-50 p-3 text-sm text-red-600" role="alert">
-              Data tidak ditemukan, periksa kembali Kode Pendaftaran dan NISN Anda.
+              {nisnRequired
+                ? "Data tidak ditemukan, periksa kembali Kode Pendaftaran dan NISN Anda."
+                : "Data tidak ditemukan, periksa kembali Kode Pendaftaran Anda."}
             </p>
           ) : null}
 

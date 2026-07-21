@@ -1,6 +1,6 @@
 "use server";
 
-import { resolvePublicTenantId } from "@/app/apply/[domain]/resolve-tenant";
+import { resolvePublicTenant } from "@/app/apply/[domain]/resolve-tenant";
 import { findPublicPpdbSession } from "@/lib/ppdb-session-data";
 import { createPpdbSubmissionService } from "@/lib/ppdb-submission";
 import { ppdbSubmissionStore } from "@/lib/ppdb-submission-data";
@@ -19,10 +19,10 @@ export async function submitPpdbApplicationAction(
   formData: FormData,
 ): Promise<PpdbApplicationActionState> {
   // Tenant dan Sesi selalu diresolusi ulang di server — tidak pernah percaya tenantId/sessionId dari klien.
-  const tenantId = await resolvePublicTenantId(domain);
-  if (!tenantId) return { status: "error", message: "Sekolah tidak ditemukan." };
+  const tenant = await resolvePublicTenant(domain);
+  if (!tenant) return { status: "error", message: "Sekolah tidak ditemukan." };
 
-  const session = await findPublicPpdbSession(tenantId);
+  const session = await findPublicPpdbSession(tenant.id);
   if (!session) return { status: "closed" };
 
   const studentName = String(formData.get("studentName") ?? "");
@@ -34,7 +34,12 @@ export async function submitPpdbApplicationAction(
     dynamicFormData[field.id] = raw instanceof File ? raw.name : raw;
   }
 
-  const result = await submissionService.submit(tenantId, session.id, { studentName, nisn, formData: dynamicFormData });
+  const result = await submissionService.submit(
+    tenant.id,
+    session.id,
+    { studentName, nisn, formData: dynamicFormData },
+    { nisnRequired: tenant.nisnRequired },
+  );
   if (!result.ok) {
     if (result.code === "session-not-open") return { status: "closed" };
     if (result.code === "invalid-input") return { status: "error", message: "Data belum lengkap atau belum valid. Periksa kembali seluruh isian Anda." };

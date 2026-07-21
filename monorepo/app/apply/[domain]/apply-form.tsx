@@ -3,9 +3,11 @@
 import Link from "next/link"
 import { useActionState, useRef, useState } from "react"
 import { CheckCircle2, ChevronRight, UploadCloud } from "lucide-react"
+import { toast } from "sonner"
 
 import { submitPpdbApplicationAction, type PpdbApplicationActionState } from "@/app/apply/[domain]/actions"
 import { PpdbSessionClosedNotice } from "@/app/apply/[domain]/session-closed-notice"
+import { PPDB_FILE_MAX_MB, validatePpdbFileSize } from "@/lib/ppdb-file-validation"
 import type { PpdbFormField } from "@/lib/ppdb-session"
 
 const FIELDS_PER_STEP = 3
@@ -52,7 +54,15 @@ function buildSteps(fields: readonly PpdbFormField[]): StepDefinition[] {
 
 const initialState: PpdbApplicationActionState = { status: "idle" }
 
-export function PpdbApplyForm({ domain, fields }: { domain: string; fields: readonly PpdbFormField[] }) {
+export function PpdbApplyForm({
+  domain,
+  fields,
+  nisnRequired,
+}: {
+  domain: string
+  fields: readonly PpdbFormField[]
+  nisnRequired: boolean
+}) {
   const steps = buildSteps(fields)
   const totalSteps = steps.length
   const [step, setStep] = useState(0)
@@ -120,8 +130,18 @@ export function PpdbApplyForm({ domain, fields }: { domain: string; fields: read
                       <input type="text" name="studentName" required className={fieldClassName} placeholder="Sesuai ijazah" />
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-slate-700">NISN</label>
-                      <input type="text" inputMode="numeric" pattern="[0-9]*" name="nisn" required className={fieldClassName} placeholder="10 digit angka" />
+                      <label className="text-sm font-medium text-slate-700">
+                        NISN{nisnRequired ? "" : " (opsional)"}
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        name="nisn"
+                        required={nisnRequired}
+                        className={fieldClassName}
+                        placeholder={nisnRequired ? "10 digit angka" : "Isi jika sudah memiliki NISN"}
+                      />
                     </div>
                   </>
                 ) : definition.kind === "fields" ? (
@@ -222,16 +242,33 @@ function FileField({
         {field.label}
         {field.required ? " *" : ""}
       </p>
-      <p className="text-xs text-slate-500 mt-1">{selectedName ? `Dipilih: ${selectedName}` : "Format PDF/JPG max 2MB"}</p>
+      <p className="text-xs text-slate-500 mt-1">{selectedName ? `Dipilih: ${selectedName}` : `Format PDF/JPG maks. ${PPDB_FILE_MAX_MB} MB`}</p>
       <label className="mt-3 inline-block bg-sky-50 text-sky-600 px-4 py-1.5 rounded-full text-xs font-semibold cursor-pointer">
         Pilih File
         {/* Penyimpanan berkas sesungguhnya belum tersedia (item terbuka terpisah); untuk saat ini hanya nama berkas yang dikirim. */}
+        <input type="hidden" name={field.id} value={selectedName ?? ""} />
         <input
           type="file"
-          name={field.id}
           required={field.required}
+          accept="application/pdf,image/jpeg,image/png"
           className="hidden"
-          onChange={(event) => onSelect(event.target.files?.[0]?.name ?? "")}
+          onChange={(event) => {
+            const file = event.target.files?.[0]
+            if (!file) {
+              onSelect("")
+              return
+            }
+
+            const error = validatePpdbFileSize(file.size)
+            if (error) {
+              event.target.value = ""
+              onSelect("")
+              toast.error(error)
+              return
+            }
+
+            onSelect(file.name)
+          }}
         />
       </label>
     </div>

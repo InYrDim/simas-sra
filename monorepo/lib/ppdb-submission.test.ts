@@ -49,6 +49,32 @@ test("accepts an anonymous submission when the Sesi is published and required fi
   assert.match(result.registrationCode, /^PPDB-2026-[A-Z0-9]{6}$/);
 });
 
+test("accepts an SD submission without NISN and checks status using its registration code", async () => {
+  const fixture = memoryStore();
+  const service = createPpdbSubmissionService({ store: fixture.store });
+  const submitted = await service.submit(
+    principal.tenantId,
+    "session-1",
+    { studentName: "Ahmad Budi", nisn: "", formData: { f1: "Ahmad Budi" } },
+    { nisnRequired: false },
+  );
+  assert.equal(submitted.ok, true);
+  if (!submitted.ok) return;
+  assert.deepEqual(
+    await service.checkStatus(principal.tenantId, submitted.registrationCode, "", { nisnRequired: false }),
+    { ok: true, studentName: "Ahmad Budi", status: "pending", score: null },
+  );
+});
+
+test("keeps NISN required for non-SD submissions", async () => {
+  const fixture = memoryStore();
+  const service = createPpdbSubmissionService({ store: fixture.store });
+  assert.deepEqual(
+    await service.submit(principal.tenantId, "session-1", { studentName: "Ahmad", nisn: "", formData: { f1: "Ahmad" } }),
+    { ok: false, code: "invalid-input" },
+  );
+});
+
 test("rejects a submission when the Sesi is not published", async () => {
   const fixture = memoryStore();
   const service = createPpdbSubmissionService({ store: fixture.store });
