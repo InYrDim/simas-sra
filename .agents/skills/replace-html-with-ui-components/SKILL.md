@@ -17,8 +17,32 @@ Never edit files inside `monorepo/components/ui/**` as part of this skill — th
 
 Read `reference/mapping.md` in this skill directory before starting. It has the full
 native-element → component table, decision points for ambiguous cases (checkbox vs.
-switch, select vs. native-select, dialog vs. alert-dialog, collapsible vs. accordion),
-and the list of elements that should NOT be replaced.
+switch, dialog vs. alert-dialog, collapsible vs. accordion), and the list of elements
+that should NOT be replaced.
+
+### Hard restriction: never land on a native-backed component
+
+The goal of this skill is to move *off* native browser widgets, not onto a differently-
+named one. Never choose a replacement whose implementation still renders the underlying
+native browser element/widget under the hood — most notably **`NativeSelect`** /
+`NativeSelectOption` / `NativeSelectOptGroup` (`@/components/ui/native-select`), which is
+just a styled wrapper around a real `<select>`. Even though it's a component in
+`components/ui`, it does not count as "replacing" a `<select>` for this skill's purposes.
+
+- For every `<select>`, always use the fully custom `Select` family (`Select`,
+  `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`,
+  `SelectLabel`, `SelectSeparator`) from `@/components/ui/select` — never `NativeSelect`.
+- If a native form (`action=`, server action, no JS state) currently relies on the
+  browser's native `<select>` posting a `name`/`value` pair, replicate that with `Select`
+  by giving it a `name` prop (base-ui's `Select` supports native form submission) — do
+  not fall back to `NativeSelect` just because the form is uncontrolled/native. If you hit
+  a genuine blocker doing this, stop and flag it instead of substituting `NativeSelect`.
+- Apply the same rule to any other component you encounter that is a thin styled wrapper
+  around a native widget rather than a fully custom implementation — treat it the same as
+  leaving the native element untouched, and flag it in your summary instead of using it.
+- This restriction does not apply to components that render a plain `<div>`/`<span>`/etc.
+  as a styling container (e.g. `Card`, `Alert`, `Badge`) — those aren't "native widgets",
+  they're just elements with no interactive browser behavior to replace.
 
 ## Workflow
 

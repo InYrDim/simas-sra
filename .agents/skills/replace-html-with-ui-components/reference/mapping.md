@@ -18,8 +18,7 @@ passing `className` on the replacement is enough — don't reproduce base stylin
 | `<input type="file">` | Leave as native `<input type="file">` unless the surrounding UI already matches the `Attachment` pattern | `attachment.tsx` | Only swap if there's an existing attachment/upload list UI to fold into. |
 | `<label>` | `Label` | `label.tsx` | Preserve `htmlFor` ↔ control `id` pairing exactly. |
 | `<fieldset>` / `<legend>` | `FieldSet` / `FieldLegend` (part of the `Field` family) | `field.tsx` | Only adopt the full `Field`/`FieldContent`/`FieldLabel`/`FieldDescription`/`FieldError` pattern when restructuring a whole form field — don't half-migrate. |
-| `<select>` + `<option>`/`<optgroup>`, plain/native form submission | `NativeSelect` + `NativeSelectOption` + `NativeSelectOptGroup` | `native-select.tsx` | Keeps native `<select>` semantics (native `name`, works without JS/controlled state) but styled. Use when the select is uncontrolled or posts via a native/server-action form. |
-| `<select>` acting as a rich, controlled, custom-styled dropdown | `Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`, `SelectLabel`, `SelectSeparator` | `select.tsx` | Use when the code already manages selected value in React state/controlled form state and wants custom item rendering. |
+| `<select>` + `<option>`/`<optgroup>` (any usage, including native/server-action forms) | `Select`, `SelectTrigger`, `SelectValue`, `SelectContent`, `SelectItem`, `SelectGroup`, `SelectLabel`, `SelectSeparator` | `select.tsx` | Always use this fully custom family, even for uncontrolled/native-form-submit selects — give it a `name` prop to keep native form submission working. **Never use `NativeSelect`/`NativeSelectOption`/`NativeSelectOptGroup`** (`native-select.tsx`) as a replacement: it's just a styled wrapper around a real `<select>`, which violates the point of this migration. See the "Hard restriction" note in `SKILL.md`. |
 | `<progress>` | `Progress` (+ `ProgressTrack`/`ProgressIndicator`, optionally `ProgressLabel`/`ProgressValue`) | `progress.tsx` | `Progress` renders its own track/indicator by default; only add the sub-parts explicitly if customizing. |
 | Multiple `<input maxLength=1>` for OTP/PIN entry | `InputOtp` family | `input-otp.tsx` | |
 | `<input>` with a manual icon/button/addon wrapper div | `InputGroup` family | `input-group.tsx` | |
@@ -83,6 +82,16 @@ form-field trick) instead of inventing a new shape.
 | Manual "N/N" step indicator, breadcrumb-like markers | `Marker` | `marker.tsx` | |
 | `<img>`/`<div>` locked to a fixed ratio via padding-hack | `AspectRatio` | `aspect-ratio.tsx` | |
 
+## Never use as a replacement
+
+- **`NativeSelect` / `NativeSelectOption` / `NativeSelectOptGroup`** (`native-select.tsx`)
+  — it's a styled wrapper around a real native `<select>`, not a custom implementation.
+  Always use the `Select` family instead, regardless of whether the original `<select>`
+  was controlled or relied on native form submission.
+- Any other component you find that is a thin styled wrapper around a native browser
+  widget rather than a fully custom implementation. Treat swapping to one of these the
+  same as not replacing at all — flag it in your summary rather than using it.
+
 ## Do NOT replace
 
 These have no `components/ui` equivalent and should stay native — replacing them would
@@ -100,8 +109,6 @@ remove semantics or add no value:
 ## Ambiguous cases — decide from actual usage, don't guess
 
 - **Checkbox vs. Switch**: selection/marking → `Checkbox`; on/off setting → `Switch`.
-- **Select vs. NativeSelect**: uncontrolled/native-form-submit and simple options →
-  `NativeSelect`; controlled React state with custom item rendering → `Select`.
 - **Dialog vs. AlertDialog**: general content/forms in a modal → `Dialog`; yes/no
   confirmation or destructive-action prompt → `AlertDialog`.
 - **Collapsible vs. Accordion**: one independent disclosure → `Collapsible`; several
