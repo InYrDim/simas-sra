@@ -14,6 +14,22 @@ export async function createAcademicYearAction(domain: string, formData: FormDat
   const field = (name: string) => String(formData.get(name) ?? "");
   finish(domain, await service.create(principal, { label: field("label"), startDate: field("startDate"), endDate: field("endDate"), oddStartDate: field("oddStartDate"), oddEndDate: field("oddEndDate"), evenStartDate: field("evenStartDate"), evenEndDate: field("evenEndDate") }));
 }
+// Buat Cepat: admin hanya mengisi tahun mulai; label dan seluruh tanggal semester diturunkan otomatis dengan pola Juli–Juni yang lazim dipakai sekolah.
+export async function createAcademicYearQuickAction(domain: string, formData: FormData) {
+  const principal = await enforceMasterDataAccess(domain, "write");
+  const startYear = Number(formData.get("startYear"));
+  if (!Number.isInteger(startYear)) return finish(domain, { ok: false, code: "invalid-input" });
+  const endYear = startYear + 1;
+  finish(domain, await service.create(principal, {
+    label: `${startYear}/${endYear}`,
+    startDate: `${startYear}-07-01`,
+    endDate: `${endYear}-06-30`,
+    oddStartDate: `${startYear}-07-01`,
+    oddEndDate: `${startYear}-12-31`,
+    evenStartDate: `${endYear}-01-01`,
+    evenEndDate: `${endYear}-06-30`,
+  }));
+}
 export async function transitionAcademicYearAction(domain: string, formData: FormData) {
   const principal = await enforceMasterDataAccess(domain, "write");
   const action = String(formData.get("action")) as "activate" | "start-even" | "close" | "cancel";

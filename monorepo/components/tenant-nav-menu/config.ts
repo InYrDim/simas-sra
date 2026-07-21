@@ -32,8 +32,9 @@ export const tenantMenuItems: TenantNavItem[] = [
     roles: ["*"],
     group: "Pendaftaran",
     items: [
-      { title: "Review Pendaftar", url: "/ppdb", roles: ["*"] },
-      { title: "Pengaturan Form", url: "/ppdb/settings", roles: ["school-admin"] }
+      { title: "Review Pendaftar", url: "/ppdb", roles: ["school-admin"] },
+      { title: "Sesi & Form", url: "/ppdb/settings", roles: ["school-admin"] },
+      { title: "Riwayat PPDB", url: "/ppdb/riwayat", roles: ["school-admin"] }
     ]
   },
   {

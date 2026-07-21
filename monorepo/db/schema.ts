@@ -781,42 +781,79 @@ export const verification = mysqlTable(
 );
 
 // PPDB Feature Tables
-export const ppdbForm = mysqlTable("ppdb_form", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  tenantId: varchar("tenant_id", { length: 36 })
-    .notNull()
-    .references(() => tenant.id),
-  academicYear: varchar("academic_year", { length: 20 }).notNull(),
-  isActive: boolean("is_active").default(false).notNull(),
-  fields: json("fields"),
-  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { fsp: 3 })
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull(),
-});
+// Sesi PPDB: satu Sesi memiliki tepat satu Form (fields), yang terkunci begitu status berpindah ke "published".
+export const ppdbSession = mysqlTable(
+  "ppdb_session",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 })
+      .notNull()
+      .references(() => tenant.id),
+    academicYearId: varchar("academic_year_id", { length: 36 }).notNull(),
+    endDate: date("end_date", { mode: "string" }).notNull(),
+    status: mysqlEnum("status", ["draft", "published", "ended"]).default("draft").notNull(),
+    fields: json("fields"),
+    version: int("version").default(1).notNull(),
+    publishedAt: timestamp("published_at", { fsp: 3 }),
+    endedAt: timestamp("ended_at", { fsp: 3 }),
+    createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+    // Hanya satu Sesi PPDB boleh berstatus "published" per Tenant pada satu waktu.
+    publishedSlot: varchar("published_slot", { length: 36 }).generatedAlwaysAs(
+      sql`CASE WHEN status = 'published' THEN tenant_id ELSE NULL END`,
+    ),
+  },
+  (table) => [
+    unique("ppdb_session_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("ppdb_session_published_slot_unique").on(table.publishedSlot),
+    foreignKey({
+      columns: [table.tenantId, table.academicYearId],
+      foreignColumns: [academicYear.tenantId, academicYear.id],
+      name: "ppdb_session_tenant_year_fkey",
+    }),
+    index("ppdb_session_tenant_status_idx").on(table.tenantId, table.status),
+    check("ppdb_session_version_check", sql`${table.version} > 0`),
+  ],
+);
 
-export const ppdbSubmission = mysqlTable("ppdb_submission", {
-  id: varchar("id", { length: 36 }).primaryKey(),
-  tenantId: varchar("tenant_id", { length: 36 })
-    .notNull()
-    .references(() => tenant.id),
-  formId: varchar("form_id", { length: 36 })
-    .notNull()
-    .references(() => ppdbForm.id),
-  studentName: varchar("student_name", { length: 255 }).notNull(),
-  nisn: varchar("nisn", { length: 20 }).notNull(),
-  status: mysqlEnum("status", ["pending", "accepted", "rejected"])
-    .default("pending")
-    .notNull(),
-  score: int("score"),
-  formData: json("form_data"), 
-  submittedAt: timestamp("submitted_at", { fsp: 3 }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { fsp: 3 })
-    .defaultNow()
-    .$onUpdate(() => new Date())
-    .notNull(),
-});
+export const ppdbSubmission = mysqlTable(
+  "ppdb_submission",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 })
+      .notNull()
+      .references(() => tenant.id),
+    sessionId: varchar("session_id", { length: 36 }).notNull(),
+    // ID pendaftaran publik yang ditunjukkan ke Calon Siswa untuk cek status (submission anonim, tanpa akun).
+    registrationCode: varchar("registration_code", { length: 20 }).notNull(),
+    studentName: varchar("student_name", { length: 255 }).notNull(),
+    nisn: varchar("nisn", { length: 20 }).notNull(),
+    status: mysqlEnum("status", ["pending", "accepted", "rejected"])
+      .default("pending")
+      .notNull(),
+    score: int("score"),
+    formData: json("form_data"),
+    version: int("version").default(1).notNull(),
+    submittedAt: timestamp("submitted_at", { fsp: 3 }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 })
+      .defaultNow()
+      .$onUpdate(() => new Date())
+      .notNull(),
+  },
+  (table) => [
+    unique("ppdb_submission_tenant_registration_code_unique").on(table.tenantId, table.registrationCode),
+    foreignKey({
+      columns: [table.tenantId, table.sessionId],
+      foreignColumns: [ppdbSession.tenantId, ppdbSession.id],
+      name: "ppdb_submission_tenant_session_fkey",
+    }),
+    index("ppdb_submission_tenant_session_idx").on(table.tenantId, table.sessionId, table.submittedAt),
+    check("ppdb_submission_version_check", sql`${table.version} > 0`),
+  ],
+);
 
 export const schemaRelations = defineRelations(
   {
