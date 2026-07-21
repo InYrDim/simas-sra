@@ -29,9 +29,12 @@ export const tenantMenuItems: TenantNavItem[] = [
   {
     title: "PPDB",
     icon: UserPlus,
-    url: "/ppdb",
     roles: ["*"],
-    group: "Pendaftaran"
+    group: "Pendaftaran",
+    items: [
+      { title: "Review Pendaftar", url: "/ppdb", roles: ["*"] },
+      { title: "Pengaturan Form", url: "/ppdb/settings", roles: ["school-admin"] }
+    ]
   },
   {
     title: "Penjadwalan",

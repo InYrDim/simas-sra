@@ -780,6 +780,44 @@ export const verification = mysqlTable(
   (table) => [index("verification_identifier_idx").on(table.identifier)],
 );
 
+// PPDB Feature Tables
+export const ppdbForm = mysqlTable("ppdb_form", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  tenantId: varchar("tenant_id", { length: 36 })
+    .notNull()
+    .references(() => tenant.id),
+  academicYear: varchar("academic_year", { length: 20 }).notNull(),
+  isActive: boolean("is_active").default(false).notNull(),
+  fields: json("fields"),
+  createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { fsp: 3 })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+export const ppdbSubmission = mysqlTable("ppdb_submission", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  tenantId: varchar("tenant_id", { length: 36 })
+    .notNull()
+    .references(() => tenant.id),
+  formId: varchar("form_id", { length: 36 })
+    .notNull()
+    .references(() => ppdbForm.id),
+  studentName: varchar("student_name", { length: 255 }).notNull(),
+  nisn: varchar("nisn", { length: 20 }).notNull(),
+  status: mysqlEnum("status", ["pending", "accepted", "rejected"])
+    .default("pending")
+    .notNull(),
+  score: int("score"),
+  formData: json("form_data"), 
+  submittedAt: timestamp("submitted_at", { fsp: 3 }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { fsp: 3 })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
 export const schemaRelations = defineRelations(
   {
     tenant,
