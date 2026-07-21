@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { executeImportAction, saveDecisionAction } from "./actions";
 import { queryImportReview, type ReviewRow } from "@/lib/people-import-review";
 import { getImportReview } from "@/lib/people-import-review-data";
@@ -57,39 +61,48 @@ export default async function ImportReviewPage({ params, searchParams }: PagePro
       <form className="grid gap-3 rounded border p-4 sm:grid-cols-3" role="search">
         <label>
           <span className="text-sm font-medium">Cari baris, nama, atau pengenal</span>
-          <input className="mt-1 h-11 w-full border px-3" name="search" defaultValue={query.search} />
+          <Input className="mt-1" name="search" defaultValue={query.search} />
         </label>
         <label>
           <span className="text-sm font-medium">Status</span>
-          <select className="mt-1 h-11 w-full border px-3" name="state" defaultValue={query.state ?? ""}>
-            <option value="">Semua</option>
-            {Object.entries(stateLabels).map(([value, label]) => (
-              <option value={value} key={value}>
-                {label}
-              </option>
-            ))}
-          </select>
+          <Select name="state" defaultValue={query.state ?? ""}>
+            <SelectTrigger className="mt-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Semua</SelectItem>
+              {Object.entries(stateLabels).map(([value, label]) => (
+                <SelectItem value={value} key={value}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </label>
         <label>
           <span className="text-sm font-medium">Kolom bermasalah</span>
-          <select className="mt-1 h-11 w-full border px-3" name="column" defaultValue={query.column ?? ""}>
-            <option value="">Semua</option>
-            {findingColumns.map((column) => (
-              <option key={column}>{column}</option>
-            ))}
-          </select>
+          <Select name="column" defaultValue={query.column ?? ""}>
+            <SelectTrigger className="mt-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Semua</SelectItem>
+              {findingColumns.map((column) => (
+                <SelectItem key={column} value={column}>{column}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </label>
-        <button className="min-h-11 rounded bg-primary px-4 text-primary-foreground sm:col-span-3">
+        <Button className="sm:col-span-3">
           Terapkan filter
-        </button>
+        </Button>
       </form>
       <div className="flex flex-wrap gap-3">
-        <Link
-          className="min-h-11 rounded border px-4 py-2"
-          href={`/${domain}/master/import/${revisionId}/correction`}
-        >
+        <Button variant="outline" render={
+          <Link href={`/${domain}/master/import/${revisionId}/correction`} />
+        }>
           Unduh lembar kerja koreksi
-        </Link>
+        </Button>
         {principal.capabilities.write ? (
           <form
             action={`/${domain}/master/import/${revisionId}/revision`}
@@ -106,7 +119,7 @@ export default async function ImportReviewPage({ params, searchParams }: PagePro
                 accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               />
             </label>
-            <button className="min-h-11 rounded border px-4">Unggah sebagai Revisi Impor baru</button>
+            <Button variant="outline">Unggah sebagai Revisi Impor baru</Button>
           </form>
         ) : null}
       </div>
@@ -128,33 +141,33 @@ export default async function ImportReviewPage({ params, searchParams }: PagePro
         ))}
       </div>
       <div className="hidden overflow-x-auto rounded border md:block">
-        <table className="w-full text-left">
+        <Table className="w-full text-left">
           <caption className="sr-only">Hasil validasi Revisi Impor</caption>
-          <thead>
-            <tr>
-              <th className="p-3">Baris</th>
-              <th className="p-3">Nilai</th>
-              <th className="p-3">Temuan</th>
-              <th className="p-3">Status/keputusan</th>
-            </tr>
-          </thead>
-          <tbody>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="p-3">Baris</TableHead>
+              <TableHead className="p-3">Nilai</TableHead>
+              <TableHead className="p-3">Temuan</TableHead>
+              <TableHead className="p-3">Status/keputusan</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {filteredRows.map((row) => (
-              <tr className="border-t align-top" key={row.id}>
-                <td className="p-3">{row.rowNumber}</td>
-                <td className="p-3">
+              <TableRow className="border-t align-top" key={row.id}>
+                <TableCell className="p-3">{row.rowNumber}</TableCell>
+                <TableCell className="p-3">
                   <Values values={row.values} />
-                </td>
-                <td className="p-3">
+                </TableCell>
+                <TableCell className="p-3">
                   <Findings row={row} />
-                </td>
-                <td className="p-3">
+                </TableCell>
+                <TableCell className="p-3">
                   <Decision row={row} domain={domain} revisionId={revisionId} writable={principal.capabilities.write} />
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </main>
   );
@@ -241,32 +254,41 @@ function Decision({
       <input type="hidden" name="rowId" value={row.id} />
       <label>
         <span className="text-sm font-medium">Keputusan untuk peringatan</span>
-        <select
+        <Select
           required
           name="action"
           defaultValue={row.decision?.action ?? ""}
-          className="mt-1 h-11 w-full border px-2"
         >
-          <option value="">Pilih keputusan</option>
-          {row.candidates.length ? <option value="link">Tautkan dan tambahkan Profil</option> : null}
-          <option value="create-distinct">Buat Warga Sekolah baru karena berbeda</option>
-          <option value="skip">Lewati baris</option>
-        </select>
+          <SelectTrigger className="mt-1">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Pilih keputusan</SelectItem>
+            {row.candidates.length ? <SelectItem value="link">Tautkan dan tambahkan Profil</SelectItem> : null}
+            <SelectItem value="create-distinct">Buat Warga Sekolah baru karena berbeda</SelectItem>
+            <SelectItem value="skip">Lewati baris</SelectItem>
+          </SelectContent>
+        </Select>
       </label>
       {row.candidates.length ? (
         <label>
           <span className="text-sm font-medium">Warga Sekolah tujuan</span>
-          <select name="targetPersonId" className="mt-1 h-11 w-full border px-2">
-            <option value="">Pilih Warga Sekolah</option>
-            {row.candidates.map((candidate) => (
-              <option value={candidate.id} key={candidate.id}>
-                {candidate.fullName}
-              </option>
-            ))}
-          </select>
+          <Select name="targetPersonId">
+            <SelectTrigger className="mt-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Pilih Warga Sekolah</SelectItem>
+              {row.candidates.map((candidate) => (
+                <SelectItem value={candidate.id} key={candidate.id}>
+                  {candidate.fullName}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </label>
       ) : null}
-      <button className="min-h-11 rounded border px-3">Simpan keputusan</button>
+      <Button variant="outline">Simpan keputusan</Button>
       {row.decision ? (
         <small>
           Terakhir: {decisionLabels[row.decision.action] ?? row.decision.action} oleh {row.decision.actorId}
@@ -324,12 +346,11 @@ function ExecutionConfirmation({ domain, revisionId, rows }: { domain: string; r
           </div>
         </fieldset>
         {unresolved ? <p role="alert">Semua peringatan wajib memiliki keputusan sebelum eksekusi.</p> : null}
-        <button
+        <Button
           disabled={unresolved}
-          className="min-h-11 rounded bg-primary px-4 text-primary-foreground disabled:opacity-50"
         >
           Bekukan pilihan baris dan antrekan eksekusi
-        </button>
+        </Button>
       </form>
     </section>
   );

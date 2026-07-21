@@ -5,7 +5,13 @@ import { useActionState, useState } from "react";
 import { addSchoolAccreditationAction, correctSchoolAccreditationAction, uploadSchoolLogoAction, type ProfileHistoryActionState } from "@/app/(tenant)/[domain]/(authenticated)/master/profil/history-actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format, parseISO } from "date-fns";
+import { CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import type { SchoolAccreditation } from "@/lib/school-accreditation";
 
 const initialState: ProfileHistoryActionState = { status: "idle" };
@@ -16,12 +22,21 @@ function Status({ state }: { state: ProfileHistoryActionState }) {
 }
 
 function AccreditationFields({ record, correction }: { record?: SchoolAccreditation; correction?: boolean }) {
+  const [start, setStart] = useState<Date | undefined>(record?.determinationDate ? parseISO(record.determinationDate) : undefined);
+  const [end, setEnd] = useState<Date | undefined>(record?.expiryDate ? parseISO(record.expiryDate) : undefined);
+
   return <div className="grid gap-4 sm:grid-cols-2">
-    <div className="space-y-2"><Label htmlFor={`${record?.id ?? "new"}-rating`}>Nilai</Label><select className="h-9 w-full rounded-md border bg-background px-3 text-sm" defaultValue={record?.rating ?? "A"} id={`${record?.id ?? "new"}-rating`} name="rating"><option>A</option><option>B</option><option>C</option><option>Terakreditasi</option><option>Tidak Terakreditasi</option></select></div>
+    <div className="space-y-2"><Label htmlFor={`${record?.id ?? "new"}-rating`}>Nilai</Label><Select required name="rating" defaultValue={record?.rating ?? "A"}><SelectTrigger id={`${record?.id ?? "new"}-rating`} className="w-full"><SelectValue placeholder="Pilih Nilai" /></SelectTrigger><SelectContent><SelectItem value="A">A</SelectItem><SelectItem value="B">B</SelectItem><SelectItem value="C">C</SelectItem><SelectItem value="Terakreditasi">Terakreditasi</SelectItem><SelectItem value="Tidak Terakreditasi">Tidak Terakreditasi</SelectItem></SelectContent></Select></div>
     <div className="space-y-2"><Label htmlFor={`${record?.id ?? "new"}-certificate`}>Nomor keputusan/sertifikat</Label><Input defaultValue={record?.certificateNumber} id={`${record?.id ?? "new"}-certificate`} maxLength={100} name="certificateNumber" required /></div>
     <div className="space-y-2 sm:col-span-2"><Label htmlFor={`${record?.id ?? "new"}-issuer`}>Lembaga penerbit</Label><Input defaultValue={record?.issuingInstitution} id={`${record?.id ?? "new"}-issuer`} maxLength={150} name="issuingInstitution" required /></div>
-    <div className="space-y-2"><Label htmlFor={`${record?.id ?? "new"}-start`}>Tanggal penetapan</Label><Input defaultValue={record?.determinationDate} id={`${record?.id ?? "new"}-start`} name="determinationDate" type="date" required /></div>
-    <div className="space-y-2"><Label htmlFor={`${record?.id ?? "new"}-end`}>Tanggal kedaluwarsa</Label><Input defaultValue={record?.expiryDate ?? ""} id={`${record?.id ?? "new"}-end`} name="expiryDate" type="date" /></div>
+    <div className="space-y-2"><Label htmlFor={`${record?.id ?? "new"}-start`}>Tanggal penetapan</Label>
+      <Popover><PopoverTrigger render={<Button type="button" variant="outline" id={`${record?.id ?? "new"}-start`} className={cn("w-full justify-start text-left font-normal", !start && "text-muted-foreground")} />}><CalendarIcon className="mr-2 size-4" />{start ? format(start, "PPP") : <span>Pilih tanggal</span>}</PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={start} onSelect={setStart} /></PopoverContent></Popover>
+      <input type="hidden" name="determinationDate" value={start ? format(start, "yyyy-MM-dd") : ""} required />
+    </div>
+    <div className="space-y-2"><Label htmlFor={`${record?.id ?? "new"}-end`}>Tanggal kedaluwarsa</Label>
+      <Popover><PopoverTrigger render={<Button type="button" variant="outline" id={`${record?.id ?? "new"}-end`} className={cn("w-full justify-start text-left font-normal", !end && "text-muted-foreground")} />}><CalendarIcon className="mr-2 size-4" />{end ? format(end, "PPP") : <span>Pilih tanggal</span>}</PopoverTrigger><PopoverContent className="w-auto p-0" align="start"><Calendar mode="single" selected={end} onSelect={setEnd} /></PopoverContent></Popover>
+      <input type="hidden" name="expiryDate" value={end ? format(end, "yyyy-MM-dd") : ""} />
+    </div>
     {correction ? <div className="space-y-2 sm:col-span-2"><Label htmlFor={`${record!.id}-reason`}>Alasan koreksi</Label><Input id={`${record!.id}-reason`} maxLength={500} name="correctionReason" required /></div> : null}
   </div>;
 }

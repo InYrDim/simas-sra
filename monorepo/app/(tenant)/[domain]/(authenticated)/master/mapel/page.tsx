@@ -1,4 +1,10 @@
 import { archiveSubjectAction, createSubjectAction, editSubjectAction } from "@/app/(tenant)/[domain]/(authenticated)/master/mapel/actions";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { MasterDataFormDialog } from "@/components/master-data/master-data-form-dialog";
 import { MasterDataWorkspace } from "@/components/master-data/master-data-workspace";
 import { createSubjectCatalogService, SUBJECT_EDUCATION_LEVELS, type Subject, type SubjectEducationLevel } from "@/lib/subject-catalog";
@@ -67,8 +73,8 @@ function SubjectDetail({ domain, subject, writable }: { domain: string; subject:
       <div><dt className="text-sm text-muted-foreground">Status arsip</dt><dd>{subject.archived ? "Diarsipkan" : "Aktif"}</dd></div>
       <div className="sm:col-span-2"><dt className="text-sm text-muted-foreground">Deskripsi</dt><dd>{subject.description ?? "Tidak ada deskripsi"}</dd></div>
     </dl>
-    {writable && !subject.archived ? <details className="rounded-lg border p-4"><summary className="cursor-pointer font-medium">Ubah Mata Pelajaran</summary><SubjectForm domain={domain} action="edit" subject={subject} /></details> : null}
-    {writable ? <form action={archiveSubjectAction.bind(null, domain)} className="rounded-lg border p-4"><input type="hidden" name="id" value={subject.id} /><input type="hidden" name="version" value={subject.version} /><input type="hidden" name="operation" value={subject.archived ? "reactivate" : "archive"} /><p className="mb-3 text-sm">{subject.archived ? "Reactivation memvalidasi ulang identitas katalog saat ini." : "Arsip mempertahankan kode, identitas, riwayat, dan referensi."}</p><button className="min-h-10 rounded-full border px-4">{subject.archived ? "Aktifkan kembali" : "Arsipkan"}</button></form> : <p className="text-sm text-muted-foreground">Detail hanya-baca.</p>}
+    {writable && !subject.archived ? <Collapsible className="rounded-lg border p-4"><CollapsibleTrigger className="cursor-pointer font-medium">Ubah Mata Pelajaran</CollapsibleTrigger><CollapsibleContent><SubjectForm domain={domain} action="edit" subject={subject} /></CollapsibleContent></Collapsible> : null}
+    {writable ? <form action={archiveSubjectAction.bind(null, domain)} className="rounded-lg border p-4"><input type="hidden" name="id" value={subject.id} /><input type="hidden" name="version" value={subject.version} /><input type="hidden" name="operation" value={subject.archived ? "reactivate" : "archive"} /><p className="mb-3 text-sm">{subject.archived ? "Reactivation memvalidasi ulang identitas katalog saat ini." : "Arsip mempertahankan kode, identitas, riwayat, dan referensi."}</p><Button variant="outline">{subject.archived ? "Aktifkan kembali" : "Arsipkan"}</Button></form> : <p className="text-sm text-muted-foreground">Detail hanya-baca.</p>}
   </div>;
 }
 
@@ -77,13 +83,13 @@ function SubjectForm({ domain, action, subject }: { domain: string; action: "cre
   return <form action={serverAction.bind(null, domain)} className="mt-4 space-y-4">
     {subject ? <><input type="hidden" name="id" value={subject.id} /><input type="hidden" name="version" value={subject.version} /></> : null}
     <div className="grid gap-4 sm:grid-cols-2"><Field name="code" label="Kode" defaultValue={subject?.code} maxLength={30} /><Field name="name" label="Nama" defaultValue={subject?.name} maxLength={150} /></div>
-    <fieldset><legend className="text-sm font-medium">Jenjang berlaku</legend><div className="mt-2 flex flex-wrap gap-4">{SUBJECT_EDUCATION_LEVELS.map((level) => <label key={level} className="flex min-h-10 items-center gap-2"><input type="checkbox" name="educationLevels" value={level} defaultChecked={subject?.educationLevels.includes(level)} />{levelLabels[level]}</label>)}</div></fieldset>
-    <label className="block"><span className="text-sm font-medium">Deskripsi <span className="font-normal text-muted-foreground">(opsional)</span></span><textarea name="description" maxLength={1000} defaultValue={subject?.description ?? ""} className="mt-1 min-h-24 w-full border bg-background p-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50" /></label>
-    <button className="min-h-10 rounded-full bg-primary px-4 text-primary-foreground">{action === "create" ? "Simpan Mata Pelajaran" : "Simpan perubahan"}</button>
+    <fieldset><legend className="text-sm font-medium">Jenjang berlaku</legend><div className="mt-2 flex flex-wrap gap-4">{SUBJECT_EDUCATION_LEVELS.map((level) => <div key={level} className="flex items-center gap-2"><Checkbox id={`level-${level}`} name="educationLevels" value={level} defaultChecked={subject?.educationLevels.includes(level)} /><Label htmlFor={`level-${level}`}>{levelLabels[level]}</Label></div>)}</div></fieldset>
+    <div className="space-y-1"><Label htmlFor="description">Deskripsi <span className="font-normal text-muted-foreground">(opsional)</span></Label><Textarea id="description" name="description" maxLength={1000} defaultValue={subject?.description ?? ""} className="min-h-24" /></div>
+    <Button>{action === "create" ? "Simpan Mata Pelajaran" : "Simpan perubahan"}</Button>
   </form>;
 }
 
 function Field({ name, label, defaultValue, maxLength }: { name: string; label: string; defaultValue?: string; maxLength: number }) {
-  return <label><span className="text-sm font-medium">{label}</span><input required name={name} defaultValue={defaultValue} maxLength={maxLength} className="mt-1 h-10 w-full border bg-background px-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50" /></label>;
+  return <div className="space-y-1"><Label htmlFor={name}>{label}</Label><Input id={name} required name={name} defaultValue={defaultValue} maxLength={maxLength} /></div>;
 }
 function State({ title, description }: { title: string; description: string }) { return <div role="status"><h3 className="font-medium">{title}</h3><p className="mt-1 text-sm text-muted-foreground">{description}</p></div>; }

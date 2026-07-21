@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 
 function ErrorMessage({ message }: { message?: string }) { return message ? <p className="text-sm text-destructive">{message}</p> : null; }
 
@@ -27,7 +28,7 @@ export function SchoolProfileForm({ domain, version, initial, readOnly }: { doma
     <input name="version" type="hidden" value={currentVersion} />
     {state.status === "saved" ? <p className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm" role="status">Profil sekolah berhasil disimpan.</p> : null}
     {state.status === "conflict" || state.status === "error" ? <p className="rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-sm" role="alert">{state.message}</p> : null}
-    {Object.keys(errors).length ? <div className="rounded-lg border border-destructive/40 p-4" role="alert"><h2 className="font-semibold">Periksa kembali isian Anda</h2><ul className="mt-2 list-disc pl-5 text-sm">{Object.entries(errors).map(([field, message]) => <li key={field}><a className="underline" href={`#${field.replace("address.", "")}`}>{message}</a></li>)}</ul></div> : null}
+    {Object.keys(errors).length ? <Alert variant="destructive"><AlertTitle>Periksa kembali isian Anda</AlertTitle><AlertDescription><ul className="mt-2 list-disc pl-5 text-sm">{Object.entries(errors).map(([field, message]) => <li key={field}><a href={`#${field.replace("address.", "")}`}>{message}</a></li>)}</ul></AlertDescription></Alert> : null}
     <fieldset className="grid gap-5 sm:grid-cols-2" disabled={pending || readOnly}>
       <legend className="mb-4 text-lg font-semibold">Informasi operasional</legend>
       <div className="space-y-2 sm:col-span-2"><Label htmlFor="displayName">Nama tampilan <span aria-hidden="true">*</span></Label><Input id="displayName" name="displayName" maxLength={255} defaultValue={values.displayName} aria-invalid={Boolean(errors.displayName)} required /><ErrorMessage message={errors.displayName} /></div>

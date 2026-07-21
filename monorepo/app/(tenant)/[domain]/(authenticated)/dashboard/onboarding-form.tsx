@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
 const initialState: OnboardingActionState = { status: "idle" };
 
@@ -47,17 +48,16 @@ export function OnboardingForm({
           </div>
           <div className="space-y-2">
             <Label htmlFor="timezone">Zona waktu</Label>
-            <select
-              className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-              defaultValue="Asia/Jakarta"
-              id="timezone"
-              name="timezone"
-              required
-            >
-              <option value="Asia/Jakarta">WIB — Asia/Jakarta</option>
-              <option value="Asia/Makassar">WITA — Asia/Makassar</option>
-              <option value="Asia/Jayapura">WIT — Asia/Jayapura</option>
-            </select>
+            <Select name="timezone" defaultValue="Asia/Jakarta" required>
+              <SelectTrigger id="timezone" className="w-full">
+                <SelectValue placeholder="Pilih zona waktu" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Asia/Jakarta">WIB — Asia/Jakarta</SelectItem>
+                <SelectItem value="Asia/Makassar">WITA — Asia/Makassar</SelectItem>
+                <SelectItem value="Asia/Jayapura">WIT — Asia/Jayapura</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           {state.status === "error" ? (
             <p className="text-destructive text-sm md:col-span-2" role="alert">
