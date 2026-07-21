@@ -43,9 +43,18 @@ export const tenantOnboardingStore: TenantOnboardingStore = {
         };
       },
       async complete(tenantId, settings, lifecycle) {
+        const [current] = await databaseTransaction
+          .select({ settings: tenant.settings })
+          .from(tenant)
+          .where(eq(tenant.id, tenantId))
+          .limit(1);
+        const existingSettings = current?.settings && typeof current.settings === "object"
+          ? current.settings as Record<string, unknown>
+          : {};
+
         await databaseTransaction
           .update(tenant)
-          .set({ settings, ...lifecycle })
+          .set({ settings: { ...existingSettings, ...settings }, ...lifecycle })
           .where(eq(tenant.id, tenantId));
       },
     }));

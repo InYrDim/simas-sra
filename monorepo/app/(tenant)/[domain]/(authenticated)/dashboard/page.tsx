@@ -3,9 +3,12 @@ import { AdvancedAnalytics } from "@/components/dashboard/advanced-analytics";
 import { db } from "@/db";
 import { tenant } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
+import { OnboardingForm } from "@/app/(tenant)/[domain]/(authenticated)/dashboard/onboarding-form";
 import { PocTrialAction } from "@/components/dashboard/poc-trial-action";
+import { auth } from "@/lib/auth";
 
 export default async function DashboardPage({
   params,
@@ -15,12 +18,20 @@ export default async function DashboardPage({
   const { domain } = await params;
   console.log("DashboardPage domain raw:", domain, "typeof:", typeof domain, "length:", domain.length);
   
-  const tenantDataArray = await db.select().from(tenant).where(eq(tenant.domain, domain)).limit(1);
+  const [tenantDataArray, session] = await Promise.all([
+    db.select().from(tenant).where(eq(tenant.domain, domain)).limit(1),
+    auth.api.getSession({ headers: await headers() }),
+  ]);
   const tenantData = tenantDataArray[0];
 
   if (!tenantData) {
     notFound();
   }
+
+  const currentYear = new Date().getFullYear();
+  const defaultSchoolYear = `${currentYear}/${currentYear + 1}`;
+  const needsAdminOnboarding =
+    tenantData.onboardingCompletedAt === null && session?.user.tenantRole === "school-admin";
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -30,6 +41,10 @@ export default async function DashboardPage({
       </div>
       
       <SessionInfo />
+
+      {needsAdminOnboarding ? (
+        <OnboardingForm domain={domain} defaultSchoolYear={defaultSchoolYear} />
+      ) : null}
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (

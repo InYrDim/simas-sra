@@ -1,4 +1,5 @@
 import { archiveSubjectAction, createSubjectAction, editSubjectAction } from "@/app/(tenant)/[domain]/(authenticated)/master/mapel/actions";
+import { MasterDataFormDialog } from "@/components/master-data/master-data-form-dialog";
 import { MasterDataWorkspace } from "@/components/master-data/master-data-workspace";
 import { createSubjectCatalogService, SUBJECT_EDUCATION_LEVELS, type Subject, type SubjectEducationLevel } from "@/lib/subject-catalog";
 import { subjectCatalogStore } from "@/lib/subject-catalog-data";
@@ -51,7 +52,7 @@ export default async function SubjectsPage({ params, searchParams }: { params: P
       filters={[{ name: "level", label: "Jenjang", options: SUBJECT_EDUCATION_LEVELS.map((level) => ({ value: level, label: levelLabels[level] })) }]}
       sortOptions={[{ value: "name-asc", label: "Nama A–Z" }, { value: "name-desc", label: "Nama Z–A" }, { value: "code-asc", label: "Kode A–Z" }, { value: "code-desc", label: "Kode Z–A" }]}
     >
-      {writable ? <details className="rounded-lg border bg-card p-4"><summary className="cursor-pointer font-medium">Buat Mata Pelajaran</summary><SubjectForm domain={domain} action="create" /></details> : <p className="rounded-lg border p-3 text-sm">Workspace hanya-baca. Pembuatan dan perubahan dinonaktifkan.</p>}
+      {writable ? <MasterDataFormDialog title="Buat Mata Pelajaran"><SubjectForm domain={domain} action="create" /></MasterDataFormDialog> : <p className="rounded-lg border p-3 text-sm">Workspace hanya-baca. Pembuatan dan perubahan dinonaktifkan.</p>}
     </MasterDataWorkspace>
   </div>;
 }
