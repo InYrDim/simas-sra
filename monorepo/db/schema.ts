@@ -781,7 +781,7 @@ export const verification = mysqlTable(
 );
 
 // PPDB Feature Tables
-// Sesi PPDB: satu Sesi memiliki tepat satu Form (fields), yang terkunci begitu status berpindah ke "published".
+// Sesi PPDB menyimpan snapshot Form publik dan draft terpisah agar perubahan admin tidak langsung terlihat publik.
 export const ppdbSession = mysqlTable(
   "ppdb_session",
   {
@@ -793,6 +793,7 @@ export const ppdbSession = mysqlTable(
     endDate: date("end_date", { mode: "string" }).notNull(),
     status: mysqlEnum("status", ["draft", "published", "ended"]).default("draft").notNull(),
     fields: json("fields"),
+    draftFields: json("draft_fields"),
     version: int("version").default(1).notNull(),
     publishedAt: timestamp("published_at", { fsp: 3 }),
     endedAt: timestamp("ended_at", { fsp: 3 }),
@@ -835,6 +836,7 @@ export const ppdbSubmission = mysqlTable(
       .default("pending")
       .notNull(),
     score: int("score"),
+    formFields: json("form_fields"),
     formData: json("form_data"),
     version: int("version").default(1).notNull(),
     submittedAt: timestamp("submitted_at", { fsp: 3 }).defaultNow().notNull(),
@@ -844,6 +846,7 @@ export const ppdbSubmission = mysqlTable(
       .notNull(),
   },
   (table) => [
+    unique("ppdb_submission_tenant_id_id_unique").on(table.tenantId, table.id),
     unique("ppdb_submission_tenant_registration_code_unique").on(table.tenantId, table.registrationCode),
     foreignKey({
       columns: [table.tenantId, table.sessionId],
@@ -852,6 +855,32 @@ export const ppdbSubmission = mysqlTable(
     }),
     index("ppdb_submission_tenant_session_idx").on(table.tenantId, table.sessionId, table.submittedAt),
     check("ppdb_submission_version_check", sql`${table.version} > 0`),
+  ],
+);
+
+export const ppdbSubmissionDocument = mysqlTable(
+  "ppdb_submission_document",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    submissionId: varchar("submission_id", { length: 36 }).notNull(),
+    fieldId: varchar("field_id", { length: 100 }).notNull(),
+    storageKey: varchar("storage_key", { length: 700 }).notNull(),
+    originalFileName: varchar("original_file_name", { length: 255 }).notNull(),
+    mimeType: mysqlEnum("mime_type", ["application/pdf", "image/jpeg", "image/png"]).notNull(),
+    byteSize: int("byte_size").notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("ppdb_submission_document_storage_key_unique").on(table.storageKey),
+    unique("ppdb_submission_document_field_unique").on(table.tenantId, table.submissionId, table.fieldId),
+    foreignKey({
+      columns: [table.tenantId, table.submissionId],
+      foreignColumns: [ppdbSubmission.tenantId, ppdbSubmission.id],
+      name: "ppdb_submission_document_submission_fkey",
+    }),
+    index("ppdb_submission_document_submission_idx").on(table.tenantId, table.submissionId),
+    check("ppdb_submission_document_size_check", sql`${table.byteSize} > 0 AND ${table.byteSize} <= 2097152`),
   ],
 );
 

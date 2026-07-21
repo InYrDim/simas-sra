@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createPpdbSessionService, type PpdbSession, type PpdbSessionStore } from "@/lib/ppdb-session";
+import { createPpdbSessionService, findPpdbIdentityField, type PpdbSession, type PpdbSessionStore } from "@/lib/ppdb-session";
 import type { MasterDataPrincipal } from "@/lib/tenant-master-data-access";
 
 const principal: MasterDataPrincipal = { userId: "admin-1", tenantId: "tenant-1", role: "school-admin", capabilities: { read: true, write: true, downloadTemplate: true } };
@@ -25,6 +25,12 @@ function memoryStore() {
   return { store, sessions };
 }
 
+test("resolves identity fields from semantic purpose and legacy labels", () => {
+  assert.equal(findPpdbIdentityField([{ ...field, id: "name", purpose: "studentName" }], "studentName")?.id, "name");
+  assert.equal(findPpdbIdentityField([{ ...field, id: "custom-name", label: "Nama Lengkap Calon Siswa" }], "studentName")?.id, "custom-name");
+  assert.equal(findPpdbIdentityField([{ ...field, id: "custom-nisn", label: "NISN" }], "nisn")?.id, "custom-nisn");
+});
+
 test("creates a draft Sesi PPDB referencing an existing Tahun Ajaran", async () => {
   const fixture = memoryStore();
   const service = createPpdbSessionService({ store: fixture.store, id: (() => { let value = 0; return () => `id-${++value}`; })(), now: () => new Date("2026-01-10T00:00:00Z") });
@@ -33,6 +39,7 @@ test("creates a draft Sesi PPDB referencing an existing Tahun Ajaran", async () 
   if (!created.ok) return;
   assert.equal(created.session.status, "draft");
   assert.deepEqual(created.session.fields, []);
+  assert.deepEqual(created.session.draftFields, []);
 });
 
 test("rejects publishing a Sesi with no Form fields", async () => {
@@ -43,17 +50,40 @@ test("rejects publishing a Sesi with no Form fields", async () => {
   assert.deepEqual(await service.publish(principal, created.session.id), { ok: false, code: "empty-fields" });
 });
 
-test("locks Form fields once a Sesi is published", async () => {
+test("publishes the current Form fields atomically", async () => {
   const fixture = memoryStore();
   const service = createPpdbSessionService({ store: fixture.store });
   const created = await service.create(principal, validInput);
   if (!created.ok) return assert.fail();
-  await service.updateFields(principal, created.session.id, [field]);
-  const published = await service.publish(principal, created.session.id);
+
+  const published = await service.publish(principal, created.session.id, [field]);
+
   assert.equal(published.ok, true);
   if (!published.ok) return;
   assert.equal(published.session.status, "published");
-  assert.deepEqual(await service.updateFields(principal, created.session.id, [field, { ...field, id: "f2" }]), { ok: false, code: "locked" });
+  assert.deepEqual(published.session.fields, [field]);
+});
+
+test("keeps published fields stable while editing a draft revision", async () => {
+  const fixture = memoryStore();
+  const service = createPpdbSessionService({ store: fixture.store });
+  const created = await service.create(principal, validInput);
+  if (!created.ok) return assert.fail();
+  const published = await service.publish(principal, created.session.id, [field]);
+  if (!published.ok) return assert.fail();
+  const revisedFields = [field, { ...field, id: "f2", label: "Alamat" }];
+
+  const saved = await service.updateFields(principal, created.session.id, revisedFields);
+
+  assert.equal(saved.ok, true);
+  if (!saved.ok) return;
+  assert.deepEqual(saved.session.fields, [field]);
+  assert.deepEqual(saved.session.draftFields, revisedFields);
+
+  const republished = await service.publish(principal, created.session.id);
+  assert.equal(republished.ok, true);
+  if (!republished.ok) return;
+  assert.deepEqual(republished.session.fields, revisedFields);
 });
 
 test("allows only one published Sesi PPDB per Tenant at a time", async () => {

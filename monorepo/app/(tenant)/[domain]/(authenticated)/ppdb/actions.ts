@@ -17,6 +17,14 @@ function finish(path: string, result: { ok: boolean; code?: string }) {
   redirect(`${path}?result=${result.ok ? "saved" : result.code ?? "error"}`);
 }
 
+function parseFields(formData: FormData): PpdbFormField[] {
+  try {
+    return JSON.parse(String(formData.get("fields") ?? "[]"));
+  } catch {
+    return [];
+  }
+}
+
 export async function createSessionAction(domain: string, formData: FormData) {
   const principal = await enforceMasterDataAccess(domain, "write");
   const result = await sessionService.create(principal, {
@@ -28,19 +36,22 @@ export async function createSessionAction(domain: string, formData: FormData) {
 
 export async function updateFieldsAction(domain: string, formData: FormData) {
   const principal = await enforceMasterDataAccess(domain, "write");
-  let fields: PpdbFormField[] = [];
-  try {
-    fields = JSON.parse(String(formData.get("fields") ?? "[]"));
-  } catch {
-    fields = [];
-  }
-  const result = await sessionService.updateFields(principal, String(formData.get("sessionId") ?? ""), fields);
+  const result = await sessionService.updateFields(
+    principal,
+    String(formData.get("sessionId") ?? ""),
+    parseFields(formData),
+  );
   finish(`/${domain}/ppdb/settings`, result);
 }
 
 export async function publishSessionAction(domain: string, formData: FormData) {
   const principal = await enforceMasterDataAccess(domain, "write");
-  const result = await sessionService.publish(principal, String(formData.get("sessionId") ?? ""));
+  const result = await sessionService.publish(
+    principal,
+    String(formData.get("sessionId") ?? ""),
+    parseFields(formData),
+  );
+  revalidatePath(`/apply/${domain}`);
   finish(`/${domain}/ppdb/settings`, result);
 }
 

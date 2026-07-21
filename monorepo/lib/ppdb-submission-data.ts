@@ -1,11 +1,14 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
-import { ppdbSession, ppdbSubmission } from "@/db/schema";
+import { ppdbSession, ppdbSubmission, ppdbSubmissionDocument } from "@/db/schema";
 import type { PpdbFormField } from "@/lib/ppdb-session";
 import type { PpdbSubmission, PpdbSubmissionStore } from "@/lib/ppdb-submission";
 
-function toSubmission(record: typeof ppdbSubmission.$inferSelect): PpdbSubmission {
+function toSubmission(
+  record: typeof ppdbSubmission.$inferSelect,
+  documents: PpdbSubmission["documents"] = [],
+): PpdbSubmission {
   return {
     id: record.id,
     tenantId: record.tenantId,
@@ -15,7 +18,9 @@ function toSubmission(record: typeof ppdbSubmission.$inferSelect): PpdbSubmissio
     nisn: record.nisn,
     status: record.status,
     score: record.score,
+    formFields: (record.formFields as PpdbFormField[] | null) ?? [],
     formData: (record.formData as Record<string, unknown> | null) ?? {},
+    documents,
     version: record.version,
     submittedAt: record.submittedAt,
     updatedAt: record.updatedAt,
@@ -33,9 +38,10 @@ export const ppdbSubmissionStore: PpdbSubmissionStore = {
     return { id: session.id, fields: (session.fields as PpdbFormField[] | null) ?? [] };
   },
 
-  async createSubmission(submission) {
+  async createSubmission(submission, documents = []) {
     try {
-      await db.insert(ppdbSubmission).values({
+      await db.transaction(async (tx) => {
+        await tx.insert(ppdbSubmission).values({
         id: submission.id,
         tenantId: submission.tenantId,
         sessionId: submission.sessionId,
@@ -44,10 +50,15 @@ export const ppdbSubmissionStore: PpdbSubmissionStore = {
         nisn: submission.nisn,
         status: submission.status,
         score: submission.score,
+        formFields: submission.formFields,
         formData: submission.formData,
         version: submission.version,
         submittedAt: submission.submittedAt,
-        updatedAt: submission.updatedAt,
+          updatedAt: submission.updatedAt,
+        });
+        if (documents.length) {
+          await tx.insert(ppdbSubmissionDocument).values([...documents]);
+        }
       });
       return { ok: true } as const;
     } catch (error) {
@@ -80,7 +91,31 @@ export const ppdbSubmissionStore: PpdbSubmissionStore = {
       .from(ppdbSubmission)
       .where(sessionId ? and(eq(ppdbSubmission.tenantId, tenantId), eq(ppdbSubmission.sessionId, sessionId)) : eq(ppdbSubmission.tenantId, tenantId))
       .orderBy(desc(ppdbSubmission.submittedAt));
-    return records.map(toSubmission);
+    if (!records.length) return [];
+    const documents = await db
+      .select()
+      .from(ppdbSubmissionDocument)
+      .where(and(
+        eq(ppdbSubmissionDocument.tenantId, tenantId),
+        inArray(ppdbSubmissionDocument.submissionId, records.map((record) => record.id)),
+      ));
+    return records.map((record) => toSubmission(
+      record,
+      documents.filter((document) => document.submissionId === record.id),
+    ));
+  },
+
+  async findDocument(tenantId, submissionId, documentId) {
+    const [document] = await db
+      .select()
+      .from(ppdbSubmissionDocument)
+      .where(and(
+        eq(ppdbSubmissionDocument.tenantId, tenantId),
+        eq(ppdbSubmissionDocument.submissionId, submissionId),
+        eq(ppdbSubmissionDocument.id, documentId),
+      ))
+      .limit(1);
+    return document ?? null;
   },
 
   async applyDecision(tenantId, submissionId, expectedVersion, patch) {

@@ -1,22 +1,31 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createPpdbSubmissionService, type PpdbSubmission, type PpdbSubmissionStore } from "@/lib/ppdb-submission";
+import {
+  createPpdbSubmissionService,
+  type PpdbSubmission,
+  type PpdbSubmissionDocument,
+  type PpdbSubmissionStore,
+} from "@/lib/ppdb-submission";
+import type { PpdbFormField } from "@/lib/ppdb-session";
+import type { SchoolAssetStorage } from "@/lib/school-profile-assets";
 import type { MasterDataPrincipal } from "@/lib/tenant-master-data-access";
 
 const principal: MasterDataPrincipal = { userId: "admin-1", tenantId: "tenant-1", role: "school-admin", capabilities: { read: true, write: true, downloadTemplate: true } };
 const requiredField = { id: "f1", label: "Nama Lengkap Sesuai Ijazah", type: "text" as const, required: true };
 
-function memoryStore(sessionFields = [requiredField]) {
+function memoryStore(sessionFields: readonly PpdbFormField[] = [requiredField]) {
   const submissions: PpdbSubmission[] = [];
+  const documents: PpdbSubmissionDocument[] = [];
   const store: PpdbSubmissionStore = {
     async findPublishedSession(tenantId, sessionId) {
       if (tenantId !== principal.tenantId || sessionId !== "session-1") return null;
       return { id: sessionId, fields: sessionFields };
     },
-    async createSubmission(submission) {
+    async createSubmission(submission, submissionDocuments = []) {
       if (submissions.some((item) => item.tenantId === submission.tenantId && item.registrationCode === submission.registrationCode)) return { ok: false, code: "duplicate-code" };
       submissions.push(structuredClone(submission));
+      documents.push(...structuredClone(submissionDocuments));
       return { ok: true };
     },
     async findByRegistrationCode(tenantId, registrationCode) {
@@ -28,7 +37,15 @@ function memoryStore(sessionFields = [requiredField]) {
       return found ? structuredClone(found) : null;
     },
     async list(tenantId, sessionId) {
-      return submissions.filter((item) => item.tenantId === tenantId && (!sessionId || item.sessionId === sessionId)).map((item) => structuredClone(item));
+      return submissions
+        .filter((item) => item.tenantId === tenantId && (!sessionId || item.sessionId === sessionId))
+        .map((item) => ({
+          ...structuredClone(item),
+          documents: documents.filter((document) => document.submissionId === item.id).map((document) => structuredClone(document)),
+        }));
+    },
+    async findDocument(tenantId, submissionId, documentId) {
+      return documents.find((item) => item.tenantId === tenantId && item.submissionId === submissionId && item.id === documentId) ?? null;
     },
     async applyDecision(tenantId, submissionId, expectedVersion, patch) {
       const index = submissions.findIndex((item) => item.tenantId === tenantId && item.id === submissionId && item.version === expectedVersion);
@@ -37,7 +54,7 @@ function memoryStore(sessionFields = [requiredField]) {
       return true;
     },
   };
-  return { store, submissions };
+  return { store, submissions, documents };
 }
 
 test("accepts an anonymous submission when the Sesi is published and required fields are filled", async () => {
@@ -47,6 +64,36 @@ test("accepts an anonymous submission when the Sesi is published and required fi
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.match(result.registrationCode, /^PPDB-2026-[A-Z0-9]{6}$/);
+  assert.deepEqual(fixture.submissions[0].formFields, [requiredField]);
+});
+
+test("stores a required PPDB document and exposes its metadata to the Tenant admin", async () => {
+  const fileField = { id: "document", label: "Akta Kelahiran", type: "file" as const, required: true };
+  const fixture = memoryStore([fileField]);
+  const written = new Map<string, Uint8Array>();
+  const storage: SchoolAssetStorage = {
+    async write(_tenantId, key, bytes) { written.set(key, bytes); },
+    async read(_tenantId, key) { return written.get(key) ?? new Uint8Array(); },
+    async remove(_tenantId, key) { written.delete(key); },
+  };
+  const service = createPpdbSubmissionService({
+    store: fixture.store,
+    storage,
+    id: (() => { let value = 0; return () => `id-${++value}`; })(),
+  });
+  const bytes = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d]);
+  const result = await service.submit(
+    principal.tenantId,
+    "session-1",
+    { studentName: "Ahmad", nisn: "0012345678", formData: {} },
+    { nisnRequired: true, documents: [{ fieldId: "document", originalFileName: "akta.pdf", mimeType: "application/pdf", extension: "pdf", bytes }] },
+  );
+  assert.equal(result.ok, true);
+  assert.equal(written.size, 1);
+  const [submission] = await service.list(principal);
+  assert.deepEqual(submission.documents.map(({ fieldId, originalFileName, mimeType, byteSize }) => ({ fieldId, originalFileName, mimeType, byteSize })), [
+    { fieldId: "document", originalFileName: "akta.pdf", mimeType: "application/pdf", byteSize: 5 },
+  ]);
 });
 
 test("accepts an SD submission without NISN and checks status using its registration code", async () => {
@@ -66,12 +113,39 @@ test("accepts an SD submission without NISN and checks status using its registra
   );
 });
 
+test("checks an SD submission by registration code even when an optional NISN was provided", async () => {
+  const fixture = memoryStore();
+  const service = createPpdbSubmissionService({ store: fixture.store });
+  const submitted = await service.submit(
+    principal.tenantId,
+    "session-1",
+    { studentName: "Ahmad Budi", nisn: "0012345678", formData: { f1: "Ahmad Budi" } },
+    { nisnRequired: false },
+  );
+  if (!submitted.ok) return assert.fail();
+
+  assert.deepEqual(
+    await service.checkStatus(principal.tenantId, submitted.registrationCode, "", { nisnRequired: false }),
+    { ok: true, studentName: "Ahmad Budi", status: "pending", score: null },
+  );
+});
+
 test("keeps NISN required for non-SD submissions", async () => {
   const fixture = memoryStore();
   const service = createPpdbSubmissionService({ store: fixture.store });
   assert.deepEqual(
     await service.submit(principal.tenantId, "session-1", { studentName: "Ahmad", nisn: "", formData: { f1: "Ahmad" } }),
     { ok: false, code: "invalid-input" },
+  );
+});
+
+test("rejects a submission when the published Sesi has no Form fields", async () => {
+  const fixture = memoryStore([]);
+  const service = createPpdbSubmissionService({ store: fixture.store });
+
+  assert.deepEqual(
+    await service.submit(principal.tenantId, "session-1", { studentName: "Ahmad", nisn: "001", formData: {} }),
+    { ok: false, code: "session-not-open" },
   );
 });
 

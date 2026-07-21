@@ -1,56 +1,18 @@
 "use client"
 
 import Link from "next/link"
-import { useActionState, useRef, useState } from "react"
+import { startTransition, useActionState, useRef, useState } from "react"
 import { CheckCircle2, ChevronRight, UploadCloud } from "lucide-react"
 import { toast } from "sonner"
 
 import { submitPpdbApplicationAction, type PpdbApplicationActionState } from "@/app/apply/[domain]/actions"
 import { PpdbSessionClosedNotice } from "@/app/apply/[domain]/session-closed-notice"
 import { PPDB_FILE_MAX_MB, validatePpdbFileSize } from "@/lib/ppdb-file-validation"
+import { buildPpdbFormSteps } from "@/lib/ppdb-form-steps"
 import type { PpdbFormField } from "@/lib/ppdb-session"
 
-const FIELDS_PER_STEP = 3
-const FILES_PER_STEP = 2
 const fieldClassName =
   "mt-1 w-full rounded-lg border border-slate-300 p-3 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500 outline-none"
-
-type StepDefinition =
-  | { kind: "base" }
-  | { kind: "fields"; title: string; fields: PpdbFormField[] }
-  | { kind: "files"; title: string; fields: PpdbFormField[] }
-
-function chunk<T>(items: readonly T[], size: number): T[][] {
-  const chunks: T[][] = []
-  for (let index = 0; index < items.length; index += size) chunks.push(items.slice(index, index + size))
-  return chunks
-}
-
-// Field dikelompokkan ke beberapa langkah supaya tetap ringkas di layar kecil: field non-berkas
-// dipecah per ~3 field, dan field berkas dipisah ke langkah tersendiri (meniru "Upload Dokumen" pada mock awal).
-function buildSteps(fields: readonly PpdbFormField[]): StepDefinition[] {
-  const regularFields = fields.filter((field) => field.type !== "file")
-  const fileFields = fields.filter((field) => field.type === "file")
-  const regularChunks = chunk(regularFields, FIELDS_PER_STEP)
-  const fileChunks = chunk(fileFields, FILES_PER_STEP)
-
-  const steps: StepDefinition[] = [{ kind: "base" }]
-  regularChunks.forEach((group, index) => {
-    steps.push({
-      kind: "fields",
-      title: regularChunks.length > 1 ? `Informasi Tambahan (${index + 1}/${regularChunks.length})` : "Informasi Tambahan",
-      fields: group,
-    })
-  })
-  fileChunks.forEach((group, index) => {
-    steps.push({
-      kind: "files",
-      title: fileChunks.length > 1 ? `Upload Dokumen (${index + 1}/${fileChunks.length})` : "Upload Dokumen",
-      fields: group,
-    })
-  })
-  return steps
-}
 
 const initialState: PpdbApplicationActionState = { status: "idle" }
 
@@ -63,14 +25,15 @@ export function PpdbApplyForm({
   fields: readonly PpdbFormField[]
   nisnRequired: boolean
 }) {
-  const steps = buildSteps(fields)
+  const steps = buildPpdbFormSteps(fields)
   const totalSteps = steps.length
   const [step, setStep] = useState(0)
   const [fileNames, setFileNames] = useState<Record<string, string>>({})
+  const formRef = useRef<HTMLFormElement>(null)
   const stepRefs = useRef<Array<HTMLDivElement | null>>([])
   const [state, formAction, pending] = useActionState(submitPpdbApplicationAction.bind(null, domain), initialState)
 
-  if (state.status === "closed") return <PpdbSessionClosedNotice />
+  if (!fields.length || state.status === "closed") return <PpdbSessionClosedNotice />
   if (state.status === "success") return <PpdbApplySuccess domain={domain} registrationCode={state.registrationCode} />
 
   function goNext() {
@@ -88,8 +51,8 @@ export function PpdbApplyForm({
   }
 
   return (
-    <div className="min-h-svh bg-slate-100 flex justify-center pb-20">
-      <main className="w-full max-w-md bg-white shadow-xl min-h-[100dvh] relative overflow-hidden flex flex-col">
+    <div className="min-h-svh bg-slate-100 flex justify-center">
+      <main className="w-full bg-white shadow-xl min-h-[100dvh] relative overflow-hidden flex flex-col">
         <header className="px-5 py-4 border-b border-slate-100">
           <h1 className="font-bold text-slate-900">Pendaftaran PPDB</h1>
           <p className="text-xs text-slate-500">Domain: {domain}</p>
@@ -108,7 +71,14 @@ export function PpdbApplyForm({
           </div>
         </header>
 
-        <form action={formAction} className="flex-1 flex flex-col">
+        <form
+          ref={formRef}
+          className="flex-1 flex flex-col"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (step < totalSteps - 1) goNext()
+          }}
+        >
           <div className="flex-1 overflow-y-auto p-5 pb-24">
             {state.status === "error" ? (
               <p className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-600" role="alert">{state.message}</p>
@@ -122,36 +92,14 @@ export function PpdbApplyForm({
                 }}
                 className={index === step ? "space-y-4 animate-in slide-in-from-right-4 fade-in duration-300" : "hidden"}
               >
-                {definition.kind === "base" ? (
-                  <>
-                    <h2 className="text-lg font-bold mb-4">Informasi Pribadi</h2>
-                    <div>
-                      <label className="text-sm font-medium text-slate-700">Nama Lengkap</label>
-                      <input type="text" name="studentName" required className={fieldClassName} placeholder="Sesuai ijazah" />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-slate-700">
-                        NISN{nisnRequired ? "" : " (opsional)"}
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        name="nisn"
-                        required={nisnRequired}
-                        className={fieldClassName}
-                        placeholder={nisnRequired ? "10 digit angka" : "Isi jika sudah memiliki NISN"}
-                      />
-                    </div>
-                  </>
-                ) : definition.kind === "fields" ? (
+                {definition.kind === "fields" ? (
                   <>
                     <h2 className="text-lg font-bold mb-4">{definition.title}</h2>
                     {definition.fields.map((field) => (
-                      <DynamicField key={field.id} field={field} />
+                      <DynamicField key={field.id} field={field} nisnRequired={nisnRequired} />
                     ))}
                   </>
-                ) : (
+                ) : definition.kind === "files" ? (
                   <>
                     <h2 className="text-lg font-bold mb-4">{definition.title}</h2>
                     {definition.fields.map((field) => (
@@ -163,6 +111,13 @@ export function PpdbApplyForm({
                       />
                     ))}
                   </>
+                ) : (
+                  <div className="rounded-xl border border-sky-200 bg-sky-50 p-5 text-center">
+                    <h2 className="text-lg font-bold text-slate-900">{definition.title}</h2>
+                    <p className="mt-2 text-sm text-slate-600">
+                      Periksa kembali isian Anda dengan tombol Kembali. Tekan Kirim Pendaftaran hanya jika seluruh data sudah benar.
+                    </p>
+                  </div>
                 )}
               </div>
             ))}
@@ -191,8 +146,13 @@ export function PpdbApplyForm({
               </button>
             ) : (
               <button
-                type="submit"
+                type="button"
                 disabled={pending}
+                onClick={() => {
+                  if (!formRef.current) return
+                  const formData = new FormData(formRef.current)
+                  startTransition(() => formAction(formData))
+                }}
                 className="flex-[2] rounded-xl bg-sky-500 py-3 text-sm font-bold text-white shadow-lg shadow-sky-500/20 flex justify-center items-center gap-2 hover:bg-sky-600 transition-colors disabled:opacity-50"
               >
                 {pending ? "Mengirim..." : "Kirim Pendaftaran"}
@@ -205,22 +165,27 @@ export function PpdbApplyForm({
   )
 }
 
-function DynamicField({ field }: { field: PpdbFormField }) {
+function DynamicField({ field, nisnRequired }: { field: PpdbFormField; nisnRequired: boolean }) {
   return (
     <div>
       <label className="text-sm font-medium text-slate-700">
         {field.label}
-        {field.required ? " *" : ""}
+        {field.required || (field.purpose === "nisn" && nisnRequired) ? " *" : ""}
       </label>
       {field.type === "select" ? (
-        <select name={field.id} required={field.required} defaultValue="" className={`${fieldClassName} bg-white`}>
+        <select name={field.id} required={field.required || (field.purpose === "nisn" && nisnRequired)} defaultValue="" className={`${fieldClassName} bg-white`}>
           <option value="" disabled>Pilih {field.label}</option>
           {(field.options ?? []).map((option) => (
             <option key={option} value={option}>{option}</option>
           ))}
         </select>
       ) : (
-        <input type={field.type === "number" ? "number" : "text"} name={field.id} required={field.required} className={fieldClassName} />
+        <input
+          type={field.type === "number" ? "number" : "text"}
+          name={field.id}
+          required={field.required || (field.purpose === "nisn" && nisnRequired)}
+          className={fieldClassName}
+        />
       )}
     </div>
   )
@@ -245,10 +210,9 @@ function FileField({
       <p className="text-xs text-slate-500 mt-1">{selectedName ? `Dipilih: ${selectedName}` : `Format PDF/JPG maks. ${PPDB_FILE_MAX_MB} MB`}</p>
       <label className="mt-3 inline-block bg-sky-50 text-sky-600 px-4 py-1.5 rounded-full text-xs font-semibold cursor-pointer">
         Pilih File
-        {/* Penyimpanan berkas sesungguhnya belum tersedia (item terbuka terpisah); untuk saat ini hanya nama berkas yang dikirim. */}
-        <input type="hidden" name={field.id} value={selectedName ?? ""} />
         <input
           type="file"
+          name={field.id}
           required={field.required}
           accept="application/pdf,image/jpeg,image/png"
           className="hidden"

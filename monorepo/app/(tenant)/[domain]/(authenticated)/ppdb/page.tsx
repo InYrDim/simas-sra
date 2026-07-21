@@ -72,7 +72,7 @@ export default async function PPDBDashboardPage({
       ) : null}
 
       <div className="p-6 h-[calc(100vh-80px)]">
-        <div className="mx-auto max-w-6xl h-full flex flex-col">
+        <div className="mx-auto h-full flex flex-col">
           {!current ? (
             <div className="flex-1 flex items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white">
               <p className="text-sm text-slate-500">Belum ada Sesi PPDB. Buat Sesi PPDB untuk mulai menerima pendaftaran.</p>

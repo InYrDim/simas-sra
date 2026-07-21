@@ -2,13 +2,24 @@ import type { MasterDataPrincipal } from "@/lib/tenant-master-data-access";
 
 export type PpdbSessionStatus = "draft" | "published" | "ended";
 export type PpdbFieldType = "text" | "number" | "file" | "select";
+export type PpdbFieldPurpose = "studentName" | "nisn";
 export type PpdbFormField = Readonly<{
   id: string;
   label: string;
   type: PpdbFieldType;
   required: boolean;
+  purpose?: PpdbFieldPurpose;
   options?: readonly string[];
 }>;
+
+export function findPpdbIdentityField(fields: readonly PpdbFormField[], purpose: PpdbFieldPurpose) {
+  return fields.find((field) => field.purpose === purpose)
+    ?? fields.find((field) => purpose === "studentName" ? field.id === "t1" : field.id === "t2")
+    ?? fields.find((field) => {
+      const label = field.label.trim().toLocaleLowerCase("id-ID");
+      return purpose === "studentName" ? label.includes("nama lengkap") : label === "nisn";
+    });
+}
 export type PpdbSession = Readonly<{
   id: string;
   tenantId: string;
@@ -16,6 +27,7 @@ export type PpdbSession = Readonly<{
   endDate: string;
   status: PpdbSessionStatus;
   fields: readonly PpdbFormField[];
+  draftFields: readonly PpdbFormField[];
   version: number;
   publishedAt: Date | null;
   endedAt: Date | null;
@@ -79,6 +91,7 @@ export function createPpdbSessionService(dependencies: { store: PpdbSessionStore
         endDate: input.endDate,
         status: "draft",
         fields: [],
+        draftFields: [],
         version: 1,
         publishedAt: null,
         endedAt: null,
@@ -91,23 +104,33 @@ export function createPpdbSessionService(dependencies: { store: PpdbSessionStore
       });
     },
 
-    // Struktur Form (fields) hanya bisa diubah selagi Sesi masih "draft" — terkunci begitu dipublikasikan.
+    // Edit selalu masuk ke draft; snapshot publik tidak berubah sampai draft dipublikasikan.
     updateFields(principal: MasterDataPrincipal, sessionId: string, fields: readonly PpdbFormField[]) {
       return mutate(principal, sessionId, (session) => {
-        if (session.status !== "draft") return "locked";
+        if (session.status === "ended") return "locked";
         if (!validFields(fields)) return "invalid-input";
-        return { ...session, fields, version: session.version + 1, updatedAt: now() };
+        return { ...session, draftFields: fields, version: session.version + 1, updatedAt: now() };
       });
     },
 
     // Hanya satu Sesi boleh "published" per Tenant pada satu waktu; Form harus punya minimal satu field.
-    publish(principal: MasterDataPrincipal, sessionId: string) {
+    publish(principal: MasterDataPrincipal, sessionId: string, fields?: readonly PpdbFormField[]) {
       return mutate(principal, sessionId, (session, all) => {
-        if (session.status !== "draft") return "invalid-transition";
-        if (!session.fields.length) return "empty-fields";
+        if (session.status === "ended") return "invalid-transition";
+        const publishedFields = fields ?? session.draftFields;
+        if (!publishedFields.length) return "empty-fields";
+        if (!validFields(publishedFields)) return "invalid-input";
         if (all.some((item) => item.id !== session.id && item.status === "published")) return "published-conflict";
         const timestamp = now();
-        return { ...session, status: "published", publishedAt: timestamp, version: session.version + 1, updatedAt: timestamp };
+        return {
+          ...session,
+          fields: publishedFields,
+          draftFields: publishedFields,
+          status: "published",
+          publishedAt: session.publishedAt ?? timestamp,
+          version: session.version + 1,
+          updatedAt: timestamp,
+        };
       });
     },
 

@@ -1,7 +1,9 @@
 "use client"
 
+import type { ReactNode } from "react"
 import { useState } from "react"
-import { Download, GripVertical, Plus, Save, Trash2 } from "lucide-react"
+import { useFormStatus } from "react-dom"
+import { Download, GripVertical, Loader2, Plus, Save, Trash2 } from "lucide-react"
 
 import { publishSessionAction, updateFieldsAction } from "@/app/(tenant)/[domain]/(authenticated)/ppdb/actions"
 import { Button } from "@/components/ui/button"
@@ -25,16 +27,31 @@ const FIELD_TYPE_OPTIONS: readonly { value: PpdbFieldType; label: string }[] = [
 ]
 
 const TEMPLATE_FIELDS: PpdbFormField[] = [
-  { id: "t1", label: "Nama Lengkap Sesuai Ijazah", type: "text", required: true },
-  { id: "t2", label: "NISN", type: "number", required: true },
+  { id: "t1", label: "Nama Lengkap Sesuai Ijazah", type: "text", required: true, purpose: "studentName" },
+  { id: "t2", label: "NISN", type: "number", required: true, purpose: "nisn" },
   { id: "t3", label: "Tempat, Tanggal Lahir", type: "text", required: true },
   { id: "t4", label: "Scan KK (Kartu Keluarga)", type: "file", required: true },
   { id: "t5", label: "Scan Surat Keterangan Lulus", type: "file", required: false },
 ]
 
-// Sesi masih "draft": struktur Form boleh diubah bebas. Begitu dipublikasikan, halaman ini tidak dirender lagi (lihat settings/page.tsx).
-export function PpdbFieldBuilder({ domain, sessionId, initialFields }: { domain: string; sessionId: string; initialFields: readonly PpdbFormField[] }) {
+// Perubahan pada sesi aktif disimpan sebagai draft dan baru terlihat publik setelah diterbitkan kembali.
+export function PpdbFieldBuilder({
+  domain,
+  sessionId,
+  initialFields,
+  publishedFields = [],
+  published = false,
+}: {
+  domain: string
+  sessionId: string
+  initialFields: readonly PpdbFormField[]
+  publishedFields?: readonly PpdbFormField[]
+  published?: boolean
+}) {
   const [fields, setFields] = useState<PpdbFormField[]>(() => [...initialFields])
+  const fieldsSignature = JSON.stringify(fields)
+  const hasDraftChanges = fieldsSignature !== JSON.stringify(initialFields)
+  const hasUnpublishedChanges = fieldsSignature !== JSON.stringify(publishedFields)
 
   const applyTemplate = () => setFields([...TEMPLATE_FIELDS])
   const addField = () => setFields([...fields, { id: crypto.randomUUID(), label: "Field Baru", type: "text", required: false }])
@@ -57,7 +74,7 @@ export function PpdbFieldBuilder({ domain, sessionId, initialFields }: { domain:
             </Button>
           </div>
           <p className="text-sm text-slate-600 mb-6">
-            Kelola field form yang akan diisi oleh Calon Siswa. Struktur ini terkunci begitu Form dipublikasikan.
+            Kelola field form yang akan diisi oleh Calon Siswa. Perubahan pada sesi aktif tetap menjadi draft sampai diterbitkan kembali.
           </p>
 
           <div className="space-y-3">
@@ -106,21 +123,50 @@ export function PpdbFieldBuilder({ domain, sessionId, initialFields }: { domain:
           </Button>
 
           <div className="mt-6 flex justify-end">
-            <Button type="submit" className="flex items-center gap-2">
-              <Save className="size-4" />
-              Simpan Form
-            </Button>
+            <PendingSubmitButton
+              idleLabel={published ? "Simpan Draft Perubahan" : "Simpan Form"}
+              pendingLabel={published ? "Menyimpan Draft..." : "Menyimpan Form..."}
+              icon={<Save className="size-4" />}
+              disabled={!hasDraftChanges}
+            />
           </div>
         </div>
       </form>
 
       <form action={publishSessionAction.bind(null, domain)} className="flex justify-end">
         <input type="hidden" name="sessionId" value={sessionId} />
-        <Button type="submit" disabled={fields.length === 0} className="bg-emerald-600 hover:bg-emerald-700">
-          Publikasikan Form PPDB
-        </Button>
+        <input type="hidden" name="fields" value={JSON.stringify(fields)} />
+        <PendingSubmitButton
+          idleLabel={published ? "Publikasikan Perubahan" : "Publikasikan Form PPDB"}
+          pendingLabel={published ? "Mempublikasikan Perubahan..." : "Mempublikasikan Form..."}
+          disabled={fields.length === 0 || (published && !hasUnpublishedChanges)}
+          className="bg-emerald-600 hover:bg-emerald-700"
+        />
       </form>
       {fields.length === 0 ? <p className="text-right text-sm text-slate-500">Simpan Form dengan minimal satu field sebelum dapat dipublikasikan.</p> : null}
     </div>
+  )
+}
+
+function PendingSubmitButton({
+  idleLabel,
+  pendingLabel,
+  icon,
+  disabled = false,
+  className,
+}: {
+  idleLabel: string
+  pendingLabel: string
+  icon?: ReactNode
+  disabled?: boolean
+  className?: string
+}) {
+  const { pending } = useFormStatus()
+
+  return (
+    <Button type="submit" disabled={disabled || pending} className={`flex items-center gap-2 ${className ?? ""}`}>
+      {pending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : icon}
+      {pending ? pendingLabel : idleLabel}
+    </Button>
   )
 }

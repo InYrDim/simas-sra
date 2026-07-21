@@ -15,7 +15,7 @@ import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access"
 const sessionService = createPpdbSessionService({ store: ppdbSessionStore })
 const academicYearService = createAcademicYearService({ store: academicYearStore })
 
-const fieldTypeLabels = { text: "TEXT", number: "NUMBER", file: "FILE UPLOAD", select: "DROPDOWN" } as const
+
 
 export default async function PPDBSettingsPage({
   params,
@@ -103,24 +103,20 @@ export default async function PPDBSettingsPage({
               </form>
             )}
           </div>
-        ) : current.status === "draft" ? (
-          <PpdbFieldBuilder domain={domain} sessionId={current.id} initialFields={current.fields} />
         ) : (
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-            <h2 className="font-bold text-lg mb-2">Form Terpublikasi &mdash; Terkunci</h2>
-            <p className="text-sm text-slate-600 mb-6">
-              Sesi ini sudah dipublikasikan sejak {current.publishedAt?.toLocaleString("id-ID")}, sehingga struktur Form tidak bisa diubah lagi. Akhiri Sesi ini dari Dashboard untuk bisa membuat Sesi PPDB baru.
-            </p>
-            <ul className="space-y-2">
-              {current.fields.map((field) => (
-                <li key={field.id} className="flex items-center justify-between rounded-lg border border-slate-200 p-3">
-                  <span className="font-medium">{field.label}</span>
-                  <span className="text-xs font-semibold uppercase text-slate-500">
-                    {fieldTypeLabels[field.type]} {field.required ? "• Wajib" : ""}
-                  </span>
-                </li>
-              ))}
-            </ul>
+          <div className="space-y-4">
+            {current.status === "published" ? (
+              <p className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-800">
+                Form publik tetap menggunakan versi yang sudah diterbitkan. Simpan perubahan sebagai draft, lalu klik Publikasikan Perubahan saat siap menampilkannya ke calon siswa.
+              </p>
+            ) : null}
+            <PpdbFieldBuilder
+              domain={domain}
+              sessionId={current.id}
+              initialFields={current.draftFields}
+              publishedFields={current.fields}
+              published={current.status === "published"}
+            />
           </div>
         )}
       </div>
