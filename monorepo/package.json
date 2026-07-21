@@ -22,6 +22,7 @@
     "db:backfill:tenant-operational": "tsx scripts/migrate-tenant-operational-model.ts backfill",
     "db:verify:tenant-operational": "tsx scripts/migrate-tenant-operational-model.ts verify",
     "db:reconcile:master-data": "tsx scripts/reconcile-master-data.ts",
+    "db:seed:master-data": "tsx scripts/seed-master-data.ts",
     "db:studio": "drizzle-kit studio",
     "provider-admin:provision": "tsx scripts/provision-provider-admin.ts",
     "provider-admin:deprovision": "tsx scripts/deprovision-provider-admin.ts",

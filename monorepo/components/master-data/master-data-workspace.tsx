@@ -133,6 +133,7 @@ export function MasterDataWorkspace({
         </Label>
         <input type="hidden" name="page" value="1" />
         <input type="hidden" name="pageSize" value={query.pageSize} />
+        <Button type="submit">Terapkan filter</Button>
       </MasterDataFilterForm>
       <div className="grid min-h-[28rem] border bg-card lg:grid-cols-[minmax(20rem,2fr)_minmax(22rem,3fr)]">
         <section
