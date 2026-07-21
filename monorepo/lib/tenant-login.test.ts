@@ -53,6 +53,19 @@ test("Tenant page guard distinguishes anonymous, authorized, and authenticated u
   assert.deepEqual(await resolveTenantPageAccess(store(), "missing", null), { kind: "tenant-not-found" });
 });
 
+test("Master Data hides a mismatched Tenant instead of redirecting to the user's Tenant", async () => {
+  const otherTenant = { kind: "tenant-member", tenantId: "tenant-2", domain: "lain", passwordChangeRequired: false, promotedApplicant: false } as const;
+
+  assert.deepEqual(
+    await resolveTenantPageAccess(store(), "sekolah", otherTenant, "/sekolah/master/siswa"),
+    { kind: "tenant-not-found" },
+  );
+  assert.deepEqual(
+    await resolveTenantPageAccess(store(), "sekolah", otherTenant, "/sekolah/dashboard"),
+    { kind: "redirect", destination: "/lain/dashboard" },
+  );
+});
+
 test("own-Tenant members may continue only to a canonical path inside the exact Tenant prefix", async () => {
   assert.deepEqual(await resolveTenantLogin(store(), "sekolah", { kind: "tenant-member", tenantId: "tenant-1", domain: "sekolah", passwordChangeRequired: false, promotedApplicant: false }, "/sekolah/settings"), {
     kind: "redirect", destination: "/sekolah/settings",

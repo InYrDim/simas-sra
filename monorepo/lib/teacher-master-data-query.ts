@@ -1,0 +1,9 @@
+import { normalizeMasterDataQuery, type MasterDataSearchParams } from "@/lib/master-data-workspace";
+import { TEACHER_STATUSES, type TeacherRecord } from "@/lib/teacher-master-data";
+const compact = (value: string) => value.replace(/[^\p{L}\p{N}]/gu, "").toLocaleLowerCase("id-ID");
+export function queryTeachers(records: readonly TeacherRecord[], params: MasterDataSearchParams) {
+  let query = normalizeMasterDataQuery(params, { filters: { status: TEACHER_STATUSES }, sorts: ["name-asc", "name-desc", "teacherNumber-asc", "teacherNumber-desc"] }); const search = compact(query.search), statuses = query.filters.status ?? [];
+  const filtered = records.filter(({ person, teacher }) => (query.archive === "all" || teacher.archived === (query.archive === "archived")) && (!statuses.length || statuses.includes(teacher.status)) && (!search || compact(person.fullName).includes(search) || compact(teacher.teacherNumber).includes(search) || Boolean(teacher.nuptk && compact(teacher.nuptk).includes(search)) || Boolean(person.nik && compact(person.nik).includes(search)) || Boolean(person.nip && compact(person.nip).includes(search)))).sort((left, right) => { const byNis = query.sort.startsWith("teacherNumber"); const compared = byNis ? left.teacher.normalizedTeacherNumber.localeCompare(right.teacher.normalizedTeacherNumber, "id-ID") : left.person.normalizedName.localeCompare(right.person.normalizedName, "id-ID"); const stable = compared || left.teacher.id.localeCompare(right.teacher.id); return query.sort.endsWith("desc") ? -stable : stable; });
+  const pages = Math.max(1, Math.ceil(filtered.length / query.pageSize)); if (query.page > pages) query = { ...query, page: pages }; const offset = (query.page - 1) * query.pageSize;
+  return { query, items: filtered.slice(offset, offset + query.pageSize), total: filtered.length, state: records.length === 0 ? "empty" as const : filtered.length === 0 ? "no-results" as const : "results" as const };
+}

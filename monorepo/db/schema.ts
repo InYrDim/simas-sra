@@ -2,6 +2,9 @@ import { defineRelations, sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  decimal,
+  date,
+  foreignKey,
   index,
   int,
   json,
@@ -30,7 +33,7 @@ export const tenant = mysqlTable(
     trialStartedAt: timestamp("trial_started_at", { fsp: 3 }),
     trialEndsAt: timestamp("trial_ends_at", { fsp: 3 }),
     settings: json("settings"),
-    operationalStatus: mysqlEnum("operational_status", ["active", "closed"]),
+    operationalStatus: mysqlEnum("operational_status", ["active", "suspended", "closed"]),
     reconciliationStatus: mysqlEnum("reconciliation_status", [
       "not_required",
       "needs_reconciliation",
@@ -57,6 +60,473 @@ export const tenant = mysqlTable(
   ],
 );
 
+export const schoolProfile = mysqlTable(
+  "school_profile",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    displayName: varchar("display_name", { length: 255 }).notNull(),
+    addressStreet: varchar("address_street", { length: 255 }).default("").notNull(),
+    addressVillage: varchar("address_village", { length: 255 }).default("").notNull(),
+    addressDistrict: varchar("address_district", { length: 255 }).default("").notNull(),
+    addressCity: varchar("address_city", { length: 255 }).default("").notNull(),
+    addressProvince: varchar("address_province", { length: 255 }).default("").notNull(),
+    addressPostalCode: varchar("address_postal_code", { length: 5 }).default("").notNull(),
+    institutionalEmail: varchar("institutional_email", { length: 255 }),
+    institutionalPhone: varchar("institutional_phone", { length: 32 }),
+    website: varchar("website", { length: 2048 }),
+    latitude: decimal("latitude", { precision: 10, scale: 7 }),
+    longitude: decimal("longitude", { precision: 10, scale: 7 }),
+    description: text("description"),
+    logoAssetId: varchar("logo_asset_id", { length: 36 }),
+    version: int("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("school_profile_tenant_id_unique").on(table.tenantId),
+    unique("school_profile_tenant_id_id_unique").on(table.tenantId, table.id),
+    check("school_profile_version_check", sql`${table.version} > 0`),
+    check("school_profile_latitude_check", sql`${table.latitude} IS NULL OR (${table.latitude} >= -90 AND ${table.latitude} <= 90)`),
+    check("school_profile_longitude_check", sql`${table.longitude} IS NULL OR (${table.longitude} >= -180 AND ${table.longitude} <= 180)`),
+    check("school_profile_coordinates_check", sql`(${table.latitude} IS NULL) = (${table.longitude} IS NULL)`),
+  ],
+);
+
+export const schoolAsset = mysqlTable(
+  "school_asset",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    storageKey: varchar("storage_key", { length: 700 }).notNull(),
+    mimeType: mysqlEnum("mime_type", ["image/png", "image/jpeg", "image/webp"]).notNull(),
+    byteSize: int("byte_size").notNull(),
+    width: int("width").notNull(),
+    height: int("height").notNull(),
+    createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull().references(() => user.id),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("school_asset_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("school_asset_storage_key_unique").on(table.storageKey),
+    check("school_asset_size_check", sql`${table.byteSize} > 0 AND ${table.byteSize} <= 2097152`),
+    check("school_asset_dimensions_check", sql`${table.width} >= 256 AND ${table.height} >= 256 AND ${table.width} = ${table.height}`),
+  ],
+);
+
+export const schoolAccreditation = mysqlTable(
+  "school_accreditation",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    profileId: varchar("profile_id", { length: 36 }).notNull().references(() => schoolProfile.id),
+    rating: mysqlEnum("rating", ["A", "B", "C", "Terakreditasi", "Tidak Terakreditasi"]).notNull(),
+    certificateNumber: varchar("certificate_number", { length: 100 }).notNull(),
+    issuingInstitution: varchar("issuing_institution", { length: 150 }).notNull(),
+    determinationDate: varchar("determination_date", { length: 10 }).notNull(),
+    expiryDate: varchar("expiry_date", { length: 10 }),
+    supersedesId: varchar("supersedes_id", { length: 36 }),
+    correctionId: varchar("correction_id", { length: 36 }),
+    invalidationReason: varchar("invalidation_reason", { length: 500 }),
+    invalidatedAt: timestamp("invalidated_at", { fsp: 3 }),
+    createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull().references(() => user.id),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("school_accreditation_tenant_id_id_unique").on(table.tenantId, table.id),
+    foreignKey({ columns: [table.tenantId, table.profileId], foreignColumns: [schoolProfile.tenantId, schoolProfile.id], name: "school_accreditation_tenant_profile_fkey" }),
+    foreignKey({ columns: [table.tenantId, table.supersedesId], foreignColumns: [table.tenantId, table.id], name: "school_accreditation_tenant_supersedes_fkey" }),
+    foreignKey({ columns: [table.tenantId, table.correctionId], foreignColumns: [table.tenantId, table.id], name: "school_accreditation_tenant_correction_fkey" }),
+    index("school_accreditation_tenant_period_idx").on(table.tenantId, table.determinationDate, table.expiryDate),
+    check("school_accreditation_period_check", sql`${table.expiryDate} IS NULL OR ${table.expiryDate} >= ${table.determinationDate}`),
+  ],
+);
+
+export const schoolProfileAudit = mysqlTable(
+  "school_profile_audit",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    profileId: varchar("profile_id", { length: 36 }).notNull().references(() => schoolProfile.id),
+    actorUserId: varchar("actor_user_id", { length: 36 }).notNull().references(() => user.id),
+    operation: varchar("operation", { length: 100 }).notNull(),
+    fromVersion: int("from_version").notNull(),
+    toVersion: int("to_version").notNull(),
+    occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    index("school_profile_audit_tenant_profile_idx").on(table.tenantId, table.profileId, table.occurredAt),
+    check("school_profile_audit_version_check", sql`${table.fromVersion} > 0 AND ${table.toVersion} = ${table.fromVersion} + 1`),
+  ],
+);
+
+export const academicYear = mysqlTable(
+  "academic_year",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    label: varchar("label", { length: 100 }).notNull(),
+    startDate: date("start_date", { mode: "string" }).notNull(),
+    endDate: date("end_date", { mode: "string" }).notNull(),
+    lifecycle: mysqlEnum("lifecycle", ["draft", "active", "closed", "cancelled"]).default("draft").notNull(),
+    archived: boolean("archived").default(false).notNull(),
+    activeSlot: varchar("active_slot", { length: 36 }).generatedAlwaysAs(sql`CASE WHEN lifecycle = 'active' AND archived = false THEN tenant_id ELSE NULL END`),
+    version: int("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("academic_year_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("academic_year_tenant_label_unique").on(table.tenantId, table.label),
+    unique("academic_year_active_slot_unique").on(table.activeSlot),
+    index("academic_year_tenant_period_idx").on(table.tenantId, table.startDate, table.endDate),
+    check("academic_year_period_check", sql`${table.startDate} < ${table.endDate}`),
+    check("academic_year_version_check", sql`${table.version} > 0`),
+  ],
+);
+
+export const academicSemester = mysqlTable(
+  "academic_semester",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    academicYearId: varchar("academic_year_id", { length: 36 }).notNull(),
+    kind: mysqlEnum("kind", ["odd", "even"]).notNull(),
+    startDate: date("start_date", { mode: "string" }).notNull(),
+    endDate: date("end_date", { mode: "string" }).notNull(),
+    status: mysqlEnum("status", ["pending", "active", "completed"]).default("pending").notNull(),
+    activeSlot: varchar("active_slot", { length: 36 }).generatedAlwaysAs(sql`CASE WHEN status = 'active' THEN tenant_id ELSE NULL END`),
+  },
+  (table) => [
+    unique("academic_semester_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("academic_semester_year_kind_unique").on(table.academicYearId, table.kind),
+    unique("academic_semester_active_slot_unique").on(table.activeSlot),
+    foreignKey({ columns: [table.tenantId, table.academicYearId], foreignColumns: [academicYear.tenantId, academicYear.id], name: "academic_semester_tenant_year_fkey" }),
+    check("academic_semester_period_check", sql`${table.startDate} <= ${table.endDate}`),
+  ],
+);
+
+export const academicYearHistory = mysqlTable(
+  "academic_year_history",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    academicYearId: varchar("academic_year_id", { length: 36 }).notNull(),
+    actorUserId: varchar("actor_user_id", { length: 36 }).notNull().references(() => user.id),
+    operation: varchar("operation", { length: 50 }).notNull(),
+    effectiveDate: date("effective_date", { mode: "string" }).notNull(),
+    occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull(),
+    fromLifecycle: mysqlEnum("from_lifecycle", ["draft", "active", "closed", "cancelled"]),
+    toLifecycle: mysqlEnum("to_lifecycle", ["draft", "active", "closed", "cancelled"]).notNull(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.tenantId, table.academicYearId], foreignColumns: [academicYear.tenantId, academicYear.id], name: "academic_year_history_tenant_year_fkey" }),
+    index("academic_year_history_tenant_year_idx").on(table.tenantId, table.academicYearId, table.occurredAt),
+  ],
+);
+
+export const classGroup = mysqlTable(
+  "class_group",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    academicYearId: varchar("academic_year_id", { length: 36 }).notNull(),
+    educationLevel: mysqlEnum("education_level", ["SD", "SMP", "SMA", "SMK"]).notNull(),
+    grade: int("grade").notNull(),
+    groupName: varchar("group_name", { length: 100 }).notNull(),
+    normalizedGroupName: varchar("normalized_group_name", { length: 100 }).notNull(),
+    code: varchar("code", { length: 30 }),
+    normalizedCode: varchar("normalized_code", { length: 30 }),
+    capacity: int("capacity"),
+    primaryLocationId: varchar("primary_location_id", { length: 36 }),
+    lifecycle: mysqlEnum("lifecycle", ["draft", "active", "closed", "cancelled"]).default("draft").notNull(),
+    archived: boolean("archived").default(false).notNull(),
+    archivedAt: timestamp("archived_at", { fsp: 3 }),
+    archiveReason: varchar("archive_reason", { length: 1000 }),
+    version: int("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("class_group_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("class_group_year_name_unique").on(table.tenantId, table.academicYearId, table.normalizedGroupName),
+    unique("class_group_tenant_code_unique").on(table.tenantId, table.normalizedCode),
+    foreignKey({ columns: [table.tenantId, table.academicYearId], foreignColumns: [academicYear.tenantId, academicYear.id], name: "class_group_tenant_year_fkey" }),
+        foreignKey({ columns: [table.tenantId, table.primaryLocationId], foreignColumns: [location.tenantId, location.id], name: "class_group_tenant_location_fkey" }),
+    index("class_group_tenant_archive_name_idx").on(table.tenantId, table.archived, table.normalizedGroupName),
+    check("class_group_grade_check", sql`${table.grade} BETWEEN 1 AND 12`),
+    check("class_group_capacity_check", sql`${table.capacity} IS NULL OR (${table.capacity} BETWEEN 1 AND 999)`),
+    check("class_group_version_check", sql`${table.version} > 0`),
+  ],
+);
+
+export const classGroupHistory = mysqlTable(
+  "class_group_history",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), classGroupId: varchar("class_group_id", { length: 36 }).notNull(), actorUserId: varchar("actor_user_id", { length: 36 }).notNull(), operation: varchar("operation", { length: 50 }).notNull(), fromVersion: int("from_version").notNull(), toVersion: int("to_version").notNull(), reason: varchar("reason", { length: 1000 }).notNull(), occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [foreignKey({ columns: [table.tenantId, table.classGroupId], foreignColumns: [classGroup.tenantId, classGroup.id], name: "class_group_history_tenant_group_fkey" }), foreignKey({ columns: [table.tenantId, table.actorUserId], foreignColumns: [user.tenantId, user.id], name: "class_group_history_tenant_actor_fkey" }), index("class_group_history_tenant_group_idx").on(table.tenantId, table.classGroupId, table.occurredAt), check("class_group_history_version_check", sql`${table.fromVersion} >= 0 AND ${table.toVersion} = ${table.fromVersion} + 1`)],
+);
+
+export const classGroupRelationship = mysqlTable(
+  "class_group_relationship",
+  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), classGroupId: varchar("class_group_id", { length: 36 }).notNull(), kind: varchar("kind", { length: 50 }).notNull(), label: varchar("label", { length: 255 }).notNull(), active: boolean("active").default(true).notNull() },
+  (table) => [foreignKey({ columns: [table.tenantId, table.classGroupId], foreignColumns: [classGroup.tenantId, classGroup.id], name: "class_group_relationship_tenant_group_fkey" }), index("class_group_relationship_tenant_active_idx").on(table.tenantId, table.classGroupId, table.active)],
+);
+
+export const location = mysqlTable(
+  "location",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id), name: varchar("name", { length: 150 }).notNull(), normalizedName: varchar("normalized_name", { length: 150 }).notNull(), code: varchar("code", { length: 30 }).notNull(), normalizedCode: varchar("normalized_code", { length: 30 }).notNull(), type: mysqlEnum("type", ["site", "building", "floor", "room", "outdoor", "other"]).notNull(), capacity: int("capacity"), description: text("description"), parentId: varchar("parent_id", { length: 36 }), archived: boolean("archived").default(false).notNull(), archivedAt: timestamp("archived_at", { fsp: 3 }), archiveReason: varchar("archive_reason", { length: 1000 }), version: int("version").default(1).notNull(), createdAt: timestamp("created_at", { fsp: 3 }).notNull(), updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [unique("location_tenant_id_id_unique").on(table.tenantId, table.id), unique("location_tenant_code_unique").on(table.tenantId, table.normalizedCode), foreignKey({ columns: [table.tenantId, table.parentId], foreignColumns: [table.tenantId, table.id], name: "location_tenant_parent_fkey" }), index("location_tenant_archive_name_idx").on(table.tenantId, table.archived, table.normalizedName), check("location_capacity_check", sql`${table.capacity} IS NULL OR (${table.capacity} BETWEEN 1 AND 100000)`), check("location_version_check", sql`${table.version} > 0`), check("location_not_self_parent_check", sql`${table.parentId} IS NULL OR ${table.parentId} <> ${table.id}`)],
+);
+export const locationHistory = mysqlTable("location_history", { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), locationId: varchar("location_id", { length: 36 }).notNull(), actorUserId: varchar("actor_user_id", { length: 36 }).notNull(), operation: varchar("operation", { length: 50 }).notNull(), fromVersion: int("from_version").notNull(), toVersion: int("to_version").notNull(), reason: varchar("reason", { length: 1000 }).notNull(), occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull() }, (table) => [foreignKey({ columns: [table.tenantId, table.locationId], foreignColumns: [location.tenantId, location.id], name: "location_history_tenant_location_fkey" }), foreignKey({ columns: [table.tenantId, table.actorUserId], foreignColumns: [user.tenantId, user.id], name: "location_history_tenant_actor_fkey" }), index("location_history_tenant_location_idx").on(table.tenantId, table.locationId, table.occurredAt), check("location_history_version_check", sql`${table.fromVersion} >= 0 AND ${table.toVersion} = ${table.fromVersion} + 1`)]);
+export const locationReference = mysqlTable("location_reference", { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), locationId: varchar("location_id", { length: 36 }).notNull(), label: varchar("label", { length: 255 }).notNull(), active: boolean("active").default(true).notNull() }, (table) => [foreignKey({ columns: [table.tenantId, table.locationId], foreignColumns: [location.tenantId, location.id], name: "location_reference_tenant_location_fkey" }), index("location_reference_tenant_active_idx").on(table.tenantId, table.locationId, table.active)]);
+
+export const inventoryAsset = mysqlTable("inventory_asset", { id:varchar("id",{length:36}).primaryKey(),tenantId:varchar("tenant_id",{length:36}).notNull().references(()=>tenant.id),inventoryCode:varchar("inventory_code",{length:50}).notNull(),normalizedInventoryCode:varchar("normalized_inventory_code",{length:50}).notNull(),name:varchar("name",{length:150}).notNull(),normalizedName:varchar("normalized_name",{length:150}).notNull(),category:varchar("category",{length:100}).notNull(),trackingMode:mysqlEnum("tracking_mode",["grouped","individual"]).notNull(),condition:mysqlEnum("condition",["good","damaged","maintenance","lost"]).notNull(),quantity:int("quantity").notNull(),locationId:varchar("location_id",{length:36}),acquisitionDate:date("acquisition_date",{mode:"string"}),acquisitionCost:int("acquisition_cost"),acquisitionSource:varchar("acquisition_source",{length:150}),archived:boolean("archived").default(false).notNull(),archivedAt:timestamp("archived_at",{fsp:3}),archiveReason:varchar("archive_reason",{length:1000}),version:int("version").default(1).notNull(),createdAt:timestamp("created_at",{fsp:3}).notNull(),updatedAt:timestamp("updated_at",{fsp:3}).notNull() },table=>[unique("inventory_asset_tenant_id_id_unique").on(table.tenantId,table.id),unique("inventory_asset_tenant_code_unique").on(table.tenantId,table.normalizedInventoryCode),foreignKey({columns:[table.tenantId,table.locationId],foreignColumns:[location.tenantId,location.id],name:"inventory_asset_tenant_location_fkey"}),index("inventory_asset_tenant_archive_name_idx").on(table.tenantId,table.archived,table.normalizedName),check("inventory_asset_quantity_check",sql`${table.quantity} >= 0 AND (${table.trackingMode} = 'grouped' OR ${table.quantity} = 1)`),check("inventory_asset_cost_check",sql`${table.acquisitionCost} IS NULL OR ${table.acquisitionCost} >= 0`),check("inventory_asset_version_check",sql`${table.version} > 0`)]);
+export const inventoryAssetHistory=mysqlTable("inventory_asset_history",{id:varchar("id",{length:36}).primaryKey(),tenantId:varchar("tenant_id",{length:36}).notNull(),assetId:varchar("asset_id",{length:36}).notNull(),actorUserId:varchar("actor_user_id",{length:36}).notNull(),operation:varchar("operation",{length:50}).notNull(),before:json("before"),after:json("after").notNull(),reason:varchar("reason",{length:1000}).notNull(),fromVersion:int("from_version").notNull(),toVersion:int("to_version").notNull(),occurredAt:timestamp("occurred_at",{fsp:3}).notNull()},table=>[foreignKey({columns:[table.tenantId,table.assetId],foreignColumns:[inventoryAsset.tenantId,inventoryAsset.id],name:"inventory_history_tenant_asset_fkey"}),foreignKey({columns:[table.tenantId,table.actorUserId],foreignColumns:[user.tenantId,user.id],name:"inventory_history_tenant_actor_fkey"}),index("inventory_history_tenant_asset_idx").on(table.tenantId,table.assetId,table.occurredAt),check("inventory_history_version_check",sql`${table.fromVersion} >= 0 AND ${table.toVersion} = ${table.fromVersion} + 1`)]);
+export const inventoryAssetReference=mysqlTable("inventory_asset_reference",{id:varchar("id",{length:36}).primaryKey(),tenantId:varchar("tenant_id",{length:36}).notNull(),assetId:varchar("asset_id",{length:36}).notNull(),label:varchar("label",{length:255}).notNull(),active:boolean("active").default(true).notNull()},table=>[foreignKey({columns:[table.tenantId,table.assetId],foreignColumns:[inventoryAsset.tenantId,inventoryAsset.id],name:"inventory_reference_tenant_asset_fkey"}),index("inventory_reference_tenant_active_idx").on(table.tenantId,table.assetId,table.active)]);
+
+export const subject = mysqlTable(
+  "subject",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    code: varchar("code", { length: 30 }).notNull(),
+    normalizedCode: varchar("normalized_code", { length: 30 }).notNull(),
+    name: varchar("name", { length: 150 }).notNull(),
+    normalizedName: varchar("normalized_name", { length: 150 }).notNull(),
+    educationLevels: varchar("education_levels", { length: 50 }).notNull(),
+    description: text("description"),
+    archived: boolean("archived").default(false).notNull(),
+    archivedAt: timestamp("archived_at", { fsp: 3 }),
+    version: int("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("subject_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("subject_tenant_normalized_code_unique").on(table.tenantId, table.normalizedCode),
+    unique("subject_tenant_normalized_name_unique").on(table.tenantId, table.normalizedName),
+    index("subject_tenant_archive_name_idx").on(table.tenantId, table.archived, table.normalizedName),
+    check("subject_version_check", sql`${table.version} > 0`),
+  ],
+);
+
+export const subjectHistory = mysqlTable(
+  "subject_history",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    subjectId: varchar("subject_id", { length: 36 }).notNull(),
+    actorUserId: varchar("actor_user_id", { length: 36 }).notNull().references(() => user.id),
+    operation: mysqlEnum("operation", ["created", "edited", "archived", "reactivated"]).notNull(),
+    fromVersion: int("from_version").notNull(),
+    toVersion: int("to_version").notNull(),
+    occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.tenantId, table.subjectId], foreignColumns: [subject.tenantId, subject.id], name: "subject_history_tenant_subject_fkey" }),
+    index("subject_history_tenant_subject_idx").on(table.tenantId, table.subjectId, table.occurredAt),
+    check("subject_history_version_check", sql`${table.fromVersion} >= 0 AND ${table.toVersion} = ${table.fromVersion} + 1`),
+  ],
+);
+
+export const schoolPerson = mysqlTable(
+  "school_person",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    fullName: varchar("full_name", { length: 150 }).notNull(),
+    normalizedName: varchar("normalized_name", { length: 150 }).notNull(),
+    preferredName: varchar("preferred_name", { length: 150 }),
+    birthPlace: varchar("birth_place", { length: 100 }).notNull(),
+    normalizedBirthPlace: varchar("normalized_birth_place", { length: 100 }).notNull(),
+    birthDate: date("birth_date", { mode: "string" }).notNull(),
+    gender: mysqlEnum("gender", ["male", "female"]).notNull(),
+    nik: varchar("nik", { length: 16 }),
+    nip: varchar("nip", { length: 18 }),
+    religion: varchar("religion", { length: 50 }),
+    street: varchar("street", { length: 255 }).notNull(),
+    village: varchar("village", { length: 100 }),
+    district: varchar("district", { length: 100 }),
+    city: varchar("city", { length: 100 }),
+    province: varchar("province", { length: 100 }),
+    postalCode: varchar("postal_code", { length: 10 }),
+    phone: varchar("phone", { length: 20 }),
+    email: varchar("email", { length: 255 }),
+    accountUserId: varchar("account_user_id", { length: 36 }),
+    archived: boolean("archived").default(false).notNull(),
+    version: int("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("school_person_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("school_person_tenant_nik_unique").on(table.tenantId, table.nik),
+    unique("school_person_tenant_nip_unique").on(table.tenantId, table.nip),
+    unique("school_person_tenant_account_unique").on(table.tenantId, table.accountUserId),
+    index("school_person_tenant_name_idx").on(table.tenantId, table.normalizedName),
+    foreignKey({ columns: [table.tenantId, table.accountUserId], foreignColumns: [user.tenantId, user.id], name: "school_person_tenant_account_fkey" }),
+    check("school_person_nik_check", sql`${table.nik} IS NULL OR ${table.nik} REGEXP '^[0-9]{16}$'`),
+    check("school_person_nip_check", sql`${table.nip} IS NULL OR ${table.nip} REGEXP '^[0-9]{18}$'`),
+    check("school_person_version_check", sql`${table.version} > 0`),
+  ],
+);
+
+export const schoolPersonAudit = mysqlTable(
+  "school_person_audit",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    personId: varchar("person_id", { length: 36 }).notNull(),
+    actorUserId: varchar("actor_user_id", { length: 36 }).notNull(),
+    operation: mysqlEnum("operation", ["archived"]).notNull(),
+    affectedProfiles: json("affected_profiles").notNull(),
+    fromVersion: int("from_version").notNull(),
+    toVersion: int("to_version").notNull(),
+    sensitiveBefore: json("sensitive_before"),
+    sensitiveAfter: json("sensitive_after"),
+    reason: varchar("reason", { length: 1000 }),
+    occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    foreignKey({ columns: [table.tenantId, table.personId], foreignColumns: [schoolPerson.tenantId, schoolPerson.id], name: "school_person_audit_tenant_person_fkey" }),
+    foreignKey({ columns: [table.tenantId, table.actorUserId], foreignColumns: [user.tenantId, user.id], name: "school_person_audit_tenant_actor_fkey" }),
+    index("school_person_audit_tenant_person_idx").on(table.tenantId, table.personId, table.occurredAt),
+  ],
+);
+
+export const studentProfile = mysqlTable(
+  "student_profile",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    personId: varchar("person_id", { length: 36 }).notNull(),
+    nis: varchar("nis", { length: 50 }).notNull(),
+    normalizedNis: varchar("normalized_nis", { length: 50 }).notNull(),
+    nisn: varchar("nisn", { length: 10 }),
+    externalStudentId: varchar("external_student_id", { length: 100 }),
+    entryDate: date("entry_date", { mode: "string" }).notNull(),
+    status: mysqlEnum("status", ["active", "graduated", "transferred", "withdrawn"]).default("active").notNull(),
+    archived: boolean("archived").default(false).notNull(),
+    archivedAt: timestamp("archived_at", { fsp: 3 }),
+    archiveReason: varchar("archive_reason", { length: 500 }),
+    version: int("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("student_profile_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("student_profile_tenant_person_unique").on(table.tenantId, table.personId),
+    unique("student_profile_tenant_nis_unique").on(table.tenantId, table.normalizedNis),
+    unique("student_profile_tenant_nisn_unique").on(table.tenantId, table.nisn),
+    foreignKey({ columns: [table.tenantId, table.personId], foreignColumns: [schoolPerson.tenantId, schoolPerson.id], name: "student_profile_tenant_person_fkey" }),
+    index("student_profile_tenant_status_archive_idx").on(table.tenantId, table.status, table.archived),
+    check("student_profile_nisn_check", sql`${table.nisn} IS NULL OR ${table.nisn} REGEXP '^[0-9]{10}$'`),
+    check("student_profile_version_check", sql`${table.version} > 0`),
+  ],
+);
+
+export const studentLifecyclePeriod = mysqlTable(
+  "student_lifecycle_period",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), studentId: varchar("student_id", { length: 36 }).notNull(), status: mysqlEnum("status", ["active", "graduated", "transferred", "withdrawn"]).notNull(), startedAt: date("started_at", { mode: "string" }).notNull(), endedAt: date("ended_at", { mode: "string" }), reason: varchar("reason", { length: 500 }).notNull(), notes: text("notes"), corrected: boolean("corrected").default(false).notNull(), createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull(), createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [foreignKey({ columns: [table.tenantId, table.studentId], foreignColumns: [studentProfile.tenantId, studentProfile.id], name: "student_lifecycle_period_tenant_student_fkey" }), foreignKey({ columns: [table.tenantId, table.createdByUserId], foreignColumns: [user.tenantId, user.id], name: "student_lifecycle_period_tenant_actor_fkey" }), index("student_lifecycle_period_tenant_student_idx").on(table.tenantId, table.studentId, table.startedAt), check("student_lifecycle_period_range_check", sql`${table.endedAt} IS NULL OR ${table.endedAt} >= ${table.startedAt}`)],
+);
+
+export const studentRelationship = mysqlTable(
+  "student_relationship",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), studentId: varchar("student_id", { length: 36 }).notNull(), kind: varchar("kind", { length: 50 }).notNull(), label: varchar("label", { length: 255 }).notNull(), active: boolean("active").default(true).notNull(),
+  },
+  (table) => [foreignKey({ columns: [table.tenantId, table.studentId], foreignColumns: [studentProfile.tenantId, studentProfile.id], name: "student_relationship_tenant_student_fkey" }), index("student_relationship_tenant_student_active_idx").on(table.tenantId, table.studentId, table.active)],
+);
+
+export const studentAudit = mysqlTable(
+  "student_audit",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), personId: varchar("person_id", { length: 36 }).notNull(), studentId: varchar("student_id", { length: 36 }), actorUserId: varchar("actor_user_id", { length: 36 }).notNull().references(() => user.id),
+    operation: mysqlEnum("operation", ["created-person", "created-student", "attached-student", "edited", "status-transitioned", "graduation-corrected", "archive-denied", "archived", "reactivated"]).notNull(), fromPersonVersion: int("from_person_version").notNull(), toPersonVersion: int("to_person_version").notNull(), fromStudentVersion: int("from_student_version").notNull(), toStudentVersion: int("to_student_version").notNull(), sensitiveBefore: json("sensitive_before"), sensitiveAfter: json("sensitive_after"), lifecycleBefore: json("lifecycle_before"), lifecycleAfter: json("lifecycle_after"), reason: varchar("reason", { length: 1000 }), occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [foreignKey({ columns: [table.tenantId, table.personId], foreignColumns: [schoolPerson.tenantId, schoolPerson.id], name: "student_audit_tenant_person_fkey" }), foreignKey({ columns: [table.tenantId, table.studentId], foreignColumns: [studentProfile.tenantId, studentProfile.id], name: "student_audit_tenant_student_fkey" }), index("student_audit_tenant_student_idx").on(table.tenantId, table.studentId, table.occurredAt)],
+);
+
+export const teacherProfile = mysqlTable(
+  "teacher_profile",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id), personId: varchar("person_id", { length: 36 }).notNull(), teacherNumber: varchar("teacher_number", { length: 50 }).notNull(), normalizedTeacherNumber: varchar("normalized_teacher_number", { length: 50 }).notNull(), nuptk: varchar("nuptk", { length: 16 }), employmentType: mysqlEnum("employment_type", ["civil-servant", "government-contract", "foundation-permanent", "foundation-contract", "honorary"]).notNull(), serviceStartDate: date("service_start_date", { mode: "string" }).notNull(), status: mysqlEnum("status", ["active", "leave", "ended"]).default("active").notNull(), archived: boolean("archived").default(false).notNull(), archivedAt: timestamp("archived_at", { fsp: 3 }), archiveReason: varchar("archive_reason", { length: 500 }), version: int("version").default(1).notNull(), createdAt: timestamp("created_at", { fsp: 3 }).notNull(), updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [unique("teacher_profile_tenant_id_id_unique").on(table.tenantId, table.id), unique("teacher_profile_tenant_person_unique").on(table.tenantId, table.personId), unique("teacher_profile_tenant_number_unique").on(table.tenantId, table.normalizedTeacherNumber), unique("teacher_profile_tenant_nuptk_unique").on(table.tenantId, table.nuptk), foreignKey({ columns: [table.tenantId, table.personId], foreignColumns: [schoolPerson.tenantId, schoolPerson.id], name: "teacher_profile_tenant_person_fkey" }), index("teacher_profile_tenant_status_archive_idx").on(table.tenantId, table.status, table.archived), check("teacher_profile_nuptk_check", sql`${table.nuptk} IS NULL OR ${table.nuptk} REGEXP '^[0-9]{16}$'`), check("teacher_profile_version_check", sql`${table.version} > 0`)],
+);
+
+export const teacherServicePeriod = mysqlTable(
+  "teacher_service_period",
+  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), teacherId: varchar("teacher_id", { length: 36 }).notNull(), status: mysqlEnum("status", ["active", "leave", "ended"]).notNull(), startedAt: date("started_at", { mode: "string" }).notNull(), endedAt: date("ended_at", { mode: "string" }), reason: varchar("reason", { length: 500 }).notNull(), notes: text("notes"), corrected: boolean("corrected").default(false).notNull(), createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull(), createdAt: timestamp("created_at", { fsp: 3 }).notNull() },
+  (table) => [foreignKey({ columns: [table.tenantId, table.teacherId], foreignColumns: [teacherProfile.tenantId, teacherProfile.id], name: "teacher_service_period_tenant_teacher_fkey" }), foreignKey({ columns: [table.tenantId, table.createdByUserId], foreignColumns: [user.tenantId, user.id], name: "teacher_service_period_tenant_actor_fkey" }), index("teacher_service_period_tenant_teacher_idx").on(table.tenantId, table.teacherId, table.startedAt), check("teacher_service_period_range_check", sql`${table.endedAt} IS NULL OR ${table.endedAt} >= ${table.startedAt}`)],
+);
+
+export const teacherRelationship = mysqlTable("teacher_relationship", { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), teacherId: varchar("teacher_id", { length: 36 }).notNull(), kind: varchar("kind", { length: 50 }).notNull(), label: varchar("label", { length: 255 }).notNull(), active: boolean("active").default(true).notNull() }, (table) => [foreignKey({ columns: [table.tenantId, table.teacherId], foreignColumns: [teacherProfile.tenantId, teacherProfile.id], name: "teacher_relationship_tenant_teacher_fkey" }), index("teacher_relationship_tenant_teacher_active_idx").on(table.tenantId, table.teacherId, table.active)]);
+
+export const teacherAudit = mysqlTable("teacher_audit", { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), personId: varchar("person_id", { length: 36 }).notNull(), teacherId: varchar("teacher_id", { length: 36 }), actorUserId: varchar("actor_user_id", { length: 36 }).notNull().references(() => user.id), operation: mysqlEnum("operation", ["created-person", "created-teacher", "attached-teacher", "edited", "status-transitioned", "service-corrected", "archive-denied", "archived", "reactivated"]).notNull(), fromPersonVersion: int("from_person_version").notNull(), toPersonVersion: int("to_person_version").notNull(), fromTeacherVersion: int("from_teacher_version").notNull(), toTeacherVersion: int("to_teacher_version").notNull(), sensitiveBefore: json("sensitive_before"), sensitiveAfter: json("sensitive_after"), lifecycleBefore: json("lifecycle_before"), lifecycleAfter: json("lifecycle_after"), reason: varchar("reason", { length: 1000 }), occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull() }, (table) => [foreignKey({ columns: [table.tenantId, table.personId], foreignColumns: [schoolPerson.tenantId, schoolPerson.id], name: "teacher_audit_tenant_person_fkey" }), foreignKey({ columns: [table.tenantId, table.teacherId], foreignColumns: [teacherProfile.tenantId, teacherProfile.id], name: "teacher_audit_tenant_teacher_fkey" }), index("teacher_audit_tenant_teacher_idx").on(table.tenantId, table.teacherId, table.occurredAt)]);
+
+export const headmasterAssignment = mysqlTable("headmaster_assignment", {
+  id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), teacherId: varchar("teacher_id", { length: 36 }).notNull(), startedAt: date("started_at", { mode: "string" }).notNull(), endedAt: date("ended_at", { mode: "string" }), reason: varchar("reason", { length: 1000 }).notNull(), createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull(), createdAt: timestamp("created_at", { fsp: 3 }).notNull(), openSlot: varchar("open_slot", { length: 7 }).generatedAlwaysAs(sql`CASE WHEN ended_at IS NULL THEN 'current' ELSE NULL END`),
+}, (table) => [unique("headmaster_assignment_open_unique").on(table.tenantId, table.openSlot), unique("headmaster_assignment_tenant_id_id_unique").on(table.tenantId, table.id), foreignKey({ columns: [table.tenantId, table.teacherId], foreignColumns: [teacherProfile.tenantId, teacherProfile.id], name: "headmaster_assignment_tenant_teacher_fkey" }), foreignKey({ columns: [table.tenantId, table.createdByUserId], foreignColumns: [user.tenantId, user.id], name: "headmaster_assignment_tenant_actor_fkey" }), index("headmaster_assignment_tenant_history_idx").on(table.tenantId, table.startedAt), check("headmaster_assignment_range_check", sql`${table.endedAt} IS NULL OR ${table.endedAt} >= ${table.startedAt}`)]);
+
+export const headmasterAssignmentAudit = mysqlTable("headmaster_assignment_audit", {
+  id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), assignmentId: varchar("assignment_id", { length: 36 }).notNull(), previousAssignmentId: varchar("previous_assignment_id", { length: 36 }), teacherId: varchar("teacher_id", { length: 36 }).notNull(), actorUserId: varchar("actor_user_id", { length: 36 }).notNull(), operation: mysqlEnum("operation", ["assigned", "replaced"]).notNull(), effectiveDate: date("effective_date", { mode: "string" }).notNull(), reason: varchar("reason", { length: 1000 }).notNull(), occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull(),
+}, (table) => [foreignKey({ columns: [table.tenantId, table.assignmentId], foreignColumns: [headmasterAssignment.tenantId, headmasterAssignment.id], name: "headmaster_audit_tenant_assignment_fkey" }), foreignKey({ columns: [table.tenantId, table.previousAssignmentId], foreignColumns: [headmasterAssignment.tenantId, headmasterAssignment.id], name: "headmaster_audit_tenant_previous_fkey" }), foreignKey({ columns: [table.tenantId, table.teacherId], foreignColumns: [teacherProfile.tenantId, teacherProfile.id], name: "headmaster_audit_tenant_teacher_fkey" }), foreignKey({ columns: [table.tenantId, table.actorUserId], foreignColumns: [user.tenantId, user.id], name: "headmaster_audit_tenant_actor_fkey" }), index("headmaster_audit_tenant_assignment_idx").on(table.tenantId, table.assignmentId, table.occurredAt)]);
+
+export const classMembership = mysqlTable("class_membership", {
+  id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), studentId: varchar("student_id", { length: 36 }).notNull(), classGroupId: varchar("class_group_id", { length: 36 }).notNull(), academicYearId: varchar("academic_year_id", { length: 36 }).notNull(), planned: boolean("planned").notNull(), startedAt: date("started_at", { mode: "string" }).notNull(), endedAt: date("ended_at", { mode: "string" }), reason: varchar("reason", { length: 1000 }).notNull(), createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull(), createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+  activeStudentSlot: varchar("active_student_slot", { length: 36 }).generatedAlwaysAs(sql`CASE WHEN ended_at IS NULL AND planned = false THEN student_id ELSE NULL END`), plannedStudentSlot: varchar("planned_student_slot", { length: 36 }).generatedAlwaysAs(sql`CASE WHEN ended_at IS NULL AND planned = true THEN student_id ELSE NULL END`),
+}, (table) => [unique("class_membership_open_active_unique").on(table.tenantId, table.activeStudentSlot), unique("class_membership_open_planned_unique").on(table.tenantId, table.plannedStudentSlot), foreignKey({ columns: [table.tenantId, table.studentId], foreignColumns: [studentProfile.tenantId, studentProfile.id], name: "class_membership_tenant_student_fkey" }), foreignKey({ columns: [table.tenantId, table.classGroupId], foreignColumns: [classGroup.tenantId, classGroup.id], name: "class_membership_tenant_group_fkey" }), foreignKey({ columns: [table.tenantId, table.academicYearId], foreignColumns: [academicYear.tenantId, academicYear.id], name: "class_membership_tenant_year_fkey" }), foreignKey({ columns: [table.tenantId, table.createdByUserId], foreignColumns: [user.tenantId, user.id], name: "class_membership_tenant_actor_fkey" }), index("class_membership_tenant_student_history_idx").on(table.tenantId, table.studentId, table.startedAt), index("class_membership_tenant_group_history_idx").on(table.tenantId, table.classGroupId, table.startedAt), check("class_membership_range_check", sql`${table.endedAt} IS NULL OR ${table.endedAt} >= ${table.startedAt}`)]);
+
+export const homeroomAssignment = mysqlTable("homeroom_assignment", {
+  id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), teacherId: varchar("teacher_id", { length: 36 }).notNull(), classGroupId: varchar("class_group_id", { length: 36 }).notNull(), academicYearId: varchar("academic_year_id", { length: 36 }).notNull(), startedAt: date("started_at", { mode: "string" }).notNull(), endedAt: date("ended_at", { mode: "string" }), reason: varchar("reason", { length: 1000 }).notNull(), createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull(), createdAt: timestamp("created_at", { fsp: 3 }).notNull(), openGroupSlot: varchar("open_group_slot", { length: 36 }).generatedAlwaysAs(sql`CASE WHEN ended_at IS NULL THEN class_group_id ELSE NULL END`), openTeacherYearSlot: varchar("open_teacher_year_slot", { length: 73 }).generatedAlwaysAs(sql`CASE WHEN ended_at IS NULL THEN CONCAT(teacher_id, ':', academic_year_id) ELSE NULL END`),
+}, (table) => [unique("homeroom_open_group_unique").on(table.tenantId, table.openGroupSlot), unique("homeroom_open_teacher_year_unique").on(table.tenantId, table.openTeacherYearSlot), foreignKey({ columns: [table.tenantId, table.teacherId], foreignColumns: [teacherProfile.tenantId, teacherProfile.id], name: "homeroom_tenant_teacher_fkey" }), foreignKey({ columns: [table.tenantId, table.classGroupId], foreignColumns: [classGroup.tenantId, classGroup.id], name: "homeroom_tenant_group_fkey" }), foreignKey({ columns: [table.tenantId, table.academicYearId], foreignColumns: [academicYear.tenantId, academicYear.id], name: "homeroom_tenant_year_fkey" }), foreignKey({ columns: [table.tenantId, table.createdByUserId], foreignColumns: [user.tenantId, user.id], name: "homeroom_tenant_actor_fkey" }), index("homeroom_tenant_group_history_idx").on(table.tenantId, table.classGroupId, table.startedAt), index("homeroom_tenant_teacher_history_idx").on(table.tenantId, table.teacherId, table.startedAt), check("homeroom_range_check", sql`${table.endedAt} IS NULL OR ${table.endedAt} >= ${table.startedAt}`)]);
+
+export const classRelationshipEvent = mysqlTable("class_relationship_event", { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), kind: mysqlEnum("kind", ["membership", "homeroom"]).notNull(), relationshipId: varchar("relationship_id", { length: 36 }).notNull(), actorUserId: varchar("actor_user_id", { length: 36 }).notNull(), operation: mysqlEnum("operation", ["opened", "transferred", "assigned", "replaced"]).notNull(), effectiveDate: date("effective_date", { mode: "string" }).notNull(), reason: varchar("reason", { length: 1000 }).notNull(), occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull() }, (table) => [foreignKey({ columns: [table.tenantId, table.actorUserId], foreignColumns: [user.tenantId, user.id], name: "class_relationship_event_tenant_actor_fkey" }), index("class_relationship_event_tenant_relationship_idx").on(table.tenantId, table.kind, table.relationshipId, table.occurredAt)]);
+
+export const studentOrganization = mysqlTable("student_organization", { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), name: varchar("name", { length: 150 }).notNull(), normalizedName: varchar("normalized_name", { length: 150 }).notNull(), abbreviation: varchar("abbreviation", { length: 30 }), code: varchar("code", { length: 30 }).notNull(), normalizedCode: varchar("normalized_code", { length: 30 }).notNull(), description: text("description"), foundingDate: date("founding_date", { mode: "string" }), secretariatLocationId: varchar("secretariat_location_id", { length: 36 }), archived: boolean("archived").default(false).notNull(), archivedAt: timestamp("archived_at", { fsp: 3 }), archiveReason: varchar("archive_reason", { length: 1000 }), version: int("version").default(1).notNull(), createdAt: timestamp("created_at", { fsp: 3 }).notNull(), updatedAt: timestamp("updated_at", { fsp: 3 }).notNull() }, (table) => [unique("student_organization_tenant_id_unique").on(table.tenantId, table.id), unique("student_organization_tenant_code_unique").on(table.tenantId, table.normalizedCode), foreignKey({ columns: [table.tenantId, table.secretariatLocationId], foreignColumns: [location.tenantId, location.id], name: "student_organization_location_fkey" }), index("student_organization_tenant_archive_name_idx").on(table.tenantId, table.archived, table.normalizedName), check("student_organization_version_check", sql`${table.version} > 0`)]);
+export const organizationPeriod = mysqlTable("organization_period", { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), organizationId: varchar("organization_id", { length: 36 }).notNull(), name: varchar("name", { length: 100 }).notNull(), status: mysqlEnum("status", ["planned", "active", "completed"]).default("planned").notNull(), startDate: date("start_date", { mode: "string" }).notNull(), endDate: date("end_date", { mode: "string" }).notNull(), version: int("version").default(1).notNull(), createdAt: timestamp("created_at", { fsp: 3 }).notNull(), updatedAt: timestamp("updated_at", { fsp: 3 }).notNull() }, (table) => [unique("organization_period_tenant_id_unique").on(table.tenantId, table.id), foreignKey({ columns: [table.tenantId, table.organizationId], foreignColumns: [studentOrganization.tenantId, studentOrganization.id], name: "organization_period_organization_fkey" }), index("organization_period_history_idx").on(table.tenantId, table.organizationId, table.startDate), check("organization_period_range_check", sql`${table.endDate} >= ${table.startDate}`)]);
+export const organizationMembership = mysqlTable("organization_membership", { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), organizationId: varchar("organization_id", { length: 36 }).notNull(), studentId: varchar("student_id", { length: 36 }).notNull(), startedAt: date("started_at", { mode: "string" }).notNull(), endedAt: date("ended_at", { mode: "string" }), reason: varchar("reason", { length: 1000 }).notNull(), createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull(), createdAt: timestamp("created_at", { fsp: 3 }).notNull() }, (table) => [foreignKey({ columns: [table.tenantId, table.organizationId], foreignColumns: [studentOrganization.tenantId, studentOrganization.id], name: "organization_membership_organization_fkey" }), foreignKey({ columns: [table.tenantId, table.studentId], foreignColumns: [studentProfile.tenantId, studentProfile.id], name: "organization_membership_student_fkey" }), foreignKey({ columns: [table.tenantId, table.createdByUserId], foreignColumns: [user.tenantId, user.id], name: "organization_membership_actor_fkey" }), index("organization_membership_history_idx").on(table.tenantId, table.organizationId, table.studentId, table.startedAt), check("organization_membership_range_check", sql`${table.endedAt} IS NULL OR ${table.endedAt} >= ${table.startedAt}`)]);
+export const organizationLeadership = mysqlTable("organization_leadership", { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), periodId: varchar("period_id", { length: 36 }).notNull(), studentId: varchar("student_id", { length: 36 }).notNull(), positionName: varchar("position_name", { length: 100 }).notNull(), normalizedPositionName: varchar("normalized_position_name", { length: 100 }).notNull(), allowsMultipleHolders: boolean("allows_multiple_holders").notNull(), startedAt: date("started_at", { mode: "string" }).notNull(), endedAt: date("ended_at", { mode: "string" }), reason: varchar("reason", { length: 1000 }).notNull(), createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull(), createdAt: timestamp("created_at", { fsp: 3 }).notNull() }, (table) => [foreignKey({ columns: [table.tenantId, table.periodId], foreignColumns: [organizationPeriod.tenantId, organizationPeriod.id], name: "organization_leadership_period_fkey" }), foreignKey({ columns: [table.tenantId, table.studentId], foreignColumns: [studentProfile.tenantId, studentProfile.id], name: "organization_leadership_student_fkey" }), foreignKey({ columns: [table.tenantId, table.createdByUserId], foreignColumns: [user.tenantId, user.id], name: "organization_leadership_actor_fkey" }), index("organization_leadership_history_idx").on(table.tenantId, table.periodId, table.normalizedPositionName, table.startedAt), check("organization_leadership_range_check", sql`${table.endedAt} IS NULL OR ${table.endedAt} >= ${table.startedAt}`)]);
+export const organizationEvent = mysqlTable("organization_event", { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), organizationId: varchar("organization_id", { length: 36 }).notNull(), periodId: varchar("period_id", { length: 36 }), relationshipId: varchar("relationship_id", { length: 36 }), actorUserId: varchar("actor_user_id", { length: 36 }).notNull(), operation: varchar("operation", { length: 50 }).notNull(), effectiveDate: date("effective_date", { mode: "string" }), reason: varchar("reason", { length: 1000 }).notNull(), occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull() }, (table) => [foreignKey({ columns: [table.tenantId, table.organizationId], foreignColumns: [studentOrganization.tenantId, studentOrganization.id], name: "organization_event_organization_fkey" }), foreignKey({ columns: [table.tenantId, table.periodId], foreignColumns: [organizationPeriod.tenantId, organizationPeriod.id], name: "organization_event_period_fkey" }), foreignKey({ columns: [table.tenantId, table.actorUserId], foreignColumns: [user.tenantId, user.id], name: "organization_event_actor_fkey" }), index("organization_event_history_idx").on(table.tenantId, table.organizationId, table.occurredAt)]);
+
+export const extracurricular = mysqlTable("extracurricular", { id:varchar("id",{length:36}).primaryKey(),tenantId:varchar("tenant_id",{length:36}).notNull(),name:varchar("name",{length:150}).notNull(),normalizedName:varchar("normalized_name",{length:150}).notNull(),code:varchar("code",{length:30}).notNull(),normalizedCode:varchar("normalized_code",{length:30}).notNull(),description:text("description"),defaultLocationId:varchar("default_location_id",{length:36}),archived:boolean("archived").default(false).notNull(),archivedAt:timestamp("archived_at",{fsp:3}),archiveReason:varchar("archive_reason",{length:1000}),version:int("version").default(1).notNull(),createdAt:timestamp("created_at",{fsp:3}).notNull(),updatedAt:timestamp("updated_at",{fsp:3}).notNull()},table=>[unique("extracurricular_tenant_id_unique").on(table.tenantId,table.id),unique("extracurricular_tenant_code_unique").on(table.tenantId,table.normalizedCode),foreignKey({columns:[table.tenantId,table.defaultLocationId],foreignColumns:[location.tenantId,location.id],name:"extracurricular_location_fkey"}),index("extracurricular_tenant_archive_name_idx").on(table.tenantId,table.archived,table.normalizedName),check("extracurricular_version_check",sql`${table.version}>0`)]);
+export const activityGroup = mysqlTable("activity_group",{id:varchar("id",{length:36}).primaryKey(),tenantId:varchar("tenant_id",{length:36}).notNull(),extracurricularId:varchar("extracurricular_id",{length:36}).notNull(),academicYearId:varchar("academic_year_id",{length:36}).notNull(),name:varchar("name",{length:150}).notNull(),startDate:date("start_date",{mode:"string"}).notNull(),endDate:date("end_date",{mode:"string"}).notNull(),capacity:int("capacity").notNull(),locationId:varchar("location_id",{length:36}),scheduleText:varchar("schedule_text",{length:500}).notNull(),lifecycle:mysqlEnum("lifecycle",["planned","active","completed","cancelled"]).default("planned").notNull(),version:int("version").default(1).notNull(),createdAt:timestamp("created_at",{fsp:3}).notNull(),updatedAt:timestamp("updated_at",{fsp:3}).notNull()},table=>[unique("activity_group_tenant_id_unique").on(table.tenantId,table.id),foreignKey({columns:[table.tenantId,table.extracurricularId],foreignColumns:[extracurricular.tenantId,extracurricular.id],name:"activity_group_extracurricular_fkey"}),foreignKey({columns:[table.tenantId,table.academicYearId],foreignColumns:[academicYear.tenantId,academicYear.id],name:"activity_group_year_fkey"}),foreignKey({columns:[table.tenantId,table.locationId],foreignColumns:[location.tenantId,location.id],name:"activity_group_location_fkey"}),index("activity_group_history_idx").on(table.tenantId,table.extracurricularId,table.academicYearId,table.startDate),check("activity_group_range_check",sql`${table.endDate}>=${table.startDate}`),check("activity_group_capacity_check",sql`${table.capacity}>0`)]);
+export const activityAdvisor = mysqlTable("activity_advisor",{id:varchar("id",{length:36}).primaryKey(),tenantId:varchar("tenant_id",{length:36}).notNull(),groupId:varchar("group_id",{length:36}).notNull(),advisorKind:mysqlEnum("advisor_kind",["teacher","staff"]).notNull(),advisorId:varchar("advisor_id",{length:36}).notNull(),startedAt:date("started_at",{mode:"string"}).notNull(),endedAt:date("ended_at",{mode:"string"}),reason:varchar("reason",{length:1000}).notNull(),createdByUserId:varchar("created_by_user_id",{length:36}).notNull(),createdAt:timestamp("created_at",{fsp:3}).notNull()},table=>[foreignKey({columns:[table.tenantId,table.groupId],foreignColumns:[activityGroup.tenantId,activityGroup.id],name:"activity_advisor_group_fkey"}),foreignKey({columns:[table.tenantId,table.createdByUserId],foreignColumns:[user.tenantId,user.id],name:"activity_advisor_actor_fkey"}),index("activity_advisor_history_idx").on(table.tenantId,table.groupId,table.advisorId,table.startedAt),check("activity_advisor_range_check",sql`${table.endedAt} IS NULL OR ${table.endedAt}>=${table.startedAt}`)]);
+export const activityParticipant = mysqlTable("activity_participant",{id:varchar("id",{length:36}).primaryKey(),tenantId:varchar("tenant_id",{length:36}).notNull(),groupId:varchar("group_id",{length:36}).notNull(),studentId:varchar("student_id",{length:36}).notNull(),startedAt:date("started_at",{mode:"string"}).notNull(),endedAt:date("ended_at",{mode:"string"}),reason:varchar("reason",{length:1000}).notNull(),createdByUserId:varchar("created_by_user_id",{length:36}).notNull(),createdAt:timestamp("created_at",{fsp:3}).notNull()},table=>[foreignKey({columns:[table.tenantId,table.groupId],foreignColumns:[activityGroup.tenantId,activityGroup.id],name:"activity_participant_group_fkey"}),foreignKey({columns:[table.tenantId,table.studentId],foreignColumns:[studentProfile.tenantId,studentProfile.id],name:"activity_participant_student_fkey"}),foreignKey({columns:[table.tenantId,table.createdByUserId],foreignColumns:[user.tenantId,user.id],name:"activity_participant_actor_fkey"}),index("activity_participant_capacity_idx").on(table.tenantId,table.groupId,table.startedAt,table.endedAt),check("activity_participant_range_check",sql`${table.endedAt} IS NULL OR ${table.endedAt}>=${table.startedAt}`)]);
+export const activityEvent = mysqlTable("activity_event",{id:varchar("id",{length:36}).primaryKey(),tenantId:varchar("tenant_id",{length:36}).notNull(),extracurricularId:varchar("extracurricular_id",{length:36}).notNull(),groupId:varchar("group_id",{length:36}),relationshipId:varchar("relationship_id",{length:36}),actorUserId:varchar("actor_user_id",{length:36}).notNull(),operation:varchar("operation",{length:50}).notNull(),effectiveDate:date("effective_date",{mode:"string"}),reason:varchar("reason",{length:1000}).notNull(),occurredAt:timestamp("occurred_at",{fsp:3}).notNull()},table=>[foreignKey({columns:[table.tenantId,table.extracurricularId],foreignColumns:[extracurricular.tenantId,extracurricular.id],name:"activity_event_extracurricular_fkey"}),foreignKey({columns:[table.tenantId,table.groupId],foreignColumns:[activityGroup.tenantId,activityGroup.id],name:"activity_event_group_fkey"}),foreignKey({columns:[table.tenantId,table.actorUserId],foreignColumns:[user.tenantId,user.id],name:"activity_event_actor_fkey"}),index("activity_event_history_idx").on(table.tenantId,table.extracurricularId,table.occurredAt)]);
+
+export const staffProfile = mysqlTable(
+  "staff_profile",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id), personId: varchar("person_id", { length: 36 }).notNull(), staffNumber: varchar("staff_number", { length: 50 }).notNull(), normalizedStaffNumber: varchar("normalized_staff_number", { length: 50 }).notNull(), position: mysqlEnum("position", ["administration", "finance", "library", "laboratory", "security", "cleaning", "other"]).notNull(), positionOther: varchar("position_other", { length: 100 }), employmentType: mysqlEnum("employment_type", ["civil-servant", "government-contract", "foundation-permanent", "foundation-contract", "honorary", "other"]).notNull(), employmentTypeOther: varchar("employment_type_other", { length: 100 }), serviceStartDate: date("service_start_date", { mode: "string" }).notNull(), status: mysqlEnum("status", ["active", "leave", "ended"]).default("active").notNull(), archived: boolean("archived").default(false).notNull(), archivedAt: timestamp("archived_at", { fsp: 3 }), archiveReason: varchar("archive_reason", { length: 500 }), version: int("version").default(1).notNull(), createdAt: timestamp("created_at", { fsp: 3 }).notNull(), updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [unique("staff_profile_tenant_id_id_unique").on(table.tenantId, table.id), unique("staff_profile_tenant_person_unique").on(table.tenantId, table.personId), unique("staff_profile_tenant_number_unique").on(table.tenantId, table.normalizedStaffNumber), foreignKey({ columns: [table.tenantId, table.personId], foreignColumns: [schoolPerson.tenantId, schoolPerson.id], name: "staff_profile_tenant_person_fkey" }), index("staff_profile_tenant_status_archive_idx").on(table.tenantId, table.status, table.archived), check("staff_profile_position_other_check", sql`${table.position} <> "other" OR ${table.positionOther} IS NOT NULL`), check("staff_profile_employment_other_check", sql`${table.employmentType} <> "other" OR ${table.employmentTypeOther} IS NOT NULL`), check("staff_profile_version_check", sql`${table.version} > 0`)],
+);
+
+export const staffPositionAssignment = mysqlTable(
+  "staff_position_assignment",
+  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), staffId: varchar("staff_id", { length: 36 }).notNull(), position: mysqlEnum("position", ["administration", "finance", "library", "laboratory", "security", "cleaning", "other"]).notNull(), positionOther: varchar("position_other", { length: 100 }), workUnit: varchar("work_unit", { length: 150 }), notes: text("notes"), startedAt: date("started_at", { mode: "string" }).notNull(), endedAt: date("ended_at", { mode: "string" }), createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull(), createdAt: timestamp("created_at", { fsp: 3 }).notNull() },
+  (table) => [foreignKey({ columns: [table.tenantId, table.staffId], foreignColumns: [staffProfile.tenantId, staffProfile.id], name: "staff_position_assignment_tenant_staff_fkey" }), foreignKey({ columns: [table.tenantId, table.createdByUserId], foreignColumns: [user.tenantId, user.id], name: "staff_position_assignment_tenant_actor_fkey" }), index("staff_position_assignment_tenant_staff_idx").on(table.tenantId, table.staffId, table.startedAt), check("staff_position_assignment_range_check", sql`${table.endedAt} IS NULL OR ${table.endedAt} >= ${table.startedAt}`), check("staff_position_assignment_other_check", sql`${table.position} <> 'other' OR ${table.positionOther} IS NOT NULL`)],
+);
+
+export const staffServicePeriod = mysqlTable(
+  "staff_service_period",
+  { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), staffId: varchar("staff_id", { length: 36 }).notNull(), status: mysqlEnum("status", ["active", "leave", "ended"]).notNull(), startedAt: date("started_at", { mode: "string" }).notNull(), endedAt: date("ended_at", { mode: "string" }), reason: varchar("reason", { length: 500 }).notNull(), notes: text("notes"), corrected: boolean("corrected").default(false).notNull(), createdByUserId: varchar("created_by_user_id", { length: 36 }).notNull(), createdAt: timestamp("created_at", { fsp: 3 }).notNull() },
+  (table) => [foreignKey({ columns: [table.tenantId, table.staffId], foreignColumns: [staffProfile.tenantId, staffProfile.id], name: "staff_service_period_tenant_staff_fkey" }), foreignKey({ columns: [table.tenantId, table.createdByUserId], foreignColumns: [user.tenantId, user.id], name: "staff_service_period_tenant_actor_fkey" }), index("staff_service_period_tenant_staff_idx").on(table.tenantId, table.staffId, table.startedAt), check("staff_service_period_range_check", sql`${table.endedAt} IS NULL OR ${table.endedAt} >= ${table.startedAt}`)],
+);
+
+export const staffRelationship = mysqlTable("staff_relationship", { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), staffId: varchar("staff_id", { length: 36 }).notNull(), kind: varchar("kind", { length: 50 }).notNull(), label: varchar("label", { length: 255 }).notNull(), active: boolean("active").default(true).notNull() }, (table) => [foreignKey({ columns: [table.tenantId, table.staffId], foreignColumns: [staffProfile.tenantId, staffProfile.id], name: "staff_relationship_tenant_staff_fkey" }), index("staff_relationship_tenant_staff_active_idx").on(table.tenantId, table.staffId, table.active)]);
+
+export const staffAudit = mysqlTable("staff_audit", { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), personId: varchar("person_id", { length: 36 }).notNull(), staffId: varchar("staff_id", { length: 36 }), actorUserId: varchar("actor_user_id", { length: 36 }).notNull().references(() => user.id), operation: mysqlEnum("operation", ["created-person", "created-staff", "attached-staff", "edited", "status-transitioned", "service-corrected", "archive-denied", "archived", "reactivated"]).notNull(), fromPersonVersion: int("from_person_version").notNull(), toPersonVersion: int("to_person_version").notNull(), fromStaffVersion: int("from_staff_version").notNull(), toStaffVersion: int("to_staff_version").notNull(), sensitiveBefore: json("sensitive_before"), sensitiveAfter: json("sensitive_after"), lifecycleBefore: json("lifecycle_before"), lifecycleAfter: json("lifecycle_after"), reason: varchar("reason", { length: 1000 }), occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull() }, (table) => [foreignKey({ columns: [table.tenantId, table.personId], foreignColumns: [schoolPerson.tenantId, schoolPerson.id], name: "staff_audit_tenant_person_fkey" }), foreignKey({ columns: [table.tenantId, table.staffId], foreignColumns: [staffProfile.tenantId, staffProfile.id], name: "staff_audit_tenant_staff_fkey" }), index("staff_audit_tenant_staff_idx").on(table.tenantId, table.staffId, table.occurredAt)]);
+
 export const user = mysqlTable("user", {
   id: varchar("id", { length: 36 }).primaryKey(),
   tenantId: varchar("tenant_id", { length: 36 }).references(() => tenant.id),
@@ -77,7 +547,7 @@ export const user = mysqlTable("user", {
     .defaultNow()
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
-});
+}, (table) => [unique("user_tenant_id_id_unique").on(table.tenantId, table.id)]);
 
 export const providerAdmin = mysqlTable("provider_admin", {
   userId: varchar("user_id", { length: 36 })
@@ -313,6 +783,18 @@ export const verification = mysqlTable(
 export const schemaRelations = defineRelations(
   {
     tenant,
+    schoolProfile,
+    schoolAsset,
+    schoolAccreditation,
+    schoolProfileAudit,
+    academicYear,
+    academicSemester,
+    academicYearHistory,
+    classGroup,
+    classGroupHistory,
+    classGroupRelationship,
+    subject,
+    subjectHistory,
     user,
     providerAdmin,
     applicant,
@@ -336,6 +818,31 @@ export const schemaRelations = defineRelations(
       }),
       users: r.many.user(),
       temporaryCredentialActivations: r.many.temporaryCredentialActivation(),
+      schoolProfile: r.one.schoolProfile({ from: r.tenant.id, to: r.schoolProfile.tenantId }),
+      schoolAssets: r.many.schoolAsset(),
+      schoolAccreditations: r.many.schoolAccreditation(),
+      schoolProfileAudits: r.many.schoolProfileAudit(),
+    },
+    schoolProfile: {
+      tenant: r.one.tenant({ from: r.schoolProfile.tenantId, to: r.tenant.id }),
+      logoAsset: r.one.schoolAsset({ from: [r.schoolProfile.tenantId, r.schoolProfile.logoAssetId], to: [r.schoolAsset.tenantId, r.schoolAsset.id] }),
+      accreditations: r.many.schoolAccreditation(),
+      audits: r.many.schoolProfileAudit(),
+    },
+    schoolAsset: {
+      tenant: r.one.tenant({ from: r.schoolAsset.tenantId, to: r.tenant.id }),
+      profile: r.one.schoolProfile({ from: [r.schoolAsset.tenantId, r.schoolAsset.id], to: [r.schoolProfile.tenantId, r.schoolProfile.logoAssetId] }),
+      creator: r.one.user({ from: r.schoolAsset.createdByUserId, to: r.user.id }),
+    },
+    schoolAccreditation: {
+      tenant: r.one.tenant({ from: r.schoolAccreditation.tenantId, to: r.tenant.id }),
+      profile: r.one.schoolProfile({ from: r.schoolAccreditation.profileId, to: r.schoolProfile.id }),
+      creator: r.one.user({ from: r.schoolAccreditation.createdByUserId, to: r.user.id }),
+    },
+    schoolProfileAudit: {
+      tenant: r.one.tenant({ from: r.schoolProfileAudit.tenantId, to: r.tenant.id }),
+      profile: r.one.schoolProfile({ from: r.schoolProfileAudit.profileId, to: r.schoolProfile.id }),
+      actor: r.one.user({ from: r.schoolProfileAudit.actorUserId, to: r.user.id }),
     },
     user: {
       tenant: r.one.tenant({ from: r.user.tenantId, to: r.tenant.id }),

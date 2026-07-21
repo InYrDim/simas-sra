@@ -1,0 +1,9 @@
+import { normalizeMasterDataQuery, type MasterDataSearchParams } from "@/lib/master-data-workspace";
+import { STAFF_STATUSES, type StaffRecord } from "@/lib/staff-master-data";
+const compact = (value: string) => value.replace(/[^\p{L}\p{N}]/gu, "").toLocaleLowerCase("id-ID");
+export function queryStaffMembers(records: readonly StaffRecord[], params: MasterDataSearchParams) {
+  let query = normalizeMasterDataQuery(params, { filters: { status: STAFF_STATUSES }, sorts: ["name-asc", "name-desc", "staffNumber-asc", "staffNumber-desc"] }); const search = compact(query.search), statuses = query.filters.status ?? [];
+  const filtered = records.filter(({ person, staff }) => (query.archive === "all" || staff.archived === (query.archive === "archived")) && (!statuses.length || statuses.includes(staff.status)) && (!search || compact(person.fullName).includes(search) || compact(staff.staffNumber).includes(search) || Boolean(staff.position && compact(staff.position).includes(search)) || Boolean(person.nik && compact(person.nik).includes(search)) || Boolean(person.nip && compact(person.nip).includes(search)))).sort((left, right) => { const byNis = query.sort.startsWith("staffNumber"); const compared = byNis ? left.staff.normalizedStaffNumber.localeCompare(right.staff.normalizedStaffNumber, "id-ID") : left.person.normalizedName.localeCompare(right.person.normalizedName, "id-ID"); const stable = compared || left.staff.id.localeCompare(right.staff.id); return query.sort.endsWith("desc") ? -stable : stable; });
+  const pages = Math.max(1, Math.ceil(filtered.length / query.pageSize)); if (query.page > pages) query = { ...query, page: pages }; const offset = (query.page - 1) * query.pageSize;
+  return { query, items: filtered.slice(offset, offset + query.pageSize), total: filtered.length, state: records.length === 0 ? "empty" as const : filtered.length === 0 ? "no-results" as const : "results" as const };
+}

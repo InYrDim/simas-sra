@@ -1,0 +1,1 @@
+ALTER TABLE `tenant` MODIFY COLUMN `operational_status` enum('active','suspended','closed');

@@ -16,7 +16,7 @@ import { tenantMenuItems } from "@/components/tenant-nav-menu/config"
 
 import { type TenantRole } from "@/types/TenantRole"
 
-export function TenantSidebar({ role }: { role: TenantRole }) {
+export function TenantSidebar({ role, domain }: { role: TenantRole; domain: string }) {
   return (
     <div
       style={
@@ -45,13 +45,13 @@ export function TenantSidebar({ role }: { role: TenantRole }) {
       </SidebarHeader>
 
       <SidebarContent>
-        <TenantNavMenu items={tenantMenuItems} role={role} />
+        <TenantNavMenu items={tenantMenuItems} role={role} domain={domain} />
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border p-4">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton render={<Link href="/login" />} variant="outline">
+            <SidebarMenuButton render={<Link href={`/${domain}/login`} />} variant="outline">
               <LogOut />
               <span>Keluar</span>
             </SidebarMenuButton>

@@ -1,0 +1,4 @@
+import { buildCorrectionWorkbook } from "@/lib/people-import-review";
+import { getImportReview } from "@/lib/people-import-review-data";
+import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+export async function GET(_request:Request,{params}:{params:Promise<{domain:string;revisionId:string}>}){const{domain,revisionId}=await params,principal=await enforceMasterDataAccess(domain,"read"),review=await getImportReview(principal,revisionId);if(!review)return new Response(null,{status:404});const bytes=await buildCorrectionWorkbook(review.revision.kind,review.rows);return new Response(bytes as BodyInit,{headers:{"Content-Type":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet","Content-Disposition":`attachment; filename="koreksi-${review.revision.kind}-${revisionId}.xlsx"`,"Cache-Control":"no-store"}});}

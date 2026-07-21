@@ -2,7 +2,11 @@ import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { TenantSidebar } from "@/components/dashboard/tenant-sidebar";
 import { TrialBanner } from "@/components/dashboard/trial-banner";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { auth } from "@/lib/auth";
 import { enforceTenantPageAccess } from "@/lib/tenant-access";
+import { isTenantRole } from "@/types/TenantRole";
+import { headers } from "next/headers";
+import { notFound } from "next/navigation";
 
 export default async function DashboardLayout({ children, params }: {
   children: React.ReactNode;
@@ -10,9 +14,12 @@ export default async function DashboardLayout({ children, params }: {
 }) {
   const { domain } = await params;
   await enforceTenantPageAccess(domain);
+  const session = await auth.api.getSession({ headers: await headers() });
+  const role = session?.user.tenantRole;
+  if (!isTenantRole(role)) notFound();
 
   return <SidebarProvider>
-    <TenantSidebar role="staff" />
+    <TenantSidebar role={role} domain={domain} />
     <SidebarInset>
       <TrialBanner domain={domain} />
       <DashboardHeader domain={domain} />
