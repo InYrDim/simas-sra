@@ -19,6 +19,7 @@
 
 # production
 /build
+/compose.cloudflare.yml
 
 # misc
 .DS_Store
