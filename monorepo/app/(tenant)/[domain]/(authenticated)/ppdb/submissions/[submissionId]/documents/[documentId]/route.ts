@@ -3,7 +3,7 @@ import { ppdbSubmissionStore } from "@/lib/ppdb-submission-data";
 import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ domain: string; submissionId: string; documentId: string }> },
 ) {
   const { domain, submissionId, documentId } = await context.params;
@@ -17,10 +17,11 @@ export async function GET(
   try {
     const bytes = await createProtectedFileStorage(storageRoot).read(principal.tenantId, document.storageKey);
     const fallbackName = `dokumen-${document.id}.${document.mimeType === "application/pdf" ? "pdf" : document.mimeType === "image/png" ? "png" : "jpg"}`;
+    const disposition = new URL(request.url).searchParams.get("download") === "1" ? "attachment" : "inline";
     return new Response(Buffer.from(bytes), {
       headers: {
         "Cache-Control": "private, no-store",
-        "Content-Disposition": `attachment; filename="${fallbackName}"; filename*=UTF-8''${encodeURIComponent(document.originalFileName)}`,
+        "Content-Disposition": `${disposition}; filename="${fallbackName}"; filename*=UTF-8''${encodeURIComponent(document.originalFileName)}`,
         "Content-Type": document.mimeType,
         "X-Content-Type-Options": "nosniff",
       },

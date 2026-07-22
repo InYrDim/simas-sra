@@ -19,3 +19,7 @@ Defaults (needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix). 
 ### Domain docs
 
 Single-context repository layout. See `docs/agents/domain.md`.
+
+### Known Issues
+
+When fixing a bug, check at `.known-issue` folder.

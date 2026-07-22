@@ -34,7 +34,7 @@ export default async function PPDBHistoryDetailPage({
   const yearLabel = years.find((year) => year.id === session.academicYearId)?.label ?? session.academicYearId
 
   return (
-    <main className="min-h-svh bg-slate-50 text-slate-950 pb-20">
+    <main className="min-h-svh bg-slate-50 text-slate-950">
       <header className="bg-white border-b border-slate-200 px-6 py-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold">Riwayat PPDB &mdash; Tahun Ajaran {yearLabel}</h1>

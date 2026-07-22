@@ -1,7 +1,7 @@
-import Link from "next/link";
-import { CheckCircle, Clock, Download, Eye, XCircle } from "lucide-react";
+import { CheckCircle, Clock, Eye, XCircle } from "lucide-react";
 
 import { decideSubmissionAction } from "@/app/(tenant)/[domain]/(authenticated)/ppdb/actions";
+import { DocumentPreview } from "@/app/(tenant)/[domain]/(authenticated)/ppdb/document-preview";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,6 +20,8 @@ function formatAnswer(value: unknown) {
   if (Array.isArray(value)) return value.join(", ");
   return String(value);
 }
+
+
 
 function SubmissionFormDetail({ domain, submission }: { domain: string; submission: PpdbSubmission }) {
   return (
@@ -49,13 +51,13 @@ function SubmissionFormDetail({ domain, submission }: { domain: string; submissi
                   <dd className="mt-1 break-words text-sm font-medium text-slate-900">
                     {field.type === "file" ? (
                       document ? (
-                        <Link
-                          href={`/${domain}/ppdb/submissions/${submission.id}/documents/${document.id}`}
-                          className="inline-flex items-center gap-1 text-sky-700 hover:underline"
-                        >
-                          <Download className="size-3.5" />
-                          {document.originalFileName}
-                        </Link>
+                        <DocumentPreview
+                          domain={domain}
+                          submissionId={submission.id}
+                          document={document}
+                          fieldLabel={field.label}
+                          showLabel={true}
+                        />
                       ) : "–"
                     ) : formatAnswer(submission.formData[field.id])}
                   </dd>
@@ -137,14 +139,13 @@ export function SubmissionsTable({
               {submission.documents.length ? (
                 <div className="flex flex-col gap-1">
                   {submission.documents.map((document) => (
-                    <Link
+                    <DocumentPreview
                       key={document.id}
-                      href={`/${domain}/ppdb/submissions/${submission.id}/documents/${document.id}`}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-sky-700 hover:underline"
-                    >
-                      <Download className="size-3.5" />
-                      {document.originalFileName}
-                    </Link>
+                      domain={domain}
+                      submissionId={submission.id}
+                      document={document}
+                      fieldLabel={submission.formFields.find((field) => field.id === document.fieldId)?.label ?? document.fieldId}
+                    />
                   ))}
                 </div>
               ) : "–"}
