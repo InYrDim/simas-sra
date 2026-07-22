@@ -1,4 +1,4 @@
-import { Home, Database, Calendar, ClipboardCheck, LayoutDashboard, Library, Mail, Settings, Upload, UserPlus } from "lucide-react"
+import { Home, Database, Calendar, ClipboardCheck, FileCheck, LayoutDashboard, Library, Mail, Settings, Upload, UserPlus } from "lucide-react"
 import { type TenantNavItem } from "@/types/components/TenantNavItem"
 
 export const tenantMenuItems: TenantNavItem[] = [
@@ -35,6 +35,16 @@ export const tenantMenuItems: TenantNavItem[] = [
       { title: "Review Pendaftar", url: "/ppdb", roles: ["school-admin"] },
       { title: "Sesi & Form", url: "/ppdb/settings", roles: ["school-admin"] },
       { title: "Riwayat PPDB", url: "/ppdb/riwayat", roles: ["school-admin"] }
+    ]
+  },
+  {
+    title: "Ulangan",
+    icon: FileCheck,
+    roles: ["*"],
+    group: "Akademik",
+    items: [
+      { title: "Sesi Ulangan", url: "/ulangan", roles: ["*"] },
+      { title: "Riwayat", url: "/ulangan/riwayat", roles: ["*"] }
     ]
   },
   {

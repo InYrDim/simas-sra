@@ -1,3 +1,13 @@
+import Link from "next/link";
+import {
+  ArchiveIcon,
+  ArchiveRestoreIcon,
+  EyeIcon,
+  PencilIcon,
+  RefreshCcwIcon,
+  Trash2Icon,
+} from "lucide-react";
+
 import {
   createStudentAction,
   editStudentAction,
@@ -11,10 +21,7 @@ import {
   SchoolPersonArchiveForm,
   SharedPersonImpact,
 } from "@/components/master-data/school-person-profile-context";
-import {
-  createSchoolPersonMasterDataService,
-  type SchoolPersonAggregate,
-} from "@/lib/school-person-master-data";
+import { createSchoolPersonMasterDataService } from "@/lib/school-person-master-data";
 import { schoolPersonMasterDataStore } from "@/lib/school-person-master-data-data";
 import {
   createStudentMasterDataService,
@@ -29,9 +36,12 @@ import {
   STUDENT_ACCOUNT_STATUSES,
   STUDENT_GENDERS,
 } from "@/lib/student-master-data-query";
-import type { MasterDataSearchParams } from "@/lib/master-data-workspace";
+import {
+  serializeMasterDataQuery,
+  type MasterDataSearchParams,
+} from "@/lib/master-data-workspace";
 import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Collapsible,
@@ -48,6 +58,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 const statusLabel = {
   active: "Aktif",
   graduated: "Lulus",
@@ -97,7 +112,9 @@ export default async function StudentsPage({
   searchParams,
 }: {
   params: Promise<{ domain: string }>;
-  searchParams: Promise<MasterDataSearchParams & { result?: string }>;
+  searchParams: Promise<
+    MasterDataSearchParams & { result?: string; action?: string }
+  >;
 }) {
   const [{ domain }, raw] = await Promise.all([params, searchParams]),
     principal = await enforceMasterDataAccess(domain, "read"),
@@ -117,7 +134,13 @@ export default async function StudentsPage({
       ? await personService.get(principal, selected.person.id)
       : null,
     basePath = `/${domain}/master/siswa`,
-    code = typeof raw.result === "string" ? raw.result : undefined;
+    code = typeof raw.result === "string" ? raw.result : undefined,
+    selectedAction =
+      raw.action === "edit" ||
+      raw.action === "status" ||
+      raw.action === "archive"
+        ? raw.action
+        : "detail";
   const empty =
     result.state === "empty" ? (
       <State
@@ -146,29 +169,97 @@ export default async function StudentsPage({
         basePath={basePath}
         query={result.query}
         total={result.total}
-        items={result.items.map(({ person, student, classGroupName }) => ({
-          id: student.id,
-          title: person.fullName,
-          description: `NIS ${student.nis} · NISN ${
-            student.nisn ?? "—"
-          } · Rombongan Belajar ${classGroupName ?? "Belum ada"} · Akun ${
-            person.accountUserId
-              ? person.accountActive
-                ? "Aktif"
-                : "Tertaut"
-              : "Tidak tertaut"
-          }`,
-          lifecycle: statusLabel[student.status],
-          archived: student.archived,
-        }))}
+        items={result.items.map(({ person, student, classGroupName }) => {
+          const actionHref = (
+            action: "detail" | "edit" | "status" | "archive"
+          ) =>
+            `${basePath}?${serializeMasterDataQuery(result.query, {
+              selected: student.id,
+            })}${action === "detail" ? "" : `&action=${action}`}`;
+          return {
+            id: student.id,
+            title: person.fullName,
+            description: `NIS ${student.nis} · NISN ${
+              student.nisn ?? "—"
+            } · Rombongan Belajar ${classGroupName ?? "Belum ada"} · Akun ${
+              person.accountUserId
+                ? person.accountActive
+                  ? "Aktif"
+                  : "Tertaut"
+                : "Tidak tertaut"
+            }`,
+            lifecycle: statusLabel[student.status],
+            archived: student.archived,
+            actions: (
+              <StudentRowActions
+                detailHref={actionHref("detail")}
+                editHref={actionHref("edit")}
+                statusHref={actionHref("status")}
+                archiveHref={actionHref("archive")}
+                archived={student.archived}
+                writable={principal.capabilities.write}
+              />
+            ),
+          };
+        })} 
+        detailTitle={
+          selectedAction === "edit"
+            ? "Edit siswa"
+            : selectedAction === "status"
+              ? "Ubah status siswa"
+              : selectedAction === "archive"
+                ? selected?.student.archived
+                  ? "Aktifkan kembali siswa"
+                  : "Arsipkan siswa"
+                : "Detail siswa"
+        }
+        detailDescription={
+          selectedAction === "detail"
+            ? "Informasi identitas dan profil siswa dalam mode hanya-baca."
+            : "Lengkapi informasi yang diperlukan, lalu simpan perubahan."
+        }
         detail={
           selected ? (
-            <StudentDetail
-              domain={domain}
-              record={selected}
-              writable={principal.capabilities.write}
-              aggregate={selectedAggregate}
-            />
+            selectedAction === "edit" && principal.capabilities.write && !selected.student.archived ? (
+              <div>
+                <p className="text-sm text-muted-foreground">
+                  Perubahan data Warga Sekolah berlaku pada profil lain milik orang yang sama.
+                </p>
+                {selectedAggregate ? (
+                  <SharedPersonImpact aggregate={selectedAggregate} current="student" />
+                ) : null}
+                <StudentForm domain={domain} record={selected} />
+              </div>
+            ) : selectedAction === "status" && principal.capabilities.write && !selected.student.archived ? (
+              <LifecycleForm
+                domain={domain}
+                record={selected}
+                direct
+                operation={
+                  selected.student.status === "graduated"
+                    ? "correct-graduation"
+                    : "transition"
+                }
+              />
+            ) : selectedAction === "archive" && principal.capabilities.write ? (
+              <div className="space-y-4">
+                <LifecycleForm
+                  domain={domain}
+                  record={selected}
+                  operation={selected.student.archived ? "reactivate" : "archive"}
+                />
+                {selectedAggregate ? (
+                  <SchoolPersonArchiveForm
+                    domain={domain}
+                    origin="siswa"
+                    selected={selected.student.id}
+                    aggregate={selectedAggregate}
+                  />
+                ) : null}
+              </div>
+            ) : (
+              <StudentDetail record={selected} />
+            )
           ) : undefined
         }
         emptyState={empty}
@@ -234,17 +325,113 @@ export default async function StudentsPage({
     </div>
   );
 }
-function StudentDetail({
-  domain,
-  record,
+
+function StudentRowActions({
+  detailHref,
+  editHref,
+  statusHref,
+  archiveHref,
+  archived,
   writable,
-  aggregate,
 }: {
-  domain: string;
-  record: StudentRecord;
+  detailHref: string;
+  editHref: string;
+  statusHref: string;
+  archiveHref: string;
+  archived: boolean;
   writable: boolean;
-  aggregate: SchoolPersonAggregate | null;
 }) {
+  const iconClass = buttonVariants({ variant: "ghost", size: "icon-sm" });
+  const disabled = !writable || archived;
+
+  return (
+    <div className="flex items-center justify-end gap-1">
+      <Tooltip>
+        <TooltipTrigger render={<Link href={detailHref} className={iconClass} />}>
+          <EyeIcon aria-hidden="true" />
+          <span className="sr-only">Lihat detail siswa</span>
+        </TooltipTrigger>
+        <TooltipContent>Lihat detail</TooltipContent>
+      </Tooltip>
+      {disabled ? (
+        <span
+          aria-disabled="true"
+          aria-label="Edit siswa tidak tersedia"
+          className={`${iconClass} cursor-not-allowed opacity-40`}
+          title="Edit siswa tidak tersedia"
+        >
+          <PencilIcon aria-hidden="true" />
+        </span>
+      ) : (
+        <Tooltip>
+          <TooltipTrigger render={<Link href={editHref} className={iconClass} />}>
+            <PencilIcon aria-hidden="true" />
+            <span className="sr-only">Edit siswa</span>
+          </TooltipTrigger>
+          <TooltipContent>Edit siswa</TooltipContent>
+        </Tooltip>
+      )}
+      {disabled ? (
+        <span
+          aria-disabled="true"
+          aria-label="Ubah status siswa tidak tersedia"
+          className={`${iconClass} cursor-not-allowed opacity-40`}
+          title="Ubah status siswa tidak tersedia"
+        >
+          <RefreshCcwIcon aria-hidden="true" />
+        </span>
+      ) : (
+        <Tooltip>
+          <TooltipTrigger render={<Link href={statusHref} className={iconClass} />}>
+            <RefreshCcwIcon aria-hidden="true" />
+            <span className="sr-only">Ubah status siswa</span>
+          </TooltipTrigger>
+          <TooltipContent>Ubah status siswa</TooltipContent>
+        </Tooltip>
+      )}
+      {!writable ? (
+        <span
+          aria-disabled="true"
+          aria-label="Kelola arsip tidak tersedia"
+          className={`${iconClass} cursor-not-allowed opacity-40`}
+          title="Kelola arsip tidak tersedia"
+        >
+          {archived ? (
+            <ArchiveRestoreIcon aria-hidden="true" />
+          ) : (
+            <ArchiveIcon aria-hidden="true" />
+          )}
+        </span>
+      ) : (
+        <Tooltip>
+          <TooltipTrigger render={<Link href={archiveHref} className={iconClass} />}>
+            {archived ? (
+              <ArchiveRestoreIcon aria-hidden="true" />
+            ) : (
+              <ArchiveIcon aria-hidden="true" />
+            )}
+            <span className="sr-only">
+              {archived ? "Aktifkan kembali siswa" : "Arsipkan siswa"}
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>
+            {archived ? "Aktifkan kembali siswa" : "Arsipkan siswa"}
+          </TooltipContent>
+        </Tooltip>
+      )}
+      <span
+        aria-disabled="true"
+        aria-label="Hapus permanen tidak tersedia"
+        className={`${iconClass} cursor-not-allowed text-destructive opacity-40`}
+        title="Hapus permanen tidak tersedia; gunakan arsip"
+      >
+        <Trash2Icon aria-hidden="true" />
+      </span>
+    </div>
+  );
+}
+
+function StudentDetail({ record }: { record: StudentRecord }) {
   const { person, student, classGroupName } = record;
   return (
     <div className="space-y-5">
@@ -316,46 +503,7 @@ function StudentDetail({
           />
         </dl>
       </section>
-      {writable && !student.archived ? (
-        <>
-          <Collapsible className="rounded-lg border p-4">
-            <CollapsibleTrigger className="cursor-pointer font-medium">
-              Edit Siswa
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Perubahan data Warga Sekolah berlaku pada profil lain milik
-                orang yang sama. Status tidak dapat diubah melalui edit biasa.
-              </p>
-              {aggregate ? (
-                <SharedPersonImpact aggregate={aggregate} current="student" />
-              ) : null}
-              <StudentForm domain={domain} record={record} />
-            </CollapsibleContent>
-          </Collapsible>
-          <LifecycleForm
-            domain={domain}
-            record={record}
-            operation={
-              student.status === "graduated"
-                ? "correct-graduation"
-                : "transition"
-            }
-          />
-          <LifecycleForm domain={domain} record={record} operation="archive" />
-        </>
-      ) : null}
-      {writable && student.archived ? (
-        <LifecycleForm domain={domain} record={record} operation="reactivate" />
-      ) : null}
-      {writable && aggregate ? (
-        <SchoolPersonArchiveForm
-          domain={domain}
-          origin="siswa"
-          selected={student.id}
-          aggregate={aggregate}
-        />
-      ) : null}
+
     </div>
   );
 }
@@ -363,10 +511,12 @@ function LifecycleForm({
   domain,
   record,
   operation,
+  direct = false,
 }: {
   domain: string;
   record: StudentRecord;
   operation: "transition" | "correct-graduation" | "archive" | "reactivate";
+  direct?: boolean;
 }) {
   const student = record.student,
     title =
@@ -383,16 +533,11 @@ function LifecycleForm({
       : student.status === "graduated"
       ? (["active", "transferred", "withdrawn"] as const)
       : (["active"] as const);
-  return (
-    <Collapsible className="rounded-lg border p-4">
-      <CollapsibleTrigger className="cursor-pointer font-medium">
-        {title}
-      </CollapsibleTrigger>
-      <CollapsibleContent>
-        <form
-          action={manageStudentLifecycleAction.bind(null, domain)}
-          className="mt-4 space-y-3"
-        >
+  const form = (
+    <form
+      action={manageStudentLifecycleAction.bind(null, domain)}
+      className={direct ? "space-y-4" : "mt-4 space-y-3"}
+    >
           <input type="hidden" name="id" value={student.id} />
           <input type="hidden" name="expectedVersion" value={student.version} />
           <input type="hidden" name="operation" value={operation} />
@@ -425,9 +570,18 @@ function LifecycleForm({
               className="mt-1 min-h-24 w-full border bg-background p-3"
             />
           </Label>
-          <Button className="min-h-11 rounded-full px-4">{title}</Button>
-        </form>
-      </CollapsibleContent>
+      <Button className="min-h-11 rounded-full px-4">{title}</Button>
+    </form>
+  );
+
+  if (direct) return form;
+
+  return (
+    <Collapsible className="rounded-lg border p-4">
+      <CollapsibleTrigger className="cursor-pointer font-medium">
+        {title}
+      </CollapsibleTrigger>
+      <CollapsibleContent>{form}</CollapsibleContent>
     </Collapsible>
   );
 }

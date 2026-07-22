@@ -3,8 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { createSubjectCatalogService } from "@/lib/subject-catalog";
+import {
+  createSubjectCatalogService,
+  SUBJECT_EDUCATION_LEVELS,
+  type SubjectEducationLevel,
+} from "@/lib/subject-catalog";
 import { subjectCatalogStore } from "@/lib/subject-catalog-data";
+import { schoolProfileStore } from "@/lib/school-profile-data";
 import { parseSubjectForm, subjectResultCode } from "@/lib/subject-catalog-route";
 import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
 
@@ -16,9 +21,20 @@ function finish(domain: string, code: string, selected?: string): never {
   redirect(`/${domain}/master/mapel?${params}`);
 }
 
+async function schoolEducationLevel(tenantId: string) {
+  const identity = await schoolProfileStore.findProviderIdentity(tenantId);
+  return identity && SUBJECT_EDUCATION_LEVELS.includes(
+    identity.educationLevel as SubjectEducationLevel,
+  )
+    ? identity.educationLevel as SubjectEducationLevel
+    : null;
+}
+
 export async function createSubjectAction(domain: string, formData: FormData) {
   const principal = await enforceMasterDataAccess(domain, "write");
-  const parsed = parseSubjectForm(formData);
+  const educationLevel = await schoolEducationLevel(principal.tenantId);
+  if (!educationLevel) finish(domain, "invalid-input");
+  const parsed = parseSubjectForm(formData, educationLevel);
   if (!parsed || parsed.id) finish(domain, "invalid-input");
   const result = await service.create(principal, parsed.input).catch(() => null);
   if (!result) finish(domain, "error");
@@ -27,7 +43,9 @@ export async function createSubjectAction(domain: string, formData: FormData) {
 
 export async function editSubjectAction(domain: string, formData: FormData) {
   const principal = await enforceMasterDataAccess(domain, "write");
-  const parsed = parseSubjectForm(formData);
+  const educationLevel = await schoolEducationLevel(principal.tenantId);
+  if (!educationLevel) finish(domain, "invalid-input");
+  const parsed = parseSubjectForm(formData, educationLevel);
   if (!parsed?.id || parsed.version === undefined) finish(domain, "invalid-input");
   const result = await service.edit(principal, parsed.id, parsed.input, parsed.version).catch(() => null);
   if (!result) finish(domain, "error", parsed.id);

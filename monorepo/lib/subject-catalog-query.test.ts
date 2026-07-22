@@ -11,12 +11,12 @@ const subjects: Subject[] = [
   { ...base, id: "3", code: "IPA", normalizedCode: "IPA", name: "Ilmu Pengetahuan Alam", normalizedName: "ilmu pengetahuan alam", educationLevels: ["SMP"], archived: true },
 ];
 
-test("queries Mata Pelajaran by normalized code/name, level, archive, sort, and page", () => {
-  const result = querySubjects(subjects, { q: "  bio ", level: "SMA", archive: "active", sort: "name-desc", page: "1", pageSize: "25", selected: "2" });
+test("queries Mata Pelajaran by normalized code/name, archive, sort, and page", () => {
+  const result = querySubjects(subjects, { q: "  bio ", level: "SMP", archive: "active", sort: "name-desc", page: "1", pageSize: "25", selected: "2" });
   assert.deepEqual(result.items.map((subject) => subject.id), ["2"]);
   assert.equal(result.total, 1);
   assert.equal(result.query.selected, "2");
-  assert.deepEqual(result.query.filters, { level: ["SMA"] });
+  assert.deepEqual(result.query.filters, {});
 });
 
 test("distinguishes true empty from filtered no-results and clamps out-of-range pages", () => {

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { MasterDataDetailDialog } from "@/components/master-data/master-data-detail-dialog";
 import { MasterDataFilterForm } from "@/components/master-data/master-data-filter-form";
 import type { MasterDataQuery } from "@/lib/master-data-workspace";
 import { serializeMasterDataQuery } from "@/lib/master-data-workspace";
@@ -13,7 +14,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { cn } from "@/lib/utils";
 
 export interface MasterDataListItem {
   id: string;
@@ -21,6 +31,7 @@ export interface MasterDataListItem {
   description: string;
   lifecycle: string;
   archived: boolean;
+  actions?: ReactNode;
 }
 type Option = { value: string; label: string };
 
@@ -32,6 +43,8 @@ export function MasterDataWorkspace({
   items,
   total,
   detail,
+  detailTitle,
+  detailDescription,
   children,
   filters,
   sortOptions,
@@ -44,6 +57,8 @@ export function MasterDataWorkspace({
   items: MasterDataListItem[];
   total: number;
   detail?: ReactNode;
+  detailTitle?: string;
+  detailDescription?: string;
   children?: ReactNode;
   filters?: readonly {
     name: string;
@@ -59,19 +74,22 @@ export function MasterDataWorkspace({
     { value: "name-desc", label: "Nama Z–A" },
   ];
   return (
-    <main aria-labelledby="workspace-title" className="space-y-4">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 id="workspace-title" className="text-2xl font-bold">
+    <main aria-labelledby="workspace-title" className="space-y-5">
+      <header className="flex flex-wrap items-start justify-between gap-4 border-b pb-5">
+        <div className="max-w-3xl">
+          <p className="mb-1 text-xs font-semibold tracking-widest text-muted-foreground uppercase">
+            Master Data
+          </p>
+          <h1 id="workspace-title" className="text-2xl font-bold tracking-tight">
             {title}
           </h1>
-          <p className="text-sm text-muted-foreground">{description}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{description}</p>
         </div>
         {children}
       </header>
       <MasterDataFilterForm
         action={basePath}
-        className="grid gap-3 border bg-card p-4 sm:grid-cols-2 lg:grid-cols-5"
+        className="grid items-end gap-3 border bg-muted/20 p-3 sm:grid-cols-2 lg:grid-cols-6"
       >
         <Label className="lg:col-span-2">
           <span className="text-sm font-medium">Cari</span>
@@ -133,52 +151,82 @@ export function MasterDataWorkspace({
         </Label>
         <input type="hidden" name="page" value="1" />
         <input type="hidden" name="pageSize" value={query.pageSize} />
-        <Button type="submit">Terapkan filter</Button>
+        <Button type="submit" variant="outline">
+          Terapkan filter
+        </Button>
       </MasterDataFilterForm>
-      <div className="grid min-h-[28rem] border bg-card lg:grid-cols-[minmax(20rem,2fr)_minmax(22rem,3fr)]">
-        <section
-          aria-labelledby="list-heading"
-          className="border-b lg:border-r lg:border-b-0"
-        >
-          <h2 id="list-heading" className="border-b p-4 font-semibold">
-            Daftar{" "}
-            <span className="font-normal text-muted-foreground">({total})</span>
+      <section aria-labelledby="list-heading" className="border bg-card">
+        <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+          <h2 id="list-heading" className="font-semibold">
+            Daftar {title}
           </h2>
-          <ul>
-            {items.length === 0 && emptyState ? (
-              <li className="p-6">{emptyState}</li>
+          <span className="text-sm text-muted-foreground">{total} data</span>
+        </div>
+        <Table>
+          <TableHeader className="bg-muted/50">
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="w-[28%] font-semibold">Nama</TableHead>
+              <TableHead className="font-semibold">Keterangan</TableHead>
+              <TableHead className="w-36 font-semibold">Status</TableHead>
+              <TableHead className="w-32 font-semibold">Arsip</TableHead>
+              <TableHead className="w-44 text-right font-semibold">Aksi</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.length === 0 ? (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={5} className="h-48 whitespace-normal text-center">
+                  {emptyState ?? (
+                    <p className="text-muted-foreground">Belum ada data.</p>
+                  )}
+                </TableCell>
+              </TableRow>
             ) : null}
             {items.map((item) => {
+              const selected = query.selected === item.id;
               const href = `${basePath}?${serializeMasterDataQuery(query, {
                 selected: item.id,
               })}`;
               return (
-                <li key={item.id} className="border-b">
-                  <Link
-                    href={href}
-                    aria-current={
-                      query.selected === item.id ? "true" : undefined
-                    }
-                    className="block p-4 outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-inset focus-visible:ring-ring/50 aria-current:bg-muted"
-                  >
-                    <span className="font-medium">{item.title}</span>
-                    <span className="mt-1 block text-sm text-muted-foreground">
-                      {item.description}
-                    </span>
-                    <span className="mt-2 block text-xs">
-                      <span className="font-medium">Status operasional:</span>{" "}
-                      {item.lifecycle} ·{" "}
-                      <span className="font-medium">Arsip:</span>{" "}
+                <TableRow key={item.id} data-state={selected ? "selected" : undefined}>
+                  <TableCell className="whitespace-normal font-medium">
+                    {item.title}
+                  </TableCell>
+                  <TableCell className="max-w-xl whitespace-normal text-muted-foreground">
+                    {item.description}
+                  </TableCell>
+                  <TableCell>{item.lifecycle}</TableCell>
+                  <TableCell>
+                    <span
+                      className={cn(
+                        "inline-flex border px-2 py-0.5 text-xs font-medium",
+                        item.archived
+                          ? "bg-muted text-muted-foreground"
+                          : "border-emerald-600/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+                      )}
+                    >
                       {item.archived ? "Diarsipkan" : "Aktif"}
                     </span>
-                  </Link>
-                </li>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {item.actions ?? (
+                      <Link
+                        href={href}
+                        aria-current={selected ? "true" : undefined}
+                        className={buttonVariants({ variant: "ghost", size: "sm" })}
+                      >
+                        {selected ? "Terpilih" : "Detail"}
+                      </Link>
+                    )}
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </ul>
-          <nav
+          </TableBody>
+        </Table>
+        <nav
             aria-label="Paginasi"
-            className="flex flex-wrap items-center justify-between gap-2 p-4 text-sm"
+            className="flex flex-wrap items-center justify-between gap-3 border-t px-4 py-3 text-sm"
           >
             <Link
               aria-disabled={query.page === 1}
@@ -233,40 +281,23 @@ export function MasterDataWorkspace({
               <input type="hidden" name="page" value="1" />
               <Button className="sr-only">Terapkan jumlah per halaman</Button>
             </form>
-          </nav>
-        </section>
-        <section
-          aria-labelledby="detail-heading"
-          className={`${
-            query.selected
-              ? "fixed inset-0 z-40 overflow-auto bg-background p-4 md:static md:z-auto md:p-0"
-              : "hidden lg:block"
-          }`}
+        </nav>
+      </section>
+      {query.selected ? (
+        <MasterDataDetailDialog
+          closeHref={`${basePath}?${serializeMasterDataQuery(query, {
+            selected: null,
+          })}`}
+          title={detailTitle}
+          description={detailDescription}
         >
-          <div className="border-b p-4">
-            <h2 id="detail-heading" className="font-semibold">
-              Detail
-            </h2>
-            {query.selected ? (
-              <Link
-                className="mt-2 inline-block underline md:hidden"
-                href={`${basePath}?${serializeMasterDataQuery(query, {
-                  selected: null,
-                })}`}
-              >
-                Kembali ke daftar
-              </Link>
-            ) : null}
-          </div>
-          <div className="p-4">
-            {detail ?? (
-              <p className="text-muted-foreground">
-                Pilih catatan untuk melihat detail hanya-baca.
-              </p>
-            )}
-          </div>
-        </section>
-      </div>
+          {detail ?? (
+            <p className="text-muted-foreground">
+              Data yang dipilih tidak tersedia.
+            </p>
+          )}
+        </MasterDataDetailDialog>
+      ) : null}
     </main>
   );
 }
