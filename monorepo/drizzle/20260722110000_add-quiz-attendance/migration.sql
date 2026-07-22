@@ -13,4 +13,5 @@ CREATE TABLE `quiz_attendance` (
   CONSTRAINT `quiz_attendance_tenant_session_fkey` FOREIGN KEY (`tenant_id`,`session_id`) REFERENCES `quiz_session` (`tenant_id`,`id`),
   CONSTRAINT `quiz_attendance_tenant_student_fkey` FOREIGN KEY (`tenant_id`,`student_id`) REFERENCES `student_profile` (`tenant_id`,`id`)
 );
+--> statement-breakpoint
 CREATE INDEX `quiz_attendance_tenant_session_idx` ON `quiz_attendance` (`tenant_id`,`session_id`);

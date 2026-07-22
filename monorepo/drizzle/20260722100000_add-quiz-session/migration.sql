@@ -22,8 +22,11 @@ CREATE TABLE `quiz_session` (
   CONSTRAINT `quiz_session_tenant_class_group_fkey` FOREIGN KEY (`tenant_id`,`class_group_id`) REFERENCES `class_group` (`tenant_id`,`id`),
   CONSTRAINT `quiz_session_version_check` CHECK (`version`>0)
 );
+--> statement-breakpoint
 CREATE INDEX `quiz_session_tenant_status_idx` ON `quiz_session` (`tenant_id`,`status`);
+--> statement-breakpoint
 CREATE INDEX `quiz_session_tenant_class_group_idx` ON `quiz_session` (`tenant_id`,`class_group_id`);
+--> statement-breakpoint
 
 CREATE TABLE `quiz_question` (
   `id` varchar(36) NOT NULL,
@@ -42,7 +45,9 @@ CREATE TABLE `quiz_question` (
   CONSTRAINT `quiz_question_tenant_session_fkey` FOREIGN KEY (`tenant_id`,`session_id`) REFERENCES `quiz_session` (`tenant_id`,`id`),
   CONSTRAINT `quiz_question_points_check` CHECK (`points`>0)
 );
+--> statement-breakpoint
 CREATE INDEX `quiz_question_tenant_session_idx` ON `quiz_question` (`tenant_id`,`session_id`);
+--> statement-breakpoint
 
 CREATE TABLE `quiz_answer_sheet` (
   `id` varchar(36) NOT NULL,
@@ -63,7 +68,9 @@ CREATE TABLE `quiz_answer_sheet` (
   CONSTRAINT `quiz_answer_sheet_tenant_session_fkey` FOREIGN KEY (`tenant_id`,`session_id`) REFERENCES `quiz_session` (`tenant_id`,`id`),
   CONSTRAINT `quiz_answer_sheet_tenant_student_fkey` FOREIGN KEY (`tenant_id`,`student_id`) REFERENCES `student_profile` (`tenant_id`,`id`)
 );
+--> statement-breakpoint
 CREATE INDEX `quiz_answer_sheet_tenant_session_idx` ON `quiz_answer_sheet` (`tenant_id`,`session_id`);
+--> statement-breakpoint
 
 CREATE TABLE `quiz_answer` (
   `id` varchar(36) NOT NULL,
@@ -81,4 +88,5 @@ CREATE TABLE `quiz_answer` (
   CONSTRAINT `quiz_answer_tenant_sheet_fkey` FOREIGN KEY (`tenant_id`,`answer_sheet_id`) REFERENCES `quiz_answer_sheet` (`tenant_id`,`id`),
   CONSTRAINT `quiz_answer_tenant_question_fkey` FOREIGN KEY (`tenant_id`,`question_id`) REFERENCES `quiz_question` (`tenant_id`,`id`)
 );
+--> statement-breakpoint
 CREATE INDEX `quiz_answer_tenant_sheet_idx` ON `quiz_answer` (`tenant_id`,`answer_sheet_id`);

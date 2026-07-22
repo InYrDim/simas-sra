@@ -5,7 +5,7 @@ import { createPublicRegistration } from "@/lib/public-registration";
 import { publicRegistrationStore } from "@/lib/public-registration-data";
 
 export async function POST(request: NextRequest) {
-  if (resolveProxyRoute(request.headers.get("host") ?? "", "/register").kind !== "next") {
+  if (resolveProxyRoute(request.headers.get("host") ?? "", "/register", process.env.APP_DOMAIN).kind !== "next") {
     return NextResponse.json({ error: "not-found" }, { status: 404 });
   }
   const body: unknown = await request.json().catch(() => null);

@@ -41,7 +41,7 @@ export default async function PPDBSettingsPage({
         </div>
         <div className="flex gap-2">
           {current?.status === "published" ? (
-            <Button nativeButton={false} render={<Link href={`/apply/${domain}`} target="_blank" />} variant="outline" className="gap-1.5 border-sky-600 text-sky-700 hover:bg-sky-50 hover:text-sky-800">
+            <Button nativeButton={false} render={<Link href="/ppdb" target="_blank" />} variant="outline" className="gap-1.5 border-sky-600 text-sky-700 hover:bg-sky-50 hover:text-sky-800">
               <ExternalLink className="size-4" />
               Lihat Form Publik
             </Button>

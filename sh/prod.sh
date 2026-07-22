@@ -125,6 +125,7 @@ check_env DB_ROOT_PASSWORD
 check_env DB_PORT
 check_env BETTER_AUTH_SECRET
 check_env BETTER_AUTH_URL
+check_env APP_DOMAIN
 
 if command -v docker >/dev/null 2>&1; then
   pass "Docker tersedia"

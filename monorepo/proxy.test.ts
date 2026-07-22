@@ -39,6 +39,24 @@ test("central auth rejects and logs encoded intent at the route boundary", () =>
   }
 });
 
+test("rewrites the Tenant PPDB vanity route to the public application", () => {
+  const response = proxy(request("sekolah.localhost:3000", "/ppdb"));
+
+  assert.equal(response.status, 200);
+  assert.equal(
+    response.headers.get("x-middleware-rewrite"),
+    "http://sekolah.localhost:3000/ppdb/sekolah",
+  );
+});
+
+test("passes the matching public PPDB route through on Tenant hosts", () => {
+  const response = proxy(request("sekolah.localhost:3000", "/ppdb/sekolah"));
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("x-middleware-next"), "1");
+  assert.equal(response.headers.get("x-middleware-rewrite"), null);
+});
+
 test("rewrites ordinary Tenant routes and forwards the canonical path to guards", () => {
   const response = proxy(request("sekolah.localhost:3000", "/dashboard"));
 

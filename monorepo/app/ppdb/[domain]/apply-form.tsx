@@ -5,8 +5,8 @@ import { startTransition, useActionState, useRef, useState } from "react"
 import { CheckCircle2, ChevronRight, UploadCloud } from "lucide-react"
 import { toast } from "sonner"
 
-import { submitPpdbApplicationAction, type PpdbApplicationActionState } from "@/app/apply/[domain]/actions"
-import { PpdbSessionClosedNotice } from "@/app/apply/[domain]/session-closed-notice"
+import { submitPpdbApplicationAction, type PpdbApplicationActionState } from "@/app/ppdb/[domain]/actions"
+import { PpdbSessionClosedNotice } from "@/app/ppdb/[domain]/session-closed-notice"
 import { PPDB_FILE_MAX_MB, validatePpdbFileSize } from "@/lib/ppdb-file-validation"
 import { buildPpdbFormSteps } from "@/lib/ppdb-form-steps"
 import type { PpdbFormField } from "@/lib/ppdb-session"
@@ -255,7 +255,7 @@ function PpdbApplySuccess({ domain, registrationCode }: { domain: string; regist
           <p className="mt-1 text-2xl font-bold tracking-wide text-sky-700">{registrationCode}</p>
         </div>
         <Link
-          href={`/apply/${domain}/status`}
+          href={`/ppdb/${domain}/status`}
           className="mt-2 w-full rounded-xl bg-sky-500 py-3 text-sm font-bold text-white shadow-lg shadow-sky-500/20 flex justify-center items-center gap-2 hover:bg-sky-600 transition-colors"
         >
           Cek Status Pendaftaran

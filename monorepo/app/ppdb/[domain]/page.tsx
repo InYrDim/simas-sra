@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation"
 
-import { PpdbApplyForm } from "@/app/apply/[domain]/apply-form"
-import { resolvePublicTenant } from "@/app/apply/[domain]/resolve-tenant"
-import { PpdbSessionClosedNotice } from "@/app/apply/[domain]/session-closed-notice"
+import { PpdbApplyForm } from "@/app/ppdb/[domain]/apply-form"
+import { resolvePublicTenant } from "@/app/ppdb/[domain]/resolve-tenant"
+import { PpdbSessionClosedNotice } from "@/app/ppdb/[domain]/session-closed-notice"
 import { findPublicPpdbSession } from "@/lib/ppdb-session-data"
 
 export default async function PPDBStudentPage({ params }: { params: Promise<{ domain: string }> }) {

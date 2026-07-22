@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { providerAdmin, user } from "@/db/schema";
+import { applicant, providerAdmin, user } from "@/db/schema";
 
 export type ProvisionProviderAdminResult =
   | { status: "created"; userId: string }
@@ -32,6 +32,15 @@ export async function provisionProviderAdmin(
     if (candidate.tenantId !== null) {
       return { status: "tenant-user", userId: candidate.id };
     }
+
+    await tx
+      .update(user)
+      .set({ emailVerified: true })
+      .where(eq(user.id, candidate.id));
+
+    await tx
+      .delete(applicant)
+      .where(eq(applicant.userId, candidate.id));
 
     const [existingGrant] = await tx
       .select({ userId: providerAdmin.userId })
