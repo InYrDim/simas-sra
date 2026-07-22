@@ -1,4 +1,7 @@
-import { CheckCircle, Clock, Eye, XCircle } from "lucide-react";
+"use client";
+
+import { useFormStatus } from "react-dom";
+import { Check, CheckCircle, Clock, Eye, FileText, Loader2, X, XCircle } from "lucide-react";
 
 import { decideSubmissionAction } from "@/app/(tenant)/[domain]/(authenticated)/ppdb/actions";
 import { DocumentPreview } from "@/app/(tenant)/[domain]/(authenticated)/ppdb/document-preview";
@@ -21,12 +24,10 @@ function formatAnswer(value: unknown) {
   return String(value);
 }
 
-
-
 function SubmissionFormDetail({ domain, submission }: { domain: string; submission: PpdbSubmission }) {
   return (
     <Dialog>
-      <DialogTrigger render={<Button type="button" size="sm" variant="outline" />}>
+      <DialogTrigger render={<Button type="button" size="sm" variant="ghost" className="gap-1.5 text-sky-700 hover:bg-sky-50 hover:text-sky-800" />}>
         <Eye className="size-3.5" />
         Lihat Isian
       </DialogTrigger>
@@ -97,6 +98,59 @@ function StatusBadge({ status }: { status: PpdbSubmission["status"] }) {
   );
 }
 
+function SubmissionActions({
+  domain,
+  submissionId,
+  currentScore,
+  redirectPath,
+}: {
+  domain: string;
+  submissionId: string;
+  currentScore: number | null;
+  redirectPath: string;
+}) {
+  const { pending } = useFormStatus();
+
+  return (
+    <form action={decideSubmissionAction.bind(null, domain)} className="flex items-center justify-end gap-2">
+      <input type="hidden" name="submissionId" value={submissionId} />
+      <input type="hidden" name="redirectPath" value={redirectPath} />
+      <Input
+        aria-label="Skor"
+        name="score"
+        type="number"
+        defaultValue={currentScore ?? ""}
+        className="h-9 w-20"
+        disabled={pending}
+      />
+      <Button
+        type="submit"
+        name="status"
+        value="accepted"
+        size="sm"
+        variant="outline"
+        disabled={pending}
+        className="gap-1.5 border-emerald-600 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+      >
+        {pending ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+        Terima
+      </Button>
+      <Button
+        type="submit"
+        name="status"
+        value="rejected"
+        size="sm"
+        variant="outline"
+        disabled={pending}
+        className="gap-1.5 border-red-600 text-red-700 hover:bg-red-50 hover:text-red-800"
+      >
+        {pending ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5" />}
+        Tolak
+      </Button>
+    </form>
+  );
+}
+
 // Terima/Tolak tetap bisa dilakukan meski Sesi induknya sudah diakhiri — hanya submission baru & struktur Form yang terkunci.
 export function SubmissionsTable({
   domain,
@@ -110,7 +164,12 @@ export function SubmissionsTable({
   redirectPath: string;
 }) {
   if (!submissions.length) {
-    return <p className="p-6 text-center text-sm text-slate-500">Belum ada pendaftar untuk Sesi ini.</p>;
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+        <FileText className="size-8 text-slate-300" />
+        <p className="text-sm text-slate-500">Belum ada pendaftar untuk Sesi ini.</p>
+      </div>
+    );
   }
   return (
     <Table>
@@ -156,23 +215,12 @@ export function SubmissionsTable({
             </TableCell>
             {writable ? (
               <TableCell className="text-right">
-                <form action={decideSubmissionAction.bind(null, domain)} className="flex items-center justify-end gap-2">
-                  <input type="hidden" name="submissionId" value={submission.id} />
-                  <input type="hidden" name="redirectPath" value={redirectPath} />
-                  <Input
-                    aria-label="Skor"
-                    name="score"
-                    type="number"
-                    defaultValue={submission.score ?? ""}
-                    className="h-9 w-20"
-                  />
-                  <Button type="submit" name="status" value="accepted" size="sm" variant="outline" className="border-emerald-600 text-emerald-700 hover:bg-emerald-50">
-                    Terima
-                  </Button>
-                  <Button type="submit" name="status" value="rejected" size="sm" variant="outline" className="border-red-600 text-red-700 hover:bg-red-50">
-                    Tolak
-                  </Button>
-                </form>
+                <SubmissionActions
+                  domain={domain}
+                  submissionId={submission.id}
+                  currentScore={submission.score}
+                  redirectPath={redirectPath}
+                />
               </TableCell>
             ) : null}
           </TableRow>

@@ -1,16 +1,14 @@
 import Link from "next/link"
 
-import { createSessionAction } from "@/app/(tenant)/[domain]/(authenticated)/ppdb/actions"
 import { PpdbFieldBuilder } from "@/app/(tenant)/[domain]/(authenticated)/ppdb/settings/field-builder"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { CreateSessionForm } from "@/app/(tenant)/[domain]/(authenticated)/ppdb/create-session-form"
 import { createAcademicYearService } from "@/lib/academic-year"
 import { academicYearStore } from "@/lib/academic-year-data"
 import { createPpdbSessionService } from "@/lib/ppdb-session"
 import { ppdbSessionStore } from "@/lib/ppdb-session-data"
 import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access"
+import { ArrowLeft, ExternalLink } from "lucide-react"
 
 const sessionService = createPpdbSessionService({ store: ppdbSessionStore })
 const academicYearService = createAcademicYearService({ store: academicYearStore })
@@ -41,13 +39,15 @@ export default async function PPDBSettingsPage({
             {current ? ` • Tahun Ajaran ${yearLabel}` : ""}
           </p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-2">
           {current?.status === "published" ? (
-            <Button nativeButton={false} render={<Link href={`/apply/${domain}`} target="_blank" />} variant="outline">
+            <Button nativeButton={false} render={<Link href={`/apply/${domain}`} target="_blank" />} variant="outline" className="gap-1.5 border-sky-600 text-sky-700 hover:bg-sky-50 hover:text-sky-800">
+              <ExternalLink className="size-4" />
               Lihat Form Publik
             </Button>
           ) : null}
-          <Button nativeButton={false} render={<Link href={`/${domain}/ppdb`} />} variant="outline">
+          <Button nativeButton={false} render={<Link href={`/${domain}/ppdb`} />} variant="outline" className="gap-1.5 border-slate-400 text-slate-700 hover:bg-slate-100 hover:text-slate-900">
+            <ArrowLeft className="size-4" />
             Kembali ke Dashboard
           </Button>
         </div>
@@ -77,30 +77,7 @@ export default async function PPDBSettingsPage({
                 .
               </p>
             ) : (
-              <form action={createSessionAction.bind(null, domain)} className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1">
-                  <Label htmlFor="academicYearId">Tahun Ajaran</Label>
-                  <Select name="academicYearId" required items={selectableYears.map((year) => ({ value: year.id, label: year.label }))}>
-                    <SelectTrigger id="academicYearId" className="w-full">
-                      <SelectValue placeholder="Pilih Tahun Ajaran" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectableYears.map((year) => (
-                        <SelectItem key={year.id} value={year.id}>
-                          {year.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="endDate">Tanggal Berakhir Pendaftaran</Label>
-                  <Input id="endDate" name="endDate" type="date" required />
-                </div>
-                <Button type="submit" className="sm:col-span-2">
-                  Buat Sesi PPDB
-                </Button>
-              </form>
+              <CreateSessionForm domain={domain} selectableYears={selectableYears.map((year) => ({ id: year.id, label: year.label }))} />
             )}
           </div>
         ) : (

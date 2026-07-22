@@ -3,7 +3,7 @@
 import type { ReactNode } from "react"
 import { useState } from "react"
 import { useFormStatus } from "react-dom"
-import { Download, GripVertical, Loader2, Plus, Save, Trash2 } from "lucide-react"
+import { Download, GripVertical, Loader2, Plus, Rocket, Save, Trash2 } from "lucide-react"
 
 import { publishSessionAction, updateFieldsAction } from "@/app/(tenant)/[domain]/(authenticated)/ppdb/actions"
 import { Button } from "@/components/ui/button"
@@ -139,8 +139,9 @@ export function PpdbFieldBuilder({
         <PendingSubmitButton
           idleLabel={published ? "Publikasikan Perubahan" : "Publikasikan Form PPDB"}
           pendingLabel={published ? "Mempublikasikan Perubahan..." : "Mempublikasikan Form..."}
+          icon={<Rocket className="size-4" />}
           disabled={fields.length === 0 || (published && !hasUnpublishedChanges)}
-          className="bg-emerald-600 hover:bg-emerald-700"
+          className="bg-emerald-600 hover:bg-emerald-700 gap-1.5"
         />
       </form>
       {fields.length === 0 ? <p className="text-right text-sm text-slate-500">Simpan Form dengan minimal satu field sebelum dapat dipublikasikan.</p> : null}
