@@ -55,7 +55,7 @@ export default async function RiwayatPage({
   // Filter to ended/graded sessions only (history)
   const historySessions = sessions
     .filter((s) => s.status === "ended" || s.status === "graded")
-    .sort((a, b) => b.endedAt?.getTime() ?? 0 - (a.endedAt?.getTime() ?? 0));
+    .sort((a, b) => (b.endedAt?.getTime() ?? 0) - (a.endedAt?.getTime() ?? 0));
 
   function yearLabel(id: string) { return years.find((y) => y.id === id)?.label ?? id; }
   function groupLabel(id: string) { return groups.find((g) => g.id === id)?.groupName ?? id; }
@@ -115,7 +115,7 @@ export default async function RiwayatPage({
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-2">
-                        <Link href={`/${domain}/ulangan/${session.id}`}>
+                        <Link href={`/${domain}/ulangan/riwayat/${session.id}`}>
                           <Button variant="ghost" size="sm" className="gap-1 text-xs">
                             <Eye className="size-3" />
                             Detail

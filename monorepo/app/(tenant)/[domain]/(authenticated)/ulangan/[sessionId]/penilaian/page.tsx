@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { gradeSessionAction } from "@/app/(tenant)/[domain]/(authenticated)/ulangan/actions";
+import { OfflineGradingForm } from "@/app/(tenant)/[domain]/(authenticated)/ulangan/[sessionId]/penilaian/offline-grading-form";
+import { gradeSessionAction, prepareOfflineGradingAction } from "@/app/(tenant)/[domain]/(authenticated)/ulangan/actions";
 import { Button } from "@/components/ui/button";
 import { createAcademicYearService } from "@/lib/academic-year";
 import { academicYearStore } from "@/lib/academic-year-data";
@@ -8,6 +9,8 @@ import { createClassGroupService } from "@/lib/class-group";
 import { classGroupStore } from "@/lib/class-group-data";
 import { createQuizSessionService } from "@/lib/quiz";
 import { quizSessionStore } from "@/lib/quiz-data";
+import { createStudentMasterDataService } from "@/lib/student-master-data";
+import { studentMasterDataStore } from "@/lib/student-master-data-data";
 
 import { createSubjectCatalogService } from "@/lib/subject-catalog";
 import { subjectCatalogStore } from "@/lib/subject-catalog-data";
@@ -18,6 +21,7 @@ const sessionService = createQuizSessionService({ store: quizSessionStore });
 const academicYearService = createAcademicYearService({ store: academicYearStore });
 const classGroupService = createClassGroupService({ store: classGroupStore });
 const subjectService = createSubjectCatalogService({ store: subjectCatalogStore });
+const studentService = createStudentMasterDataService({ store: studentMasterDataStore });
 
 
 const statusLabel: Record<string, string> = {
@@ -43,11 +47,12 @@ export default async function PenilaianPage({
   const principal = await enforceMasterDataAccess(domain, "read");
   const writable = principal.capabilities.write;
 
-  const [sessions, years, groups, subjects] = await Promise.all([
+  const [sessions, years, groups, subjects, students] = await Promise.all([
     sessionService.list(principal),
     academicYearService.list(principal),
     classGroupService.list(principal),
     subjectService.list(principal),
+    studentService.list(principal),
   ]);
 
   const session = sessions.find((s) => s.id === sessionId);
@@ -76,6 +81,13 @@ export default async function PenilaianPage({
   const subjectName = subjects.find((s) => s.id === session.subjectId)?.name ?? session.subjectId;
 
   const totalMaxScore = questions.reduce((sum, q) => sum + q.points, 0);
+  const studentNames = new Map(students.map((record) => [record.student.id, record.person.fullName]));
+  const offlineParticipants = sorted.map((sheet) => ({
+    studentId: sheet.studentId,
+    studentName: studentNames.get(sheet.studentId) ?? sheet.studentId,
+    score: sheet.totalScore,
+    graded: sheet.status === "graded",
+  }));
   const gradedSheets = sorted.filter((s) => s.status === "graded");
   const avgScore = gradedSheets.length > 0
     ? gradedSheets.reduce((sum, s) => sum + ((s.totalScore ?? 0) / (s.maxScore ?? 1)) * 100, 0) / gradedSheets.length
@@ -94,7 +106,7 @@ export default async function PenilaianPage({
               {subjectName} • {groupName} • {yearLabel}
             </p>
           </div>
-          {writable && session.status === "ended" && (
+          {writable && session.mode === "daring" && session.status === "ended" && (
             <form action={gradeSessionAction.bind(null, domain)}>
               <input type="hidden" name="sessionId" value={session.id} />
               <Button type="submit" className="gap-1.5 bg-blue-600 hover:bg-blue-700">
@@ -134,7 +146,23 @@ export default async function PenilaianPage({
         </div>
 
         {/* Tabel Hasil */}
-        {sorted.length === 0 ? (
+        {session.mode === "luring" && session.status === "ended" && writable && sorted.length === 0 ? (
+          <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-300 bg-white py-16">
+            <FileText className="size-10 text-slate-300" />
+            <p className="text-sm text-slate-500">Lembar nilai belum disiapkan. Ini dapat terjadi pada sesi luring yang selesai sebelum fitur penilaian manual tersedia.</p>
+            <form action={prepareOfflineGradingAction.bind(null, domain)}>
+              <input type="hidden" name="sessionId" value={session.id} />
+              <Button type="submit" variant="outline">Siapkan Peserta Penilaian</Button>
+            </form>
+          </div>
+        ) : session.mode === "luring" && session.status === "ended" && writable ? (
+          <OfflineGradingForm
+            domain={domain}
+            sessionId={session.id}
+            maxScore={totalMaxScore}
+            participants={offlineParticipants}
+          />
+        ) : sorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-300 bg-white py-16">
             <FileText className="size-10 text-slate-300" />
             <p className="text-sm text-slate-500">Belum ada peserta yang mengerjakan ulangan ini.</p>
@@ -159,7 +187,7 @@ export default async function PenilaianPage({
                   return (
                     <tr key={sheet.id} className="border-b border-slate-100 last:border-b-0 hover:bg-slate-50">
                       <td className="px-4 py-3 text-slate-500">{idx + 1}</td>
-                      <td className="px-4 py-3 font-medium">{sheet.studentId}</td>
+                      <td className="px-4 py-3 font-medium">{studentNames.get(sheet.studentId) ?? sheet.studentId}</td>
                       <td className="px-4 py-3 text-center">
                         <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor[sheet.status]}`}>
                           {statusLabel[sheet.status]}

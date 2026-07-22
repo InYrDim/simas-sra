@@ -62,6 +62,42 @@ export async function endSessionAction(
   finish(`/${domain}/ulangan/${sessionId}`, result);
 }
 
+export type OfflineScoreActionState =
+  | { status: "idle" }
+  | { status: "saved" }
+  | { status: "error"; code: string };
+
+export async function saveOfflineScoresAction(
+  domain: string,
+  _previousState: OfflineScoreActionState,
+  formData: FormData,
+): Promise<OfflineScoreActionState> {
+  const principal = await enforceMasterDataAccess(domain, "write");
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const studentIds = parseStringArray(formData.get("studentIds"));
+  const rawScores = parseStringArray(formData.get("scores"));
+  if (studentIds.length === 0 || studentIds.length !== rawScores.length) return { status: "error", code: "invalid-input" };
+  const entries = studentIds.map((studentId, index) => ({ studentId, score: Number(rawScores[index]) }));
+  const result = await sessionService.saveOfflineScores(principal, sessionId, entries);
+  if (!result.ok) return { status: "error", code: result.code };
+  revalidatePath(`/${domain}/ulangan/${sessionId}/penilaian`);
+  return { status: "saved" };
+}
+
+export async function prepareOfflineGradingAction(domain: string, formData: FormData) {
+  const principal = await enforceMasterDataAccess(domain, "write");
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const result = await sessionService.prepareOfflineGrading(principal, sessionId);
+  finish(`/${domain}/ulangan/${sessionId}/penilaian`, result);
+}
+
+export async function finalizeOfflineGradingAction(domain: string, formData: FormData) {
+  const principal = await enforceMasterDataAccess(domain, "write");
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const result = await sessionService.finalizeOfflineGrading(principal, sessionId);
+  finish(`/${domain}/ulangan/${sessionId}/penilaian`, result);
+}
+
 export async function gradeSessionAction(domain: string, formData: FormData) {
   const principal = await enforceMasterDataAccess(domain, "write");
   const sessionId = String(formData.get("sessionId") ?? "");

@@ -120,7 +120,8 @@ type FailureCode =
   | "locked"
   | "no-questions"
   | "no-students"
-  | "attendance-incomplete";
+  | "attendance-incomplete"
+  | "grading-incomplete";
 
 const failure = (code: FailureCode) => ({ ok: false, code } as const);
 
@@ -210,6 +211,27 @@ export function createQuizSessionService(dependencies: { store: QuizSessionStore
         }
 
         const timestamp = now();
+        if (current.mode === "luring") {
+          const existingSheets = await transaction.listAnswerSheets(sessionId);
+          const existingStudentIds = new Set(existingSheets.map((sheet) => sheet.studentId));
+          const participants = attendance.filter((record) => record.status === "present" || record.status === "late");
+          for (const participant of participants) {
+            if (existingStudentIds.has(participant.studentId)) continue;
+            await transaction.saveAnswerSheet({
+              id: id(),
+              tenantId: principal.tenantId,
+              sessionId,
+              studentId: participant.studentId,
+              status: "submitted",
+              totalScore: null,
+              maxScore: null,
+              submittedAt: timestamp,
+              gradedAt: null,
+              createdAt: timestamp,
+              updatedAt: timestamp,
+            });
+          }
+        }
         const updated: QuizSession = {
           ...current,
           status: "ended",
@@ -217,6 +239,89 @@ export function createQuizSessionService(dependencies: { store: QuizSessionStore
           version: current.version + 1,
           updatedAt: timestamp,
         };
+        await transaction.save(updated);
+        return { ok: true, session: updated } as const;
+      });
+    },
+
+    saveOfflineScores(principal: MasterDataPrincipal, sessionId: string, entries: readonly { studentId: string; score: number }[]) {
+      if (entries.length === 0 || entries.some((entry) => !entry.studentId || !Number.isInteger(entry.score))) {
+        return Promise.resolve(failure("invalid-input"));
+      }
+      return dependencies.store.transaction(principal.tenantId, async (transaction) => {
+        const sessions = await transaction.list();
+        const current = sessions.find((session) => session.id === sessionId && session.tenantId === principal.tenantId);
+        if (!current) return failure("not-found");
+        if (current.mode !== "luring" || current.status !== "ended") return failure("locked");
+
+        const questions = await transaction.listQuestions(sessionId);
+        const maxScore = questions.reduce((total, question) => total + question.points, 0);
+        if (maxScore <= 0 || entries.some((entry) => entry.score < 0 || entry.score > maxScore)) return failure("invalid-input");
+        const sheets = await transaction.listAnswerSheets(sessionId);
+        const targets = entries.map((entry) => ({
+          entry,
+          sheet: sheets.find((candidate) => candidate.studentId === entry.studentId),
+        }));
+        if (targets.some((target) => !target.sheet)) return failure("not-found");
+        const timestamp = now();
+        for (const target of targets) {
+          const sheet = target.sheet!;
+          await transaction.saveAnswerSheet({
+            ...sheet,
+            status: "graded",
+            totalScore: target.entry.score,
+            maxScore,
+            gradedAt: timestamp,
+            updatedAt: timestamp,
+          });
+        }
+        return { ok: true } as const;
+      });
+    },
+
+    prepareOfflineGrading(principal: MasterDataPrincipal, sessionId: string) {
+      return dependencies.store.transaction(principal.tenantId, async (transaction) => {
+        const sessions = await transaction.list();
+        const current = sessions.find((session) => session.id === sessionId && session.tenantId === principal.tenantId);
+        if (!current) return failure("not-found");
+        if (current.mode !== "luring" || current.status !== "ended") return failure("invalid-transition");
+        const attendance = await transaction.listAttendance(sessionId);
+        const participants = attendance.filter((record) => record.status === "present" || record.status === "late");
+        if (participants.length === 0) return failure("no-students");
+        const sheets = await transaction.listAnswerSheets(sessionId);
+        const existingStudentIds = new Set(sheets.map((sheet) => sheet.studentId));
+        const timestamp = now();
+        for (const participant of participants) {
+          if (existingStudentIds.has(participant.studentId)) continue;
+          await transaction.saveAnswerSheet({
+            id: id(),
+            tenantId: principal.tenantId,
+            sessionId,
+            studentId: participant.studentId,
+            status: "submitted",
+            totalScore: null,
+            maxScore: null,
+            submittedAt: timestamp,
+            gradedAt: null,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          });
+        }
+        return { ok: true } as const;
+      });
+    },
+
+    finalizeOfflineGrading(principal: MasterDataPrincipal, sessionId: string) {
+      return dependencies.store.transaction(principal.tenantId, async (transaction) => {
+        const sessions = await transaction.list();
+        const current = sessions.find((session) => session.id === sessionId && session.tenantId === principal.tenantId);
+        if (!current) return failure("not-found");
+        if (current.mode !== "luring" || current.status !== "ended") return failure("invalid-transition");
+        const sheets = await transaction.listAnswerSheets(sessionId);
+        if (sheets.length === 0 || sheets.some((sheet) => sheet.status !== "graded")) return failure("grading-incomplete");
+
+        const timestamp = now();
+        const updated: QuizSession = { ...current, status: "graded", version: current.version + 1, updatedAt: timestamp };
         await transaction.save(updated);
         return { ok: true, session: updated } as const;
       });
