@@ -3,13 +3,17 @@ ALTER TABLE `people_import_revision`
   ADD COLUMN `source_storage_key` varchar(700) NULL,
   ADD CONSTRAINT `people_import_revision_parent_fk` FOREIGN KEY (`parent_revision_id`) REFERENCES `people_import_revision` (`id`),
   ADD CONSTRAINT `people_import_revision_source_scope_check` CHECK (`source_storage_key` IS NULL OR `source_storage_key` LIKE CONCAT('tenants/', `tenant_id`, '/people-import/%'));
+--> statement-breakpoint
 ALTER TABLE `people_import_row`
   ADD COLUMN `identity_fingerprint` char(64) NULL,
   ADD COLUMN `candidates_json` json NULL;
+--> statement-breakpoint
 UPDATE `people_import_row` SET `identity_fingerprint`=SHA2(CONCAT(`row_number`,':',CAST(`values_json` AS CHAR)),256), `candidates_json`=JSON_ARRAY();
+--> statement-breakpoint
 ALTER TABLE `people_import_row`
   MODIFY `identity_fingerprint` char(64) NOT NULL,
   MODIFY `candidates_json` json NOT NULL;
+--> statement-breakpoint
 CREATE TABLE `people_import_decision` (
   `id` varchar(36) NOT NULL,
   `tenant_id` varchar(36) NOT NULL,

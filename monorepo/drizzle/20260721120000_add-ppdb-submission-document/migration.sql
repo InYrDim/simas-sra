@@ -1,5 +1,6 @@
 ALTER TABLE `ppdb_submission`
   ADD CONSTRAINT `ppdb_submission_tenant_id_id_unique` UNIQUE (`tenant_id`, `id`);
+--> statement-breakpoint
 
 CREATE TABLE `ppdb_submission_document` (
   `id` varchar(36) NOT NULL,
@@ -22,6 +23,7 @@ CREATE TABLE `ppdb_submission_document` (
   CONSTRAINT `ppdb_submission_document_size_check`
     CHECK (`byte_size` > 0 AND `byte_size` <= 2097152)
 );
+--> statement-breakpoint
 
 CREATE INDEX `ppdb_submission_document_submission_idx`
   ON `ppdb_submission_document` (`tenant_id`, `submission_id`);

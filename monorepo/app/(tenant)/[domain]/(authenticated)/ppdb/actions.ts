@@ -51,7 +51,7 @@ export async function publishSessionAction(domain: string, formData: FormData) {
     String(formData.get("sessionId") ?? ""),
     parseFields(formData),
   );
-  revalidatePath(`/apply/${domain}`);
+  revalidatePath(`/ppdb/${domain}`);
   finish(`/${domain}/ppdb/settings`, result);
 }
 

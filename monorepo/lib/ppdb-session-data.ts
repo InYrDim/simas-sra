@@ -26,7 +26,7 @@ async function listWith(executor: Pick<typeof db, "select">, tenantId: string): 
   return rows.map(toSession);
 }
 
-// Untuk halaman publik /apply/[domain]: temukan Sesi PPDB yang sedang "published" bagi satu Tenant, tanpa memerlukan principal.
+// Untuk halaman publik /ppdb/[domain]: temukan Sesi PPDB yang sedang "published" bagi satu Tenant, tanpa memerlukan principal.
 export async function findPublicPpdbSession(tenantId: string): Promise<Readonly<{ id: string; endDate: string; fields: PpdbFormField[] }> | null> {
   const [session] = await db
     .select({ id: ppdbSession.id, endDate: ppdbSession.endDate, fields: ppdbSession.fields })

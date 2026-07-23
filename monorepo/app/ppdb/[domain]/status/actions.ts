@@ -1,6 +1,6 @@
 "use server";
 
-import { resolvePublicTenant } from "@/app/apply/[domain]/resolve-tenant";
+import { resolvePublicTenant } from "@/app/ppdb/[domain]/resolve-tenant";
 import type { PpdbSubmissionStatus } from "@/lib/ppdb-submission";
 import { createPpdbSubmissionService } from "@/lib/ppdb-submission";
 import { ppdbSubmissionStore } from "@/lib/ppdb-submission-data";

@@ -10,9 +10,9 @@ import {
   SidebarFooter
 } from "@/components/ui/sidebar"
 import { BookOpen, LogOut } from "lucide-react"
-import Link from "next/link"
 import { TenantNavMenu } from "@/components/tenant-nav-menu"
 import { tenantMenuItems } from "@/components/tenant-nav-menu/config"
+import { authClient } from "@/lib/auth-client"
 
 import { type TenantRole } from "@/types/TenantRole"
 
@@ -58,7 +58,11 @@ export function TenantSidebar({ role, domain, tenantName }: { role: TenantRole; 
       <SidebarFooter className="border-t border-sidebar-border p-4">
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton render={<Link href={`/${domain}/login`} />} variant="outline">
+            <SidebarMenuButton
+              onClick={() => authClient.signOut({ fetchOptions: { onSuccess: () => window.location.assign("/login") } })}
+              tooltip="Keluar"
+              variant="outline"
+            >
               <LogOut />
               <span>Keluar</span>
             </SidebarMenuButton>

@@ -3,7 +3,7 @@
 import { useActionState } from "react"
 import { CheckCircle, Clock, XCircle } from "lucide-react"
 
-import { checkPpdbStatusAction, type PpdbStatusActionState } from "@/app/apply/[domain]/status/actions"
+import { checkPpdbStatusAction, type PpdbStatusActionState } from "@/app/ppdb/[domain]/status/actions"
 import type { PpdbSubmissionStatus } from "@/lib/ppdb-submission"
 
 const fieldClassName =

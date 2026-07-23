@@ -23,6 +23,7 @@ export function proxy(req: NextRequest) {
   const route = resolveProxyRoute(
     req.headers.get("host") ?? "",
     req.nextUrl.pathname,
+    process.env.APP_DOMAIN,
   );
 
   if (route.kind === "not-found") {

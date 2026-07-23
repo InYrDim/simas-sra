@@ -9,7 +9,7 @@ export type PublicTenant = Readonly<{
   nisnRequired: boolean;
 }>;
 
-// Halaman publik /apply/[domain] tidak memerlukan login — Tenant diresolusi langsung dari domain.
+// Halaman publik /ppdb/[domain] tidak memerlukan login — Tenant diresolusi langsung dari domain.
 export async function resolvePublicTenant(domain: string): Promise<PublicTenant | null> {
   const [row] = await db
     .select({ id: tenant.id, educationLevel: simasApplication.educationLevel })

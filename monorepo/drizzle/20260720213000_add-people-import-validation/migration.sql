@@ -13,6 +13,7 @@ CREATE TABLE `people_import_batch` (
   CONSTRAINT `people_import_batch_size_check` CHECK (`source_byte_size` > 0 AND `source_byte_size` <= 10485760),
   CONSTRAINT `people_import_batch_storage_scope_check` CHECK (`source_storage_key` LIKE CONCAT('tenants/', `tenant_id`, '/people-import/%'))
 );
+--> statement-breakpoint
 CREATE TABLE `people_import_validation_job` (
   `id` varchar(36) NOT NULL, `tenant_id` varchar(36) NOT NULL, `batch_id` varchar(36) NOT NULL,
   `status` enum('pending','processing','completed','failed') NOT NULL DEFAULT 'pending', `attempts` int NOT NULL DEFAULT 0,
@@ -21,6 +22,7 @@ CREATE TABLE `people_import_validation_job` (
   PRIMARY KEY (`id`), UNIQUE KEY `people_import_job_batch_unique` (`tenant_id`,`batch_id`), KEY `people_import_job_claim_idx` (`status`,`available_at`),
   CONSTRAINT `people_import_job_batch_fk` FOREIGN KEY (`tenant_id`,`batch_id`) REFERENCES `people_import_batch` (`tenant_id`,`id`)
 );
+--> statement-breakpoint
 CREATE TABLE `people_import_revision` (
   `id` varchar(36) NOT NULL, `tenant_id` varchar(36) NOT NULL, `batch_id` varchar(36) NOT NULL,
   `entity_kind` enum('student','teacher','staff') NOT NULL, `template_version` varchar(20) NOT NULL,
@@ -28,6 +30,7 @@ CREATE TABLE `people_import_revision` (
   PRIMARY KEY (`id`), UNIQUE KEY `people_import_revision_job_unique` (`tenant_id`,`batch_id`,`id`),
   CONSTRAINT `people_import_revision_batch_fk` FOREIGN KEY (`tenant_id`,`batch_id`) REFERENCES `people_import_batch` (`tenant_id`,`id`)
 );
+--> statement-breakpoint
 CREATE TABLE `people_import_row` (
   `id` varchar(36) NOT NULL, `tenant_id` varchar(36) NOT NULL, `revision_id` varchar(36) NOT NULL, `row_number` int NOT NULL,
   `state` enum('ready','warning','rejected') NOT NULL, `values_json` json NOT NULL, `findings_json` json NOT NULL,

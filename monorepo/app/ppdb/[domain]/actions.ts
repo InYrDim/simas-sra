@@ -1,6 +1,6 @@
 "use server";
 
-import { resolvePublicTenant } from "@/app/apply/[domain]/resolve-tenant";
+import { resolvePublicTenant } from "@/app/ppdb/[domain]/resolve-tenant";
 import { findPublicPpdbSession } from "@/lib/ppdb-session-data";
 import {
   inspectPpdbDocument,
