@@ -1,9 +1,26 @@
-import { redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 
-import { enforceTenantPageAccess } from "@/lib/tenant-access";
+import { getPublicTenantLandingPage } from "@/lib/tenant-landing-page-data";
+import { renderTenantLandingPage } from "@/lib/tenant-landing-page";
 
 export default async function TenantPage({ params }: { params: Promise<{ domain: string }> }) {
   const { domain } = await params;
-  await enforceTenantPageAccess(domain);
-  redirect(`/${domain}/dashboard`);
+  const landingPage = await getPublicTenantLandingPage(domain);
+  if (!landingPage) notFound();
+
+  const html = renderTenantLandingPage({
+    html: landingPage.html,
+    tenantName: landingPage.name,
+    loginUrl: "/login",
+    ppdbUrl: "/ppdb/daftar",
+  });
+
+  return (
+    <iframe
+      className="fixed inset-0 size-full border-0"
+      sandbox="allow-forms allow-popups allow-scripts allow-top-navigation-by-user-activation"
+      srcDoc={html}
+      title={`Landing page ${landingPage.name}`}
+    />
+  );
 }

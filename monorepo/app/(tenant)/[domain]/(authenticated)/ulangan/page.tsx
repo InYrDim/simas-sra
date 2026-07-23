@@ -64,7 +64,7 @@ export default async function UlanganPage({
     <main className="min-h-svh bg-slate-50 text-slate-950 pb-20">
       <header className="bg-white border-b border-slate-200 px-6 py-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold">Ulangan Sederhana</h1>
+          <h1 className="text-xl font-bold">Ulangan</h1>
           <p className="text-sm text-slate-500">Kelola sesi ulangan daring dan luring</p>
         </div>
         <CreateSessionDialog

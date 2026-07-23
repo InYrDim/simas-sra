@@ -80,6 +80,17 @@ test("keeps PPDB administration separate from the public PPDB page", () => {
   );
 });
 
+test("rewrites the Tenant host root to the public landing page route", () => {
+  const response = proxy(request("sekolah.localhost:3000", "/"));
+
+  assert.equal(response.status, 200);
+  assert.equal(
+    response.headers.get("x-middleware-rewrite"),
+    "http://sekolah.localhost:3000/sekolah/",
+  );
+  assert.equal(response.headers.get("location"), null);
+});
+
 test("rewrites ordinary Tenant routes and forwards the canonical path to guards", () => {
   const response = proxy(request("sekolah.localhost:3000", "/dashboard"));
 
