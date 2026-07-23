@@ -122,7 +122,7 @@ check_env DB_NAME
 check_env DB_USER
 check_env DB_PASSWORD
 check_env DB_ROOT_PASSWORD
-check_env DB_PORT
+
 check_env BETTER_AUTH_SECRET
 check_env BETTER_AUTH_URL
 check_env APP_DOMAIN
@@ -187,16 +187,17 @@ Image aplikasi:
   $IMAGE
 
 Network terisolasi antar-service:
-  simas-sra-production
+  simas-production-net
 
 Jalankan deployment:
-  docker compose $COMPOSE_ARGS pull
+  docker compose $COMPOSE_ARGS --profile tools pull app migrate
+  docker compose $COMPOSE_ARGS --profile tools run --rm migrate
   docker compose $COMPOSE_ARGS up -d
 
 Periksa status dan log:
   docker compose $COMPOSE_ARGS ps
   docker compose $COMPOSE_ARGS logs -f app
 
-Pastikan port 3000 dan DB_PORT tersedia, serta cadangkan volume db_data dan
-app_files sebelum melakukan update production.
+Service aplikasi dan MySQL hanya tersedia di network Docker internal.
+Cadangkan volume db_data dan app_files sebelum melakukan update production.
 EOF

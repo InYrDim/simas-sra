@@ -12,6 +12,17 @@ RUN corepack enable pnpm
 COPY package.json pnpm-lock.yaml* pnpm-workspace.yaml* ./
 RUN pnpm i --frozen-lockfile
 
+# Run database migrations and explicit database administration tasks.
+FROM deps AS migrator
+WORKDIR /app
+COPY tsconfig.json drizzle.config.ts ./
+COPY db ./db
+COPY drizzle ./drizzle
+COPY lib/provider-admin.ts ./lib/provider-admin.ts
+COPY scripts/provision-provider-admin.ts ./scripts/provision-provider-admin.ts
+COPY scripts/deprovision-provider-admin.ts ./scripts/deprovision-provider-admin.ts
+CMD ["pnpm", "db:migrate"]
+
 # Rebuild the source code only when needed
 FROM base AS builder
 WORKDIR /app

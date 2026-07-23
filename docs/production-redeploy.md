@@ -17,7 +17,6 @@ DB_NAME=simas
 DB_USER=replace-me
 DB_PASSWORD=replace-me
 DB_ROOT_PASSWORD=replace-me
-DB_PORT=3306
 
 APP_DOMAIN=simas.biz.id
 BETTER_AUTH_SECRET=replace-with-a-long-random-secret
@@ -27,6 +26,25 @@ PROTECTED_FILE_STORAGE_ROOT=/data/protected
 ```
 
 Jangan commit `.env`, `.env.cloudflare`, token tunnel, atau secret production.
+
+Untuk menjalankan seluruh alur redeploy secara interaktif dari root repository:
+
+```bash
+sh sh/redeploy-prod.sh
+```
+
+Script mendeteksi mode secara otomatis:
+
+- **Fresh deploy:** jika tidak ada service Compose yang berjalan, backup dan `compose down` dilewati. Service MySQL dibuat terlebih dahulu oleh dependency migrator, ditunggu hingga sehat, lalu migration dan seluruh stack dijalankan.
+- **Redeploy:** jika stack sudah berjalan, database dibackup sebelum migration, lalu stack lama dihentikan dan dibuat ulang.
+
+Script membuat backup redeploy di direktori sibling `../simas-backups` secara default. Ubah lokasi dengan environment `SIMAS_BACKUP_DIR` bila diperlukan:
+
+```bash
+SIMAS_BACKUP_DIR=/var/backups/simas sh sh/redeploy-prod.sh
+```
+
+Production Compose tidak memublikasikan port aplikasi maupun MySQL ke host. Aplikasi hanya dapat dijangkau oleh `cloudflared` melalui `http://app:3000`, sedangkan database hanya dapat dijangkau service pada network `simas-production-net`.
 
 ## 1. Validasi sebelum deployment
 
@@ -48,13 +66,7 @@ pnpm --dir monorepo build
 
 ## 2. Jalankan database migration
 
-Migration harus berhasil sebelum container aplikasi baru diaktifkan. Saat ini image aplikasi standalone tidak membawa `pnpm`, `drizzle-kit`, dan migration files, sehingga migration dijalankan dari checkout repository yang memiliki akses ke database production.
-
-Pastikan `DATABASE_URL` menunjuk database production yang benar, lalu jalankan:
-
-```bash
-pnpm --dir monorepo db:migrate
-```
+Migration harus berhasil sebelum container aplikasi baru diaktifkan. Gunakan image `iyedeh/simas-sra-migrate` melalui profile Compose `tools`; migrator berjalan satu kali pada network Docker internal tanpa memublikasikan port MySQL. Perintah lengkap dijalankan setelah image ditarik pada langkah 5.
 
 Migration bersifat forward-only. Jangan menjalankan `db:push` sebagai pengganti migration pada database production.
 
@@ -72,7 +84,14 @@ Dari root repository:
 ```bash
 docker build \
   --file monorepo/Dockerfile \
+  --target runner \
   --tag iyedeh/simas-sra:latest \
+  monorepo
+
+docker build \
+  --file monorepo/Dockerfile \
+  --target migrator \
+  --tag iyedeh/simas-sra-migrate:latest \
   monorepo
 ```
 
@@ -82,6 +101,7 @@ docker build \
 
 ```bash
 docker push iyedeh/simas-sra:latest
+docker push iyedeh/simas-sra-migrate:latest
 ```
 
 Catat digest yang dicetak oleh Docker setelah push. Digest diperlukan untuk audit dan rollback image.
@@ -104,7 +124,19 @@ docker compose \
   --env-file monorepo/.env \
   -f monorepo/compose.prod.yml \
   -f monorepo/compose.cloudflare.yml \
-  pull app
+  --profile tools \
+  pull app migrate
+```
+
+Jalankan migration satu kali. Hentikan deployment jika perintah ini gagal:
+
+```bash
+docker compose \
+  --env-file monorepo/.env \
+  -f monorepo/compose.prod.yml \
+  -f monorepo/compose.cloudflare.yml \
+  --profile tools \
+  run --rm migrate
 ```
 
 Kemudian recreate aplikasi dan tunnel bersama-sama:
@@ -129,7 +161,14 @@ http://app:3000
 docker compose \
   --env-file monorepo/.env \
   -f monorepo/compose.prod.yml \
-  pull app
+  --profile tools \
+  pull app migrate
+
+docker compose \
+  --env-file monorepo/.env \
+  -f monorepo/compose.prod.yml \
+  --profile tools \
+  run --rm migrate
 
 docker compose \
   --env-file monorepo/.env \
@@ -192,7 +231,7 @@ Uji origin langsung dari network Docker jika tunnel bermasalah:
 
 ```bash
 docker run --rm \
-  --network simas-sra-production \
+  --network simas-production-net \
   curlimages/curl:latest \
   --fail \
   http://app:3000/
@@ -200,7 +239,63 @@ docker run --rm \
 
 Jika origin berhasil tetapi domain publik gagal, periksa konfigurasi dan log Cloudflare. Jika keduanya berhasil tetapi aplikasi mengembalikan 404, periksa `APP_DOMAIN` dan aturan host routing.
 
-## 7. Rollback image
+## 7. Kelola akun Provider Admin
+
+Akun harus dibuat terlebih dahulu melalui halaman registrasi domain utama, misalnya:
+
+```text
+https://simas.biz.id/register
+```
+
+Kemudian promosikan akun tersebut dari root repository di VPS. Perintah ini berjalan sebagai container satu kali pada network internal `simas-production-net`, sehingga MySQL tidak perlu diekspos ke host:
+
+```bash
+docker compose \
+  --env-file monorepo/.env \
+  -f monorepo/compose.prod.yml \
+  --profile tools \
+  run --rm migrate \
+  pnpm provider-admin:provision admin@simas.com
+```
+
+Jika menggunakan Cloudflare override, file tersebut boleh ikut disertakan agar perintah konsisten dengan stack yang sedang berjalan:
+
+```bash
+docker compose \
+  --env-file monorepo/.env \
+  -f monorepo/compose.prod.yml \
+  -f monorepo/compose.cloudflare.yml \
+  --profile tools \
+  run --rm migrate \
+  pnpm provider-admin:provision admin@simas.com
+```
+
+Respons berhasil berupa status `created` atau `already-provisioned`. Provisioning juga memverifikasi email secara otomatis, menghapus identitas Applicant dari akun tersebut, dan menolak akun yang sudah terikat ke Tenant.
+
+Untuk mencabut akses Provider Admin tanpa menghapus akun:
+
+```bash
+docker compose \
+  --env-file monorepo/.env \
+  -f monorepo/compose.prod.yml \
+  --profile tools \
+  run --rm migrate \
+  pnpm provider-admin:deprovision admin@simas.com
+```
+
+Pastikan image migrator terbaru sudah ditarik sebelum menjalankan perintah administrasi:
+
+```bash
+docker compose \
+  --env-file monorepo/.env \
+  -f monorepo/compose.prod.yml \
+  --profile tools \
+  pull migrate
+```
+
+Jangan mengubah `user.email_verified`, `user.tenant_id`, atau tabel `provider_admin` secara manual karena provisioning menjaga seluruh perubahan tersebut dalam satu transaksi.
+
+## 8. Rollback image
 
 Rollback kode dilakukan dengan menunjuk service `app` ke tag immutable atau digest image sebelumnya, kemudian recreate `app` dan `cloudflared`.
 
