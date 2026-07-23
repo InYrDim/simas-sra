@@ -30,6 +30,13 @@ export function proxy(req: NextRequest) {
     return new NextResponse(null, { status: 404 });
   }
 
+  if (route.kind === "redirect") {
+    const destination = req.nextUrl.clone();
+    destination.hostname = route.hostname;
+    destination.pathname = route.pathname;
+    return NextResponse.redirect(destination);
+  }
+
   if (route.kind === "rewrite") {
     const requestHeaders = new Headers(req.headers);
     requestHeaders.set(TENANT_PATHNAME_HEADER, route.pathname);

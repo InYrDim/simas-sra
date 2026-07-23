@@ -39,8 +39,8 @@ test("central auth rejects and logs encoded intent at the route boundary", () =>
   }
 });
 
-test("rewrites the Tenant PPDB vanity route to the public application", () => {
-  const response = proxy(request("sekolah.localhost:3000", "/ppdb"));
+test("rewrites the Tenant PPDB public vanity route to the public application", () => {
+  const response = proxy(request("sekolah.localhost:3000", "/ppdb/daftar"));
 
   assert.equal(response.status, 200);
   assert.equal(
@@ -49,12 +49,25 @@ test("rewrites the Tenant PPDB vanity route to the public application", () => {
   );
 });
 
-test("passes the matching public PPDB route through on Tenant hosts", () => {
+test("redirects internal public PPDB paths to the public vanity route", () => {
   const response = proxy(request("sekolah.localhost:3000", "/ppdb/sekolah"));
 
+  assert.equal(response.status, 307);
+  assert.equal(response.headers.get("location"), "http://sekolah.localhost:3000/ppdb/daftar");
+});
+
+test("keeps PPDB administration separate from the public PPDB page", () => {
+  const response = proxy(request("sekolah.localhost:3000", "/ppdb/settings"));
+
   assert.equal(response.status, 200);
-  assert.equal(response.headers.get("x-middleware-next"), "1");
-  assert.equal(response.headers.get("x-middleware-rewrite"), null);
+  assert.equal(
+    response.headers.get("x-middleware-rewrite"),
+    "http://sekolah.localhost:3000/sekolah/ppdb/settings",
+  );
+  assert.equal(
+    response.headers.get("x-middleware-request-x-tenant-pathname"),
+    "/sekolah/ppdb/settings",
+  );
 });
 
 test("rewrites ordinary Tenant routes and forwards the canonical path to guards", () => {

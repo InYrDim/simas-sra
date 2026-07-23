@@ -3,6 +3,7 @@ export const TENANT_PATHNAME_HEADER = "x-tenant-pathname";
 export type ProxyRoute =
   | { kind: "next" }
   | { kind: "not-found" }
+  | { kind: "redirect"; hostname: string; pathname: string }
   | { kind: "rewrite"; pathname: string };
 
 function getTenantSubdomain(host: string, appDomain?: string) {
@@ -35,26 +36,65 @@ function isProviderPath(pathname: string) {
   return pathname === "/provider" || pathname.startsWith("/provider/");
 }
 
+const CENTRAL_PATH_SEGMENTS = new Set([
+  "access-error",
+  "apply",
+  "change-password",
+  "continue",
+  "login",
+  "provider",
+  "provider-sidebar-prototype",
+  "register",
+  "tenant-closure-prototype",
+]);
+
+function resolvePathBasedTenantRoute(host: string, pathname: string, appDomain?: string): ProxyRoute {
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.length === 0 || CENTRAL_PATH_SEGMENTS.has(segments[0])) return { kind: "next" };
+  if (segments[0] === "ppdb") return { kind: "not-found" };
+
+  const hostname = host.split(":", 1)[0].toLowerCase();
+  const configuredDomain = appDomain?.split(":", 1)[0].toLowerCase().replace(/^\.+|\.+$/g, "");
+  const rootDomain = hostname === "localhost" || hostname === "www.localhost"
+    ? "localhost"
+    : configuredDomain || hostname;
+  return {
+    kind: "redirect",
+    hostname: `${segments[0]}.${rootDomain}`,
+    pathname: `/${segments.slice(1).join("/")}`,
+  };
+}
+
 export function resolveProxyRoute(host: string, pathname: string, appDomain?: string): ProxyRoute {
   const subdomain = getTenantSubdomain(host, appDomain);
 
-  if (!subdomain) return { kind: "next" };
+  if (!subdomain) return resolvePathBasedTenantRoute(host, pathname, appDomain);
   if (isProviderPath(pathname)) return { kind: "not-found" };
 
-  const publicPpdbPrefix = `/ppdb/${subdomain}`;
-  if (pathname === publicPpdbPrefix || pathname.startsWith(`${publicPpdbPrefix}/`)) {
-    return { kind: "next" };
-  }
-  if (pathname === "/ppdb" || pathname === "/ppdb/status") {
+  const publicPpdbVanityPrefix = "/ppdb/daftar";
+  const publicPpdbInternalPrefix = `/ppdb/${subdomain}`;
+  if (pathname === publicPpdbVanityPrefix || pathname.startsWith(`${publicPpdbVanityPrefix}/`)) {
     return {
       kind: "rewrite",
-      pathname: `${publicPpdbPrefix}${pathname.slice("/ppdb".length)}`,
+      pathname: `${publicPpdbInternalPrefix}${pathname.slice(publicPpdbVanityPrefix.length)}`,
+    };
+  }
+  if (pathname === publicPpdbInternalPrefix || pathname.startsWith(`${publicPpdbInternalPrefix}/`)) {
+    return {
+      kind: "redirect",
+      hostname: host.split(":", 1)[0].toLowerCase(),
+      pathname: `${publicPpdbVanityPrefix}${pathname.slice(publicPpdbInternalPrefix.length)}`,
     };
   }
 
   const tenantPrefix = `/${subdomain}`;
   if (pathname === tenantPrefix || pathname.startsWith(`${tenantPrefix}/`)) {
-    return { kind: "rewrite", pathname };
+    const publicPathname = pathname.slice(tenantPrefix.length) || "/";
+    return {
+      kind: "redirect",
+      hostname: host.split(":", 1)[0].toLowerCase(),
+      pathname: publicPathname,
+    };
   }
   return { kind: "rewrite", pathname: `${tenantPrefix}${pathname}` };
 }
