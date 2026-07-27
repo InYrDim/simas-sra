@@ -71,19 +71,25 @@ export function resolveProxyRoute(host: string, pathname: string, appDomain?: st
   if (!subdomain) return resolvePathBasedTenantRoute(host, pathname, appDomain);
   if (isProviderPath(pathname)) return { kind: "not-found" };
 
-  const publicPpdbVanityPrefix = "/ppdb/daftar";
-  const publicPpdbInternalPrefix = `/ppdb/${subdomain}`;
-  if (pathname === publicPpdbVanityPrefix || pathname.startsWith(`${publicPpdbVanityPrefix}/`)) {
+  const segments = pathname.split("/").filter(Boolean);
+  if (pathname === "/ppdb/daftar" || pathname === "/ppdb/daftar/status") return { kind: "not-found" };
+  const isPublicPpdbPage = (value: string | undefined) => value === "daftar" || value === "status";
+  if (segments.length === 3 && segments[0] === "ppdb" && isPublicPpdbPage(segments[2])) {
     return {
       kind: "rewrite",
-      pathname: `${publicPpdbInternalPrefix}${pathname.slice(publicPpdbVanityPrefix.length)}`,
+      pathname: `/ppdb/${subdomain}/${segments[1]}/${segments[2]}`,
     };
   }
-  if (pathname === publicPpdbInternalPrefix || pathname.startsWith(`${publicPpdbInternalPrefix}/`)) {
+  if (
+    segments.length === 4
+    && segments[0] === "ppdb"
+    && segments[1] === subdomain
+    && isPublicPpdbPage(segments[3])
+  ) {
     return {
       kind: "redirect",
       hostname: host.split(":", 1)[0].toLowerCase(),
-      pathname: `${publicPpdbVanityPrefix}${pathname.slice(publicPpdbInternalPrefix.length)}`,
+      pathname: `/ppdb/${segments[2]}/${segments[3]}`,
     };
   }
 

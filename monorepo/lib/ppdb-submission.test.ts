@@ -50,8 +50,8 @@ function memoryStore(
       const found = submissions.find((item) => item.tenantId === tenantId && item.registrationCode === registrationCode);
       return found ? structuredClone(found) : null;
     },
-    async findPublicResultContext(tenantId, registrationCode) {
-      const found = submissions.find((item) => item.tenantId === tenantId && item.registrationCode === registrationCode);
+    async findPublicResultContext(tenantId, sessionId, registrationCode) {
+      const found = submissions.find((item) => item.tenantId === tenantId && item.sessionId === sessionId && item.registrationCode === registrationCode);
       if (!found) return null;
       return structuredClone({ ...found, ...publicResults }) satisfies PpdbPublicResultContext;
     },
@@ -133,7 +133,7 @@ test("accepts an SD submission without NISN and checks status using its registra
   assert.equal(submitted.ok, true);
   if (!submitted.ok) return;
   assert.deepEqual(
-    await service.checkStatus(principal.tenantId, submitted.registrationCode, "", { nisnRequired: false }),
+    await service.checkStatus(principal.tenantId, "session-1", submitted.registrationCode, "", { nisnRequired: false }),
     { ok: true, studentName: "Ahmad Budi", publicationStatus: "unpublished" },
   );
 });
@@ -150,7 +150,7 @@ test("checks an SD submission by registration code even when an optional NISN wa
   if (!submitted.ok) return assert.fail();
 
   assert.deepEqual(
-    await service.checkStatus(principal.tenantId, submitted.registrationCode, "", { nisnRequired: false }),
+    await service.checkStatus(principal.tenantId, "session-1", submitted.registrationCode, "", { nisnRequired: false }),
     { ok: true, studentName: "Ahmad Budi", publicationStatus: "unpublished" },
   );
 });
@@ -191,8 +191,9 @@ test("lets a Calon Siswa check status anonymously with registration code and NIS
   const service = createPpdbSubmissionService({ store: fixture.store });
   const submitted = await service.submit(principal.tenantId, "session-1", { studentName: "Ahmad Budi", nisn: "0012345678", formData: { f1: "Ahmad Budi" } });
   if (!submitted.ok) return assert.fail();
-  assert.deepEqual(await service.checkStatus(principal.tenantId, submitted.registrationCode, "0012345678"), { ok: true, studentName: "Ahmad Budi", publicationStatus: "unpublished" });
-  assert.deepEqual(await service.checkStatus(principal.tenantId, submitted.registrationCode, "wrong-nisn"), { ok: false, code: "not-found" });
+  assert.deepEqual(await service.checkStatus(principal.tenantId, "session-1", submitted.registrationCode, "0012345678"), { ok: true, studentName: "Ahmad Budi", publicationStatus: "unpublished" });
+  assert.deepEqual(await service.checkStatus(principal.tenantId, "session-1", submitted.registrationCode, "wrong-nisn"), { ok: false, code: "not-found" });
+  assert.deepEqual(await service.checkStatus(principal.tenantId, "session-2", submitted.registrationCode, "0012345678"), { ok: false, code: "not-found" });
 });
 
 test("reveals outcome feedback only after results publication", async () => {
@@ -208,7 +209,7 @@ test("reveals outcome feedback only after results publication", async () => {
   const submitted = await service.submit(principal.tenantId, "session-1", { studentName: "Ahmad Budi", nisn: "0012345678", formData: { f1: "Ahmad Budi" } });
   if (!submitted.ok) return assert.fail();
   fixture.submissions[0] = { ...fixture.submissions[0], status: "accepted", score: 92 };
-  assert.deepEqual(await service.checkStatus(principal.tenantId, submitted.registrationCode, "0012345678"), {
+  assert.deepEqual(await service.checkStatus(principal.tenantId, "session-1", submitted.registrationCode, "0012345678"), {
     ok: true,
     studentName: "Ahmad Budi",
     publicationStatus: "published",
@@ -220,7 +221,7 @@ test("reveals outcome feedback only after results publication", async () => {
   });
 
   fixture.submissions[0] = { ...fixture.submissions[0], status: "rejected", score: 60 };
-  assert.deepEqual(await service.checkStatus(principal.tenantId, submitted.registrationCode, "0012345678"), {
+  assert.deepEqual(await service.checkStatus(principal.tenantId, "session-1", submitted.registrationCode, "0012345678"), {
     ok: true,
     studentName: "Ahmad Budi",
     publicationStatus: "published",

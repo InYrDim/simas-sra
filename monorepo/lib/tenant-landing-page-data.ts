@@ -11,13 +11,13 @@ import {
 
 export async function getPublicTenantLandingPage(domain: string) {
   const [row] = await db
-    .select({ name: tenant.name, settings: tenant.settings })
+    .select({ id: tenant.id, name: tenant.name, settings: tenant.settings })
     .from(tenant)
     .where(eq(tenant.domain, domain))
     .limit(1);
 
   return row
-    ? { name: row.name, html: readTenantLandingPageSettings(row.settings).html }
+    ? { id: row.id, name: row.name, html: readTenantLandingPageSettings(row.settings).html }
     : null;
 }
 

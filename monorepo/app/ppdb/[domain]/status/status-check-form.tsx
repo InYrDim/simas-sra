@@ -39,8 +39,8 @@ function safeWhatsappUrl(value: string | null) {
   }
 }
 
-export function PpdbStatusCheckForm({ domain, nisnRequired }: { domain: string; nisnRequired: boolean }) {
-  const [state, formAction, pending] = useActionState(checkPpdbStatusAction.bind(null, domain), initialState)
+export function PpdbStatusCheckForm({ domain, sessionId, nisnRequired }: { domain: string; sessionId: string; nisnRequired: boolean }) {
+  const [state, formAction, pending] = useActionState(checkPpdbStatusAction.bind(null, domain, sessionId), initialState)
 
   return (
     <div className="min-h-svh bg-slate-100 flex justify-center pb-20">

@@ -62,27 +62,32 @@ test("returns not found for Provider routes on Tenant hosts", () => {
   );
 });
 
-test("rewrites the Tenant PPDB public vanity route to the public application", () => {
-  assert.deepEqual(resolveProxyRoute("sekolah.localhost:3000", "/ppdb/daftar"), {
+test("rejects legacy non-session PPDB public routes", () => {
+  assert.deepEqual(resolveProxyRoute("sekolah.localhost:3000", "/ppdb/daftar"), { kind: "not-found" });
+  assert.deepEqual(resolveProxyRoute("sekolah.localhost:3000", "/ppdb/daftar/status"), { kind: "not-found" });
+});
+
+test("rewrites session-scoped Tenant PPDB public routes", () => {
+  assert.deepEqual(resolveProxyRoute("sekolah.localhost:3000", "/ppdb/session-1/daftar"), {
     kind: "rewrite",
-    pathname: "/ppdb/sekolah",
+    pathname: "/ppdb/sekolah/session-1/daftar",
   });
-  assert.deepEqual(resolveProxyRoute("sekolah.simas.test", "/ppdb/daftar/status"), {
+  assert.deepEqual(resolveProxyRoute("sekolah.simas.test", "/ppdb/session-1/status"), {
     kind: "rewrite",
-    pathname: "/ppdb/sekolah/status",
+    pathname: "/ppdb/sekolah/session-1/status",
   });
 });
 
-test("redirects internal public PPDB paths to the public vanity route", () => {
-  assert.deepEqual(resolveProxyRoute("sekolah.localhost:3000", "/ppdb/sekolah"), {
+test("redirects internal session-scoped PPDB paths to the public route", () => {
+  assert.deepEqual(resolveProxyRoute("sekolah.localhost:3000", "/ppdb/sekolah/session-1/daftar"), {
     kind: "redirect",
     hostname: "sekolah.localhost",
-    pathname: "/ppdb/daftar",
+    pathname: "/ppdb/session-1/daftar",
   });
-  assert.deepEqual(resolveProxyRoute("sekolah.simas.test", "/ppdb/sekolah/status"), {
+  assert.deepEqual(resolveProxyRoute("sekolah.simas.test", "/ppdb/sekolah/session-1/status"), {
     kind: "redirect",
     hostname: "sekolah.simas.test",
-    pathname: "/ppdb/daftar/status",
+    pathname: "/ppdb/session-1/status",
   });
 });
 

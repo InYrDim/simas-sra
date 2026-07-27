@@ -20,6 +20,7 @@ export type PpdbApplicationActionState =
 
 export async function submitPpdbApplicationAction(
   domain: string,
+  sessionId: string,
   _previousState: PpdbApplicationActionState,
   formData: FormData,
 ): Promise<PpdbApplicationActionState> {
@@ -27,7 +28,7 @@ export async function submitPpdbApplicationAction(
   const tenant = await resolvePublicTenant(domain);
   if (!tenant) return { status: "error", message: "Sekolah tidak ditemukan." };
 
-  const session = await findPublicPpdbSession(tenant.id);
+  const session = await findPublicPpdbSession(tenant.id, sessionId);
   if (!session) return { status: "closed" };
 
   const dynamicFormData: Record<string, unknown> = {};

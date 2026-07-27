@@ -34,7 +34,7 @@ function finishResults(domain: string, sessionId: string, result: { ok: boolean;
   revalidatePath(path);
   revalidatePath(`/${domain}/ppdb`);
   revalidatePath(`/${domain}/ppdb/riwayat/${sessionId}`);
-  revalidatePath(`/ppdb/${domain}/status`);
+  revalidatePath(`/ppdb/${domain}/${sessionId}/status`);
   redirect(`${path}?sessionId=${encodeURIComponent(sessionId)}&result=${code}`);
 }
 
@@ -75,12 +75,13 @@ export async function updateFieldsAction(domain: string, formData: FormData) {
 
 export async function publishSessionAction(domain: string, formData: FormData) {
   const principal = await enforceMasterDataAccess(domain, "write");
+  const sessionId = String(formData.get("sessionId") ?? "");
   const result = await sessionService.publish(
     principal,
-    String(formData.get("sessionId") ?? ""),
+    sessionId,
     parseFields(formData),
   );
-  revalidatePath(`/ppdb/${domain}`);
+  revalidatePath(`/ppdb/${domain}/${sessionId}/daftar`);
   finish(`/${domain}/ppdb/settings`, result);
 }
 

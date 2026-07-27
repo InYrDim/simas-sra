@@ -4,14 +4,18 @@ import { LandingPageForm } from "@/app/(tenant)/[domain]/(authenticated)/setting
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getTenantLandingPageSettings } from "@/lib/tenant-landing-page-data";
+import { findPublicPpdbSession } from "@/lib/ppdb-session-data";
 import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
 
 export default async function TenantSettingsPage({ params }: { params: Promise<{ domain: string }> }) {
   const { domain } = await params;
   const principal = await enforceMasterDataAccess(domain, "read");
-  const settings = await getTenantLandingPageSettings(principal.tenantId);
+  const [settings, ppdbSession] = await Promise.all([
+    getTenantLandingPageSettings(principal.tenantId),
+    findPublicPpdbSession(principal.tenantId),
+  ]);
   const loginUrl = "/login";
-  const ppdbUrl = "/ppdb/daftar";
+  const ppdbUrl = ppdbSession ? `/ppdb/${ppdbSession.id}/daftar` : "/";
 
   return (
     <main className="mx-auto w-full max-w-5xl space-y-6">

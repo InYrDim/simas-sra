@@ -59,7 +59,7 @@ export interface PpdbSubmissionStore {
     documents?: readonly PpdbSubmissionDocument[],
   ): Promise<{ ok: true } | { ok: false; code: "duplicate-code" }>;
   findByRegistrationCode(tenantId: string, registrationCode: string): Promise<PpdbSubmission | null>;
-  findPublicResultContext(tenantId: string, registrationCode: string): Promise<PpdbPublicResultContext | null>;
+  findPublicResultContext(tenantId: string, sessionId: string, registrationCode: string): Promise<PpdbPublicResultContext | null>;
   findById(tenantId: string, submissionId: string): Promise<PpdbSubmission | null>;
   list(tenantId: string, sessionId?: string): Promise<PpdbSubmission[]>;
   findDocument(tenantId: string, submissionId: string, documentId: string): Promise<PpdbSubmissionDocument | null>;
@@ -174,11 +174,12 @@ export function createPpdbSubmissionService(dependencies: {
     // Cek status publik pakai ID pendaftaran + NISN — tanpa login.
     async checkStatus(
       tenantId: string,
+      sessionId: string,
       registrationCode: string,
       nisn: string,
       options: Readonly<{ nisnRequired: boolean }> = { nisnRequired: true },
     ) {
-      const context = await dependencies.store.findPublicResultContext(tenantId, registrationCode.trim().toUpperCase());
+      const context = await dependencies.store.findPublicResultContext(tenantId, sessionId, registrationCode.trim().toUpperCase());
       const submittedNisn = nisn.trim();
       if (!context || (options.nisnRequired && context.nisn !== submittedNisn)) {
         return { ok: false, code: "not-found" } as const;

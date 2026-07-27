@@ -76,7 +76,7 @@ export const ppdbSubmissionStore: PpdbSubmissionStore = {
     return record ? toSubmission(record) : null;
   },
 
-  async findPublicResultContext(tenantId, registrationCode) {
+  async findPublicResultContext(tenantId, sessionId, registrationCode) {
     const [record] = await db
       .select({
         studentName: ppdbSubmission.studentName,
@@ -97,6 +97,7 @@ export const ppdbSubmissionStore: PpdbSubmissionStore = {
       ))
       .where(and(
         eq(ppdbSubmission.tenantId, tenantId),
+        eq(ppdbSubmission.sessionId, sessionId),
         eq(ppdbSubmission.registrationCode, registrationCode),
       ))
       .limit(1);

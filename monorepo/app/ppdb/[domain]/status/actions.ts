@@ -24,6 +24,7 @@ const submissionService = createPpdbSubmissionService({ store: ppdbSubmissionSto
 
 export async function checkPpdbStatusAction(
   domain: string,
+  sessionId: string,
   _previousState: PpdbStatusActionState,
   formData: FormData,
 ): Promise<PpdbStatusActionState> {
@@ -36,6 +37,7 @@ export async function checkPpdbStatusAction(
 
   const result = await submissionService.checkStatus(
     tenant.id,
+    sessionId,
     registrationCode,
     nisn,
     { nisnRequired: tenant.nisnRequired },

@@ -49,21 +49,21 @@ test("central auth rejects and logs encoded intent at the route boundary", () =>
   }
 });
 
-test("rewrites the Tenant PPDB public vanity route to the public application", () => {
-  const response = proxy(request("sekolah.localhost:3000", "/ppdb/daftar"));
+test("rewrites a session-scoped Tenant PPDB route to the public application", () => {
+  const response = proxy(request("sekolah.localhost:3000", "/ppdb/session-1/daftar"));
 
   assert.equal(response.status, 200);
   assert.equal(
     response.headers.get("x-middleware-rewrite"),
-    "http://sekolah.localhost:3000/ppdb/sekolah",
+    "http://sekolah.localhost:3000/ppdb/sekolah/session-1/daftar",
   );
 });
 
-test("redirects internal public PPDB paths to the public vanity route", () => {
-  const response = proxy(request("sekolah.localhost:3000", "/ppdb/sekolah"));
+test("redirects internal session-scoped PPDB paths to the public route", () => {
+  const response = proxy(request("sekolah.localhost:3000", "/ppdb/sekolah/session-1/status"));
 
   assert.equal(response.status, 307);
-  assert.equal(response.headers.get("location"), "http://sekolah.localhost:3000/ppdb/daftar");
+  assert.equal(response.headers.get("location"), "http://sekolah.localhost:3000/ppdb/session-1/status");
 });
 
 test("keeps PPDB administration separate from the public PPDB page", () => {

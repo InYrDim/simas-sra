@@ -18,10 +18,12 @@ const initialState: PpdbApplicationActionState = { status: "idle" }
 
 export function PpdbApplyForm({
   domain,
+  sessionId,
   fields,
   nisnRequired,
 }: {
   domain: string
+  sessionId: string
   fields: readonly PpdbFormField[]
   nisnRequired: boolean
 }) {
@@ -31,10 +33,10 @@ export function PpdbApplyForm({
   const [fileNames, setFileNames] = useState<Record<string, string>>({})
   const formRef = useRef<HTMLFormElement>(null)
   const stepRefs = useRef<Array<HTMLDivElement | null>>([])
-  const [state, formAction, pending] = useActionState(submitPpdbApplicationAction.bind(null, domain), initialState)
+  const [state, formAction, pending] = useActionState(submitPpdbApplicationAction.bind(null, domain, sessionId), initialState)
 
   if (!fields.length || state.status === "closed") return <PpdbSessionClosedNotice />
-  if (state.status === "success") return <PpdbApplySuccess domain={domain} registrationCode={state.registrationCode} />
+  if (state.status === "success") return <PpdbApplySuccess sessionId={sessionId} registrationCode={state.registrationCode} />
 
   function goNext() {
     const container = stepRefs.current[step]
@@ -239,7 +241,7 @@ function FileField({
   )
 }
 
-function PpdbApplySuccess({ domain, registrationCode }: { domain: string; registrationCode: string }) {
+function PpdbApplySuccess({ sessionId, registrationCode }: { sessionId: string; registrationCode: string }) {
   return (
     <div className="min-h-svh bg-slate-100 flex justify-center pb-20">
       <main className="w-full max-w-md bg-white shadow-xl min-h-[100dvh] flex flex-col items-center justify-center gap-4 p-6 text-center">
@@ -255,7 +257,7 @@ function PpdbApplySuccess({ domain, registrationCode }: { domain: string; regist
           <p className="mt-1 text-2xl font-bold tracking-wide text-sky-700">{registrationCode}</p>
         </div>
         <Link
-          href={`/ppdb/${domain}/status`}
+          href={`/ppdb/${sessionId}/status`}
           className="mt-2 w-full rounded-xl bg-sky-500 py-3 text-sm font-bold text-white shadow-lg shadow-sky-500/20 flex justify-center items-center gap-2 hover:bg-sky-600 transition-colors"
         >
           Cek Status Pendaftaran
