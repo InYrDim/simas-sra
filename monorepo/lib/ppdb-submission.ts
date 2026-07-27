@@ -39,6 +39,18 @@ export type PpdbSubmissionDocumentInput = Readonly<{
 }>;
 export type PpdbSubmissionInput = Readonly<{ studentName: string; nisn: string; formData: Readonly<Record<string, unknown>> }>;
 export type PpdbPublishedSession = Readonly<{ id: string; fields: readonly PpdbFormField[] }>;
+export type PpdbPublicResultContext = Readonly<{
+  studentName: string;
+  nisn: string;
+  status: PpdbSubmissionStatus;
+  score: number | null;
+  resultsPublishedAt: Date | null;
+  acceptedFeedback: string;
+  acceptedNextSteps: string;
+  rejectedFeedback: string;
+  rejectedNextSteps: string;
+  whatsappGroupUrl: string | null;
+}>;
 
 export interface PpdbSubmissionStore {
   findPublishedSession(tenantId: string, sessionId: string): Promise<PpdbPublishedSession | null>;
@@ -47,6 +59,7 @@ export interface PpdbSubmissionStore {
     documents?: readonly PpdbSubmissionDocument[],
   ): Promise<{ ok: true } | { ok: false; code: "duplicate-code" }>;
   findByRegistrationCode(tenantId: string, registrationCode: string): Promise<PpdbSubmission | null>;
+  findPublicResultContext(tenantId: string, registrationCode: string): Promise<PpdbPublicResultContext | null>;
   findById(tenantId: string, submissionId: string): Promise<PpdbSubmission | null>;
   list(tenantId: string, sessionId?: string): Promise<PpdbSubmission[]>;
   findDocument(tenantId: string, submissionId: string, documentId: string): Promise<PpdbSubmissionDocument | null>;
@@ -55,11 +68,11 @@ export interface PpdbSubmissionStore {
     submissionId: string,
     expectedVersion: number,
     patch: Readonly<{ status: "accepted" | "rejected"; score: number | null; updatedAt: Date }>,
-  ): Promise<boolean>;
+  ): Promise<"updated" | "conflict" | "results-published">;
 }
 
 type SubmitFailure = { ok: false; code: "session-not-open" | "invalid-input" | "registration-code-exhausted" };
-type DecideFailure = { ok: false; code: "not-found" | "conflict" };
+type DecideFailure = { ok: false; code: "not-found" | "conflict" | "results-published" };
 
 function requiredFieldsSatisfied(
   input: PpdbSubmissionInput,
@@ -165,12 +178,37 @@ export function createPpdbSubmissionService(dependencies: {
       nisn: string,
       options: Readonly<{ nisnRequired: boolean }> = { nisnRequired: true },
     ) {
-      const submission = await dependencies.store.findByRegistrationCode(tenantId, registrationCode.trim().toUpperCase());
+      const context = await dependencies.store.findPublicResultContext(tenantId, registrationCode.trim().toUpperCase());
       const submittedNisn = nisn.trim();
-      if (!submission || (options.nisnRequired && submission.nisn !== submittedNisn)) {
+      if (!context || (options.nisnRequired && context.nisn !== submittedNisn)) {
         return { ok: false, code: "not-found" } as const;
       }
-      return { ok: true, studentName: submission.studentName, status: submission.status, score: submission.score } as const;
+      if (!context.resultsPublishedAt) {
+        return { ok: true, studentName: context.studentName, publicationStatus: "unpublished" } as const;
+      }
+      if (context.status === "pending") {
+        return {
+          ok: true,
+          studentName: context.studentName,
+          publicationStatus: "published",
+          status: context.status,
+          score: context.score,
+          feedback: "",
+          nextSteps: "",
+          whatsappGroupUrl: null,
+        } as const;
+      }
+      const accepted = context.status === "accepted";
+      return {
+        ok: true,
+        studentName: context.studentName,
+        publicationStatus: "published",
+        status: context.status,
+        score: context.score,
+        feedback: accepted ? context.acceptedFeedback : context.rejectedFeedback,
+        nextSteps: accepted ? context.acceptedNextSteps : context.rejectedNextSteps,
+        whatsappGroupUrl: accepted ? context.whatsappGroupUrl : null,
+      } as const;
     },
 
     list(principal: MasterDataPrincipal, sessionId?: string) {
@@ -189,12 +227,13 @@ export function createPpdbSubmissionService(dependencies: {
     ): Promise<{ ok: true } | DecideFailure> {
       const submission = await dependencies.store.findById(principal.tenantId, submissionId);
       if (!submission) return { ok: false, code: "not-found" };
-      const updated = await dependencies.store.applyDecision(principal.tenantId, submissionId, submission.version, {
+      const outcome = await dependencies.store.applyDecision(principal.tenantId, submissionId, submission.version, {
         status: input.status,
         score: input.score,
         updatedAt: now(),
       });
-      if (!updated) return { ok: false, code: "conflict" };
+      if (outcome === "results-published") return { ok: false, code: "results-published" };
+      if (outcome === "conflict") return { ok: false, code: "conflict" };
       return { ok: true };
     },
   };

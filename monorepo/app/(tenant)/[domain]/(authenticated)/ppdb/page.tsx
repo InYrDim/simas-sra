@@ -11,7 +11,7 @@ import { ppdbSessionStore } from "@/lib/ppdb-session-data";
 import { createPpdbSubmissionService } from "@/lib/ppdb-submission";
 import { ppdbSubmissionStore } from "@/lib/ppdb-submission-data";
 import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
-import { ClipboardList, FileSearch, History, PencilLine, PlusCircle, Search, StopCircle } from "lucide-react";
+import { ClipboardList, FileSearch, History, Megaphone, PencilLine, PlusCircle, Search, StopCircle } from "lucide-react";
 
 const sessionService = createPpdbSessionService({ store: ppdbSessionStore });
 const submissionService = createPpdbSubmissionService({ store: ppdbSubmissionStore });
@@ -34,6 +34,10 @@ export default async function PPDBDashboardPage({
     ? submissions.filter((submission) => submission.studentName.toLocaleLowerCase("id-ID").includes(search) || submission.nisn.includes(search))
     : submissions;
   const yearLabel = current ? years.find((year) => year.id === current.academicYearId)?.label ?? current.academicYearId : null;
+  const latestEnded = sessions
+    .filter((session) => session.status === "ended")
+    .sort((a, b) => (b.endedAt?.getTime() ?? 0) - (a.endedAt?.getTime() ?? 0))[0];
+  const resultSession = current ?? latestEnded;
 
   return (
     <main className="min-h-svh bg-slate-50 text-slate-950 pb-20">
@@ -64,6 +68,12 @@ export default async function PPDBDashboardPage({
                 Akhiri Sesi PPDB
               </Button>
             </form>
+          ) : null}
+          {resultSession ? (
+            <Button nativeButton={false} render={<Link href={`/${domain}/ppdb/results?sessionId=${resultSession.id}`} />} variant="outline" className="gap-1.5">
+              <Megaphone className="size-4" />
+              Konfigurasi Hasil
+            </Button>
           ) : null}
           <Button nativeButton={false} render={<Link href={`/${domain}/ppdb/riwayat`} />} variant="outline" className="gap-1.5 border-amber-500 text-amber-700 hover:bg-amber-50 hover:text-amber-800">
             <History className="size-4" />

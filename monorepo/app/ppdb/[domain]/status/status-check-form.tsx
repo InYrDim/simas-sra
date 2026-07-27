@@ -4,30 +4,39 @@ import { useActionState } from "react"
 import { CheckCircle, Clock, XCircle } from "lucide-react"
 
 import { checkPpdbStatusAction, type PpdbStatusActionState } from "@/app/ppdb/[domain]/status/actions"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import type { PpdbSubmissionStatus } from "@/lib/ppdb-submission"
-
-const fieldClassName =
-  "mt-1 w-full rounded-lg border border-slate-300 p-3 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500 outline-none"
 
 const initialState: PpdbStatusActionState = { status: "idle" }
 
-// Badge status ini meniru className persis dari app/(tenant)/[domain]/(authenticated)/ppdb/page.tsx supaya konsisten.
 const statusBadge: Record<PpdbSubmissionStatus, React.ReactNode> = {
   accepted: (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-      <CheckCircle className="size-3.5" /> Diterima
+      <CheckCircle className="size-3.5" aria-hidden="true" /> Diterima
     </span>
   ),
   rejected: (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">
-      <XCircle className="size-3.5" /> Ditolak
+      <XCircle className="size-3.5" aria-hidden="true" /> Tidak diterima
     </span>
   ),
   pending: (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
-      <Clock className="size-3.5" /> Menunggu
+      <Clock className="size-3.5" aria-hidden="true" /> Masih ditinjau
     </span>
   ),
+}
+
+function safeWhatsappUrl(value: string | null) {
+  if (!value) return null
+  try {
+    const url = new URL(value)
+    return url.protocol === "https:" && url.hostname === "chat.whatsapp.com" ? url.toString() : null
+  } catch {
+    return null
+  }
 }
 
 export function PpdbStatusCheckForm({ domain, nisnRequired }: { domain: string; nisnRequired: boolean }) {
@@ -45,37 +54,24 @@ export function PpdbStatusCheckForm({ domain, nisnRequired }: { domain: string; 
 
         <div className="flex-1 overflow-y-auto p-5 space-y-5">
           <form action={formAction} className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-slate-700">Kode Pendaftaran</label>
-              <input
-                type="text"
-                name="registrationCode"
-                required
-                placeholder="PPDB-2026-AB12CD"
-                className={`${fieldClassName} uppercase`}
-              />
+            <div className="space-y-1">
+              <Label htmlFor="registrationCode">Kode Pendaftaran</Label>
+              <Input id="registrationCode" name="registrationCode" required placeholder="PPDB-2026-AB12CD" className="uppercase" />
             </div>
-            <div>
-              <label className="text-sm font-medium text-slate-700">
-                NISN{nisnRequired ? "" : " (opsional)"}
-              </label>
-              <input
-                type="text"
+            <div className="space-y-1">
+              <Label htmlFor="nisn">NISN{nisnRequired ? "" : " (opsional)"}</Label>
+              <Input
+                id="nisn"
                 inputMode="numeric"
                 pattern="[0-9]*"
                 name="nisn"
                 required={nisnRequired}
                 placeholder={nisnRequired ? "10 digit angka" : "Isi jika digunakan saat mendaftar"}
-                className={fieldClassName}
               />
             </div>
-            <button
-              type="submit"
-              disabled={pending}
-              className="w-full rounded-xl bg-sky-500 py-3 text-sm font-bold text-white shadow-lg shadow-sky-500/20 hover:bg-sky-600 transition-colors disabled:opacity-50"
-            >
+            <Button type="submit" disabled={pending} className="w-full">
               {pending ? "Memeriksa..." : "Cek Status"}
-            </button>
+            </Button>
           </form>
 
           {state.status === "not-found" ? (
@@ -87,19 +83,53 @@ export function PpdbStatusCheckForm({ domain, nisnRequired }: { domain: string; 
           ) : null}
 
           {state.status === "found" ? (
-            <div className="rounded-xl border border-slate-200 p-4 space-y-2" role="status">
-              <p className="text-xs text-slate-500">Nama Peserta</p>
-              <p className="font-semibold text-slate-900">{state.studentName}</p>
-              <div className="pt-1">{statusBadge[state.submissionStatus]}</div>
-              {state.submissionStatus !== "pending" && state.score !== null ? (
-                <p className="pt-1 text-sm text-slate-500">
-                  Skor: <span className="font-semibold text-slate-700">{state.score}</span>
-                </p>
-              ) : null}
+            <div className="rounded-xl border border-slate-200 p-4 space-y-3" role="status" aria-live="polite">
+              <div>
+                <p className="text-xs text-slate-500">Nama Peserta</p>
+                <p className="font-semibold text-slate-900">{state.studentName}</p>
+              </div>
+              {state.publicationStatus === "unpublished" ? (
+                <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+                  <p className="font-semibold">Pendaftaran masih dalam peninjauan</p>
+                  <p className="mt-1">Hasil belum dipublikasikan oleh sekolah. Silakan periksa kembali nanti.</p>
+                </div>
+              ) : (
+                <PublishedResult state={state} />
+              )}
             </div>
           ) : null}
         </div>
       </main>
+    </div>
+  )
+}
+
+function PublishedResult({ state }: { state: Extract<PpdbStatusActionState, { status: "found"; publicationStatus: "published" }> }) {
+  const whatsappUrl = state.submissionStatus === "accepted" ? safeWhatsappUrl(state.whatsappGroupUrl) : null
+
+  return (
+    <div className="space-y-3">
+      <div>{statusBadge[state.submissionStatus]}</div>
+      {state.submissionStatus !== "pending" && state.score !== null ? (
+        <p className="text-sm text-slate-500">Skor: <span className="font-semibold text-slate-700">{state.score}</span></p>
+      ) : null}
+      {state.feedback ? (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Umpan balik</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{state.feedback}</p>
+        </div>
+      ) : null}
+      {state.nextSteps ? (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Langkah selanjutnya</p>
+          <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{state.nextSteps}</p>
+        </div>
+      ) : null}
+      {whatsappUrl ? (
+        <Button nativeButton={false} render={<a href={whatsappUrl} target="_blank" rel="noopener noreferrer" />} className="w-full">
+          Buka Grup WhatsApp
+        </Button>
+      ) : null}
     </div>
   )
 }

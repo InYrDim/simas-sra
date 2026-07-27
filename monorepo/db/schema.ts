@@ -797,6 +797,12 @@ export const ppdbSession = mysqlTable(
     version: int("version").default(1).notNull(),
     publishedAt: timestamp("published_at", { fsp: 3 }),
     endedAt: timestamp("ended_at", { fsp: 3 }),
+    acceptedFeedback: text("accepted_feedback"),
+    acceptedNextSteps: text("accepted_next_steps"),
+    rejectedFeedback: text("rejected_feedback"),
+    rejectedNextSteps: text("rejected_next_steps"),
+    whatsappGroupUrl: varchar("whatsapp_group_url", { length: 2048 }),
+    resultsPublishedAt: timestamp("results_published_at", { fsp: 3 }),
     createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { fsp: 3 })
       .defaultNow()

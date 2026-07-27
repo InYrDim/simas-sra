@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   createPpdbSubmissionService,
   type PpdbSubmission,
+  type PpdbPublicResultContext,
   type PpdbSubmissionDocument,
   type PpdbSubmissionStore,
 } from "@/lib/ppdb-submission";
@@ -14,7 +15,24 @@ import type { MasterDataPrincipal } from "@/lib/tenant-master-data-access";
 const principal: MasterDataPrincipal = { userId: "admin-1", tenantId: "tenant-1", role: "school-admin", capabilities: { read: true, write: true, downloadTemplate: true } };
 const requiredField = { id: "f1", label: "Nama Lengkap Sesuai Ijazah", type: "text" as const, required: true };
 
-function memoryStore(sessionFields: readonly PpdbFormField[] = [requiredField]) {
+function memoryStore(
+  sessionFields: readonly PpdbFormField[] = [requiredField],
+  publicResults: Readonly<{
+    resultsPublishedAt: Date | null;
+    acceptedFeedback: string;
+    acceptedNextSteps: string;
+    rejectedFeedback: string;
+    rejectedNextSteps: string;
+    whatsappGroupUrl: string | null;
+  }> = {
+    resultsPublishedAt: null,
+    acceptedFeedback: "",
+    acceptedNextSteps: "",
+    rejectedFeedback: "",
+    rejectedNextSteps: "",
+    whatsappGroupUrl: null,
+  },
+) {
   const submissions: PpdbSubmission[] = [];
   const documents: PpdbSubmissionDocument[] = [];
   const store: PpdbSubmissionStore = {
@@ -32,6 +50,12 @@ function memoryStore(sessionFields: readonly PpdbFormField[] = [requiredField]) 
       const found = submissions.find((item) => item.tenantId === tenantId && item.registrationCode === registrationCode);
       return found ? structuredClone(found) : null;
     },
+    async findPublicResultContext(tenantId, registrationCode) {
+      const found = submissions.find((item) => item.tenantId === tenantId && item.registrationCode === registrationCode);
+      if (!found) return null;
+      return structuredClone({ ...found, ...publicResults }) satisfies PpdbPublicResultContext;
+    },
+
     async findById(tenantId, submissionId) {
       const found = submissions.find((item) => item.tenantId === tenantId && item.id === submissionId);
       return found ? structuredClone(found) : null;
@@ -49,9 +73,10 @@ function memoryStore(sessionFields: readonly PpdbFormField[] = [requiredField]) 
     },
     async applyDecision(tenantId, submissionId, expectedVersion, patch) {
       const index = submissions.findIndex((item) => item.tenantId === tenantId && item.id === submissionId && item.version === expectedVersion);
-      if (index < 0) return false;
+      if (publicResults.resultsPublishedAt) return "results-published";
+      if (index < 0) return "conflict";
       submissions[index] = { ...submissions[index], status: patch.status, score: patch.score, version: expectedVersion + 1, updatedAt: patch.updatedAt };
-      return true;
+      return "updated";
     },
   };
   return { store, submissions, documents };
@@ -109,7 +134,7 @@ test("accepts an SD submission without NISN and checks status using its registra
   if (!submitted.ok) return;
   assert.deepEqual(
     await service.checkStatus(principal.tenantId, submitted.registrationCode, "", { nisnRequired: false }),
-    { ok: true, studentName: "Ahmad Budi", status: "pending", score: null },
+    { ok: true, studentName: "Ahmad Budi", publicationStatus: "unpublished" },
   );
 });
 
@@ -126,7 +151,7 @@ test("checks an SD submission by registration code even when an optional NISN wa
 
   assert.deepEqual(
     await service.checkStatus(principal.tenantId, submitted.registrationCode, "", { nisnRequired: false }),
-    { ok: true, studentName: "Ahmad Budi", status: "pending", score: null },
+    { ok: true, studentName: "Ahmad Budi", publicationStatus: "unpublished" },
   );
 });
 
@@ -166,9 +191,65 @@ test("lets a Calon Siswa check status anonymously with registration code and NIS
   const service = createPpdbSubmissionService({ store: fixture.store });
   const submitted = await service.submit(principal.tenantId, "session-1", { studentName: "Ahmad Budi", nisn: "0012345678", formData: { f1: "Ahmad Budi" } });
   if (!submitted.ok) return assert.fail();
-  assert.deepEqual(await service.checkStatus(principal.tenantId, submitted.registrationCode, "0012345678"), { ok: true, studentName: "Ahmad Budi", status: "pending", score: null });
+  assert.deepEqual(await service.checkStatus(principal.tenantId, submitted.registrationCode, "0012345678"), { ok: true, studentName: "Ahmad Budi", publicationStatus: "unpublished" });
   assert.deepEqual(await service.checkStatus(principal.tenantId, submitted.registrationCode, "wrong-nisn"), { ok: false, code: "not-found" });
 });
+
+test("reveals outcome feedback only after results publication", async () => {
+  const fixture = memoryStore([requiredField], {
+    resultsPublishedAt: new Date("2026-09-01T00:00:00Z"),
+    acceptedFeedback: "Selamat, Anda diterima.",
+    acceptedNextSteps: "Lakukan daftar ulang.",
+    rejectedFeedback: "Belum berhasil.",
+    rejectedNextSteps: "Silakan mencoba kembali.",
+    whatsappGroupUrl: "https://chat.whatsapp.com/example",
+  });
+  const service = createPpdbSubmissionService({ store: fixture.store });
+  const submitted = await service.submit(principal.tenantId, "session-1", { studentName: "Ahmad Budi", nisn: "0012345678", formData: { f1: "Ahmad Budi" } });
+  if (!submitted.ok) return assert.fail();
+  fixture.submissions[0] = { ...fixture.submissions[0], status: "accepted", score: 92 };
+  assert.deepEqual(await service.checkStatus(principal.tenantId, submitted.registrationCode, "0012345678"), {
+    ok: true,
+    studentName: "Ahmad Budi",
+    publicationStatus: "published",
+    status: "accepted",
+    score: 92,
+    feedback: "Selamat, Anda diterima.",
+    nextSteps: "Lakukan daftar ulang.",
+    whatsappGroupUrl: "https://chat.whatsapp.com/example",
+  });
+
+  fixture.submissions[0] = { ...fixture.submissions[0], status: "rejected", score: 60 };
+  assert.deepEqual(await service.checkStatus(principal.tenantId, submitted.registrationCode, "0012345678"), {
+    ok: true,
+    studentName: "Ahmad Budi",
+    publicationStatus: "published",
+    status: "rejected",
+    score: 60,
+    feedback: "Belum berhasil.",
+    nextSteps: "Silakan mencoba kembali.",
+    whatsappGroupUrl: null,
+  });
+});
+
+test("locks an Admin decision after results publication", async () => {
+  const fixture = memoryStore([requiredField], {
+    resultsPublishedAt: new Date("2026-09-01T00:00:00Z"),
+    acceptedFeedback: "Diterima",
+    acceptedNextSteps: "Daftar ulang",
+    rejectedFeedback: "Ditolak",
+    rejectedNextSteps: "Coba lagi",
+    whatsappGroupUrl: null,
+  });
+  const service = createPpdbSubmissionService({ store: fixture.store });
+  const submitted = await service.submit(principal.tenantId, "session-1", { studentName: "Ahmad Budi", nisn: "0012345678", formData: { f1: "Ahmad Budi" } });
+  if (!submitted.ok) return assert.fail();
+  const [submission] = await service.list(principal);
+
+  assert.deepEqual(await service.decide(principal, submission.id, { status: "accepted", score: 92 }), { ok: false, code: "results-published" });
+});
+
+
 
 test("lets an Admin decide a submission even after its Sesi has ended", async () => {
   const fixture = memoryStore();

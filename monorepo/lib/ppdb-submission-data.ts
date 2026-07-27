@@ -1,7 +1,7 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import { ppdbSession, ppdbSubmission, ppdbSubmissionDocument } from "@/db/schema";
+import { ppdbSession, ppdbSubmission, ppdbSubmissionDocument, tenant } from "@/db/schema";
 import type { PpdbFormField } from "@/lib/ppdb-session";
 import type { PpdbSubmission, PpdbSubmissionStore } from "@/lib/ppdb-submission";
 
@@ -76,6 +76,42 @@ export const ppdbSubmissionStore: PpdbSubmissionStore = {
     return record ? toSubmission(record) : null;
   },
 
+  async findPublicResultContext(tenantId, registrationCode) {
+    const [record] = await db
+      .select({
+        studentName: ppdbSubmission.studentName,
+        nisn: ppdbSubmission.nisn,
+        status: ppdbSubmission.status,
+        score: ppdbSubmission.score,
+        resultsPublishedAt: ppdbSession.resultsPublishedAt,
+        acceptedFeedback: ppdbSession.acceptedFeedback,
+        acceptedNextSteps: ppdbSession.acceptedNextSteps,
+        rejectedFeedback: ppdbSession.rejectedFeedback,
+        rejectedNextSteps: ppdbSession.rejectedNextSteps,
+        whatsappGroupUrl: ppdbSession.whatsappGroupUrl,
+      })
+      .from(ppdbSubmission)
+      .innerJoin(ppdbSession, and(
+        eq(ppdbSession.tenantId, ppdbSubmission.tenantId),
+        eq(ppdbSession.id, ppdbSubmission.sessionId),
+      ))
+      .where(and(
+        eq(ppdbSubmission.tenantId, tenantId),
+        eq(ppdbSubmission.registrationCode, registrationCode),
+      ))
+      .limit(1);
+    if (!record) return null;
+    return {
+      ...record,
+      acceptedFeedback: record.acceptedFeedback ?? "",
+      acceptedNextSteps: record.acceptedNextSteps ?? "",
+      rejectedFeedback: record.rejectedFeedback ?? "",
+      rejectedNextSteps: record.rejectedNextSteps ?? "",
+    };
+  },
+
+
+
   async findById(tenantId, submissionId) {
     const [record] = await db
       .select()
@@ -118,11 +154,26 @@ export const ppdbSubmissionStore: PpdbSubmissionStore = {
     return document ?? null;
   },
 
-  async applyDecision(tenantId, submissionId, expectedVersion, patch) {
-    const result = await db
-      .update(ppdbSubmission)
-      .set({ status: patch.status, score: patch.score, version: expectedVersion + 1, updatedAt: patch.updatedAt })
-      .where(and(eq(ppdbSubmission.tenantId, tenantId), eq(ppdbSubmission.id, submissionId), eq(ppdbSubmission.version, expectedVersion)));
-    return result[0].affectedRows === 1;
+  applyDecision(tenantId, submissionId, expectedVersion, patch) {
+    return db.transaction(async (transaction) => {
+      await transaction.execute(sql`SELECT ${tenant.id} FROM ${tenant} WHERE ${tenant.id} = ${tenantId} FOR UPDATE`);
+      const [submission] = await transaction
+        .select({ sessionId: ppdbSubmission.sessionId })
+        .from(ppdbSubmission)
+        .where(and(eq(ppdbSubmission.tenantId, tenantId), eq(ppdbSubmission.id, submissionId)))
+        .limit(1);
+      if (!submission) return "conflict";
+      const [session] = await transaction
+        .select({ resultsPublishedAt: ppdbSession.resultsPublishedAt })
+        .from(ppdbSession)
+        .where(and(eq(ppdbSession.tenantId, tenantId), eq(ppdbSession.id, submission.sessionId)))
+        .limit(1);
+      if (session?.resultsPublishedAt) return "results-published";
+      const result = await transaction
+        .update(ppdbSubmission)
+        .set({ status: patch.status, score: patch.score, version: expectedVersion + 1, updatedAt: patch.updatedAt })
+        .where(and(eq(ppdbSubmission.tenantId, tenantId), eq(ppdbSubmission.id, submissionId), eq(ppdbSubmission.version, expectedVersion)));
+      return result[0].affectedRows === 1 ? "updated" : "conflict";
+    });
   },
 };

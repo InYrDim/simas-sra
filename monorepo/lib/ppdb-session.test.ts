@@ -8,7 +8,7 @@ const principal: MasterDataPrincipal = { userId: "admin-1", tenantId: "tenant-1"
 const validInput = { academicYearId: "year-1", endDate: "2026-08-31" };
 const field = { id: "f1", label: "Nama Lengkap", type: "text" as const, required: true };
 
-function memoryStore() {
+function memoryStore(options: { hasPendingSubmissions?: boolean } = {}) {
   const sessions: PpdbSession[] = [];
   const store: PpdbSessionStore = {
     async list(tenantId) { return sessions.filter((session) => session.tenantId === tenantId).map((session) => structuredClone(session)); },
@@ -17,6 +17,7 @@ function memoryStore() {
       try {
         return await work({
           async list() { return sessions.filter((session) => session.tenantId === tenantId).map((session) => structuredClone(session)); },
+          async hasPendingSubmissions() { return options.hasPendingSubmissions ?? false; },
           async save(session) { const index = sessions.findIndex((item) => item.id === session.id && item.tenantId === tenantId); if (index < 0) sessions.push(structuredClone(session)); else sessions[index] = structuredClone(session); },
         });
       } catch (error) { sessions.splice(0, sessions.length, ...snapshot); throw error; }
@@ -40,6 +41,106 @@ test("creates a draft Sesi PPDB referencing an existing Tahun Ajaran", async () 
   assert.equal(created.session.status, "draft");
   assert.deepEqual(created.session.fields, []);
   assert.deepEqual(created.session.draftFields, []);
+  assert.deepEqual(created.session.resultSettings, {
+    acceptedFeedback: "",
+    acceptedNextSteps: "",
+    rejectedFeedback: "",
+    rejectedNextSteps: "",
+    whatsappGroupUrl: null,
+  });
+  assert.equal(created.session.resultsPublishedAt, null);
+});
+
+test("normalizes and validates result feedback settings", async () => {
+  const fixture = memoryStore();
+  const service = createPpdbSessionService({ store: fixture.store });
+  const created = await service.create(principal, validInput);
+  if (!created.ok) return assert.fail();
+
+  const updated = await service.updateResultSettings(principal, created.session.id, {
+    acceptedFeedback: "  Selamat, Anda diterima.  ",
+    acceptedNextSteps: "  Lakukan daftar ulang. ",
+    rejectedFeedback: "  Terima kasih telah mendaftar. ",
+    rejectedNextSteps: "  Silakan mencoba kembali. ",
+    whatsappGroupUrl: "  https://chat.whatsapp.com/example  ",
+  });
+
+  assert.equal(updated.ok, true);
+  if (!updated.ok) return;
+  assert.deepEqual(updated.session.resultSettings, {
+    acceptedFeedback: "Selamat, Anda diterima.",
+    acceptedNextSteps: "Lakukan daftar ulang.",
+    rejectedFeedback: "Terima kasih telah mendaftar.",
+    rejectedNextSteps: "Silakan mencoba kembali.",
+    whatsappGroupUrl: "https://chat.whatsapp.com/example",
+  });
+  assert.deepEqual(
+    await service.updateResultSettings(principal, created.session.id, {
+      ...updated.session.resultSettings,
+      acceptedFeedback: "x".repeat(2001),
+    }),
+    { ok: false, code: "invalid-result-settings" },
+  );
+  assert.deepEqual(
+    await service.updateResultSettings(principal, created.session.id, {
+      ...updated.session.resultSettings,
+      whatsappGroupUrl: "https://example.test/group",
+    }),
+    { ok: false, code: "invalid-result-settings" },
+  );
+});
+
+test("rejects result publication while a submission is still pending", async () => {
+  const fixture = memoryStore({ hasPendingSubmissions: true });
+  const service = createPpdbSessionService({ store: fixture.store });
+  const created = await service.create(principal, validInput);
+  if (!created.ok) return assert.fail();
+  await service.updateFields(principal, created.session.id, [field]);
+  await service.publish(principal, created.session.id);
+  await service.end(principal, created.session.id);
+  await service.updateResultSettings(principal, created.session.id, {
+    acceptedFeedback: "Diterima",
+    acceptedNextSteps: "",
+    rejectedFeedback: "Belum diterima",
+    rejectedNextSteps: "",
+    whatsappGroupUrl: null,
+  });
+
+  assert.deepEqual(await service.publishResults(principal, created.session.id), { ok: false, code: "pending-submissions" });
+});
+
+test("publishes results only once for an ended Sesi with required feedback", async () => {
+  const fixture = memoryStore();
+  const timestamp = new Date("2026-09-01T00:00:00Z");
+  const service = createPpdbSessionService({ store: fixture.store, now: () => timestamp });
+  const created = await service.create(principal, validInput);
+  if (!created.ok) return assert.fail();
+  assert.deepEqual(await service.publishResults(principal, created.session.id), { ok: false, code: "session-not-ended" });
+  await service.updateFields(principal, created.session.id, [field]);
+  await service.publish(principal, created.session.id);
+  await service.end(principal, created.session.id);
+  assert.deepEqual(await service.publishResults(principal, created.session.id), { ok: false, code: "result-feedback-required" });
+  await service.updateResultSettings(principal, created.session.id, {
+    acceptedFeedback: "Diterima",
+    acceptedNextSteps: "",
+    rejectedFeedback: "Belum diterima",
+    rejectedNextSteps: "",
+    whatsappGroupUrl: "",
+  });
+
+  const published = await service.publishResults(principal, created.session.id);
+
+  assert.equal(published.ok, true);
+  if (!published.ok) return;
+  assert.equal(published.session.resultsPublishedAt?.toISOString(), timestamp.toISOString());
+  assert.deepEqual(await service.publishResults(principal, created.session.id), { ok: false, code: "results-already-published" });
+  assert.deepEqual(
+    await service.updateResultSettings(principal, created.session.id, {
+      ...published.session.resultSettings,
+      acceptedFeedback: "Changed",
+    }),
+    { ok: false, code: "result-settings-locked" },
+  );
 });
 
 test("rejects publishing a Sesi with no Form fields", async () => {
@@ -121,4 +222,12 @@ test("scopes Sesi PPDB reads and writes to the requesting Tenant", async () => {
   const foreignPrincipal: MasterDataPrincipal = { ...principal, tenantId: "tenant-2" };
   assert.deepEqual(await service.list(foreignPrincipal), []);
   assert.deepEqual(await service.publish(foreignPrincipal, created.session.id), { ok: false, code: "not-found" });
+  assert.deepEqual(await service.updateResultSettings(foreignPrincipal, created.session.id, {
+    acceptedFeedback: "Diterima",
+    acceptedNextSteps: "",
+    rejectedFeedback: "Ditolak",
+    rejectedNextSteps: "",
+    whatsappGroupUrl: null,
+  }), { ok: false, code: "not-found" });
+  assert.deepEqual(await service.publishResults(foreignPrincipal, created.session.id), { ok: false, code: "not-found" });
 });

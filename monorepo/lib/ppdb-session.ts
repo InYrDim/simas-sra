@@ -20,6 +20,15 @@ export function findPpdbIdentityField(fields: readonly PpdbFormField[], purpose:
       return purpose === "studentName" ? label.includes("nama lengkap") : label === "nisn";
     });
 }
+export type PpdbResultSettings = Readonly<{
+  acceptedFeedback: string;
+  acceptedNextSteps: string;
+  rejectedFeedback: string;
+  rejectedNextSteps: string;
+  whatsappGroupUrl: string | null;
+}>;
+export type PpdbResultSettingsInput = Readonly<Omit<PpdbResultSettings, "whatsappGroupUrl"> & { whatsappGroupUrl: string | null }>;
+
 export type PpdbSession = Readonly<{
   id: string;
   tenantId: string;
@@ -31,11 +40,14 @@ export type PpdbSession = Readonly<{
   version: number;
   publishedAt: Date | null;
   endedAt: Date | null;
+  resultSettings: PpdbResultSettings;
+  resultsPublishedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }>;
 export interface PpdbSessionTransaction {
   list(): Promise<PpdbSession[]>;
+  hasPendingSubmissions(sessionId: string): Promise<boolean>;
   save(session: PpdbSession): Promise<void>;
 }
 export interface PpdbSessionStore {
@@ -50,12 +62,47 @@ type FailureCode =
   | "invalid-transition"
   | "published-conflict"
   | "empty-fields"
-  | "locked";
+  | "locked"
+  | "invalid-result-settings"
+  | "session-not-ended"
+  | "result-feedback-required"
+  | "pending-submissions"
+  | "results-already-published"
+  | "result-settings-locked";
 const failure = (code: FailureCode) => ({ ok: false, code } as const);
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 function validFields(fields: readonly PpdbFormField[]) {
   return fields.every((field) => field.label.trim().length > 0 && (field.type !== "select" || (field.options?.length ?? 0) > 0));
+}
+
+const emptyResultSettings: PpdbResultSettings = {
+  acceptedFeedback: "",
+  acceptedNextSteps: "",
+  rejectedFeedback: "",
+  rejectedNextSteps: "",
+  whatsappGroupUrl: null,
+};
+
+function normalizeResultSettings(input: PpdbResultSettingsInput): PpdbResultSettings | null {
+  const settings = {
+    acceptedFeedback: input.acceptedFeedback.trim(),
+    acceptedNextSteps: input.acceptedNextSteps.trim(),
+    rejectedFeedback: input.rejectedFeedback.trim(),
+    rejectedNextSteps: input.rejectedNextSteps.trim(),
+    whatsappGroupUrl: input.whatsappGroupUrl?.trim() || null,
+  };
+  if ([settings.acceptedFeedback, settings.acceptedNextSteps, settings.rejectedFeedback, settings.rejectedNextSteps].some((value) => value.length > 2000)) return null;
+  if (settings.whatsappGroupUrl) {
+    if (settings.whatsappGroupUrl.length > 2000) return null;
+    try {
+      const url = new URL(settings.whatsappGroupUrl);
+      if (url.protocol !== "https:" || url.hostname !== "chat.whatsapp.com") return null;
+    } catch {
+      return null;
+    }
+  }
+  return settings;
 }
 
 export function createPpdbSessionService(dependencies: { store: PpdbSessionStore; id?: () => string; now?: () => Date }) {
@@ -95,6 +142,8 @@ export function createPpdbSessionService(dependencies: { store: PpdbSessionStore
         version: 1,
         publishedAt: null,
         endedAt: null,
+        resultSettings: emptyResultSettings,
+        resultsPublishedAt: null,
         createdAt: timestamp,
         updatedAt: timestamp,
       };
@@ -110,6 +159,33 @@ export function createPpdbSessionService(dependencies: { store: PpdbSessionStore
         if (session.status === "ended") return "locked";
         if (!validFields(fields)) return "invalid-input";
         return { ...session, draftFields: fields, version: session.version + 1, updatedAt: now() };
+      });
+    },
+
+    updateResultSettings(principal: MasterDataPrincipal, sessionId: string, input: PpdbResultSettingsInput) {
+      if (!principal.capabilities.write) return Promise.resolve(failure("locked"));
+      return mutate(principal, sessionId, (session) => {
+        if (session.resultsPublishedAt) return "result-settings-locked";
+        const resultSettings = normalizeResultSettings(input);
+        if (!resultSettings) return "invalid-result-settings";
+        return { ...session, resultSettings, version: session.version + 1, updatedAt: now() };
+      });
+    },
+
+    publishResults(principal: MasterDataPrincipal, sessionId: string) {
+      if (!principal.capabilities.write) return Promise.resolve(failure("locked"));
+      return dependencies.store.transaction(principal.tenantId, async (transaction) => {
+        const sessions = await transaction.list();
+        const session = sessions.find((item) => item.id === sessionId && item.tenantId === principal.tenantId);
+        if (!session) return failure("not-found");
+        if (session.resultsPublishedAt) return failure("results-already-published");
+        if (session.status !== "ended") return failure("session-not-ended");
+        if (!session.resultSettings.acceptedFeedback || !session.resultSettings.rejectedFeedback) return failure("result-feedback-required");
+        if (await transaction.hasPendingSubmissions(sessionId)) return failure("pending-submissions");
+        const timestamp = now();
+        const published = { ...session, resultsPublishedAt: timestamp, version: session.version + 1, updatedAt: timestamp };
+        await transaction.save(published);
+        return { ok: true, session: published } as const;
       });
     },
 

@@ -8,7 +8,17 @@ import { ppdbSubmissionStore } from "@/lib/ppdb-submission-data";
 export type PpdbStatusActionState =
   | { status: "idle" }
   | { status: "not-found" }
-  | { status: "found"; studentName: string; submissionStatus: PpdbSubmissionStatus; score: number | null };
+  | { status: "found"; studentName: string; publicationStatus: "unpublished" }
+  | {
+      status: "found";
+      studentName: string;
+      publicationStatus: "published";
+      submissionStatus: PpdbSubmissionStatus;
+      score: number | null;
+      feedback: string;
+      nextSteps: string;
+      whatsappGroupUrl: string | null;
+    };
 
 const submissionService = createPpdbSubmissionService({ store: ppdbSubmissionStore });
 
@@ -31,5 +41,17 @@ export async function checkPpdbStatusAction(
     { nisnRequired: tenant.nisnRequired },
   );
   if (!result.ok) return { status: "not-found" };
-  return { status: "found", studentName: result.studentName, submissionStatus: result.status, score: result.score };
+  if (result.publicationStatus === "unpublished") {
+    return { status: "found", studentName: result.studentName, publicationStatus: "unpublished" };
+  }
+  return {
+    status: "found",
+    studentName: result.studentName,
+    publicationStatus: "published",
+    submissionStatus: result.status,
+    score: result.score,
+    feedback: result.feedback,
+    nextSteps: result.nextSteps,
+    whatsappGroupUrl: result.whatsappGroupUrl,
+  };
 }

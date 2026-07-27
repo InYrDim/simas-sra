@@ -42,9 +42,14 @@ export default async function PPDBHistoryDetailPage({
             Domain: {domain} • Diakhiri {session.endedAt?.toLocaleString("id-ID")}
           </p>
         </div>
-        <Button nativeButton={false} render={<Link href={`/${domain}/ppdb/riwayat`} />} variant="outline">
-          Kembali ke Riwayat
-        </Button>
+        <div className="flex gap-2">
+          <Button nativeButton={false} render={<Link href={`/${domain}/ppdb/results?sessionId=${sessionId}`} />}>
+            Konfigurasi Hasil
+          </Button>
+          <Button nativeButton={false} render={<Link href={`/${domain}/ppdb/riwayat`} />} variant="outline">
+            Kembali ke Riwayat
+          </Button>
+        </div>
       </header>
 
       {raw.result ? (

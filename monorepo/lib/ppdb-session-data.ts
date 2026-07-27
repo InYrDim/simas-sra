@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import { ppdbSession, tenant } from "@/db/schema";
+import { ppdbSession, ppdbSubmission, tenant } from "@/db/schema";
 import type { PpdbFormField, PpdbSession, PpdbSessionStore } from "@/lib/ppdb-session";
 
 function toSession(record: typeof ppdbSession.$inferSelect): PpdbSession {
@@ -16,6 +16,14 @@ function toSession(record: typeof ppdbSession.$inferSelect): PpdbSession {
     version: record.version,
     publishedAt: record.publishedAt,
     endedAt: record.endedAt,
+    resultSettings: {
+      acceptedFeedback: record.acceptedFeedback ?? "",
+      acceptedNextSteps: record.acceptedNextSteps ?? "",
+      rejectedFeedback: record.rejectedFeedback ?? "",
+      rejectedNextSteps: record.rejectedNextSteps ?? "",
+      whatsappGroupUrl: record.whatsappGroupUrl,
+    },
+    resultsPublishedAt: record.resultsPublishedAt,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -46,6 +54,18 @@ export const ppdbSessionStore: PpdbSessionStore = {
       await transaction.execute(sql`SELECT ${tenant.id} FROM ${tenant} WHERE ${tenant.id} = ${tenantId} FOR UPDATE`);
       return work({
         list: () => listWith(transaction, tenantId),
+        async hasPendingSubmissions(sessionId) {
+          const [pending] = await transaction
+            .select({ id: ppdbSubmission.id })
+            .from(ppdbSubmission)
+            .where(and(
+              eq(ppdbSubmission.tenantId, tenantId),
+              eq(ppdbSubmission.sessionId, sessionId),
+              eq(ppdbSubmission.status, "pending"),
+            ))
+            .limit(1);
+          return Boolean(pending);
+        },
         async save(session) {
           if (session.tenantId !== tenantId) throw new Error("Cross-Tenant PPDB session write denied");
           const [existing] = await transaction
@@ -65,6 +85,12 @@ export const ppdbSessionStore: PpdbSessionStore = {
               version: session.version,
               publishedAt: session.publishedAt,
               endedAt: session.endedAt,
+              acceptedFeedback: session.resultSettings.acceptedFeedback,
+              acceptedNextSteps: session.resultSettings.acceptedNextSteps,
+              rejectedFeedback: session.resultSettings.rejectedFeedback,
+              rejectedNextSteps: session.resultSettings.rejectedNextSteps,
+              whatsappGroupUrl: session.resultSettings.whatsappGroupUrl,
+              resultsPublishedAt: session.resultsPublishedAt,
               createdAt: session.createdAt,
               updatedAt: session.updatedAt,
             });
@@ -81,6 +107,12 @@ export const ppdbSessionStore: PpdbSessionStore = {
               version: session.version,
               publishedAt: session.publishedAt,
               endedAt: session.endedAt,
+              acceptedFeedback: session.resultSettings.acceptedFeedback,
+              acceptedNextSteps: session.resultSettings.acceptedNextSteps,
+              rejectedFeedback: session.resultSettings.rejectedFeedback,
+              rejectedNextSteps: session.resultSettings.rejectedNextSteps,
+              whatsappGroupUrl: session.resultSettings.whatsappGroupUrl,
+              resultsPublishedAt: session.resultsPublishedAt,
               updatedAt: session.updatedAt,
             })
             .where(and(eq(ppdbSession.tenantId, tenantId), eq(ppdbSession.id, session.id)));
