@@ -1,9 +1,10 @@
 "use client"
 
 import { useActionState } from "react"
-import { CheckCircle, Clock, XCircle } from "lucide-react"
+import { CheckCircle, Clock, Printer, XCircle } from "lucide-react"
 
 import { checkPpdbStatusAction, type PpdbStatusActionState } from "@/app/ppdb/[domain]/status/actions"
+import { printPpdbResult } from "@/app/ppdb/[domain]/status/ppdb-result-printer"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -44,7 +45,7 @@ export function PpdbStatusCheckForm({ domain, sessionId, nisnRequired }: { domai
 
   return (
     <div className="min-h-svh bg-slate-100 flex justify-center pb-20">
-      <main className="w-full max-w-md bg-white shadow-xl min-h-[100dvh] flex flex-col">
+      <main className="w-full max-w-md bg-white shadow-xl min-h-dvh flex flex-col">
         <header className="px-5 py-4 border-b border-slate-100">
           <h1 className="font-bold text-slate-900">Cek Status Pendaftaran</h1>
           <p className="text-xs text-slate-500">
@@ -84,11 +85,17 @@ export function PpdbStatusCheckForm({ domain, sessionId, nisnRequired }: { domai
 
           {state.status === "found" ? (
             <div className="rounded-xl border border-slate-200 p-4 space-y-3" role="status" aria-live="polite">
-              <div>
-                <p className="text-xs text-slate-500">Nama Peserta</p>
-                <p className="font-semibold text-slate-900">{state.studentName}</p>
-              </div>
-              <PublishedResult state={state} />
+              <dl className="grid gap-3">
+                <div>
+                  <dt className="text-xs text-slate-500">Kode Pendaftaran</dt>
+                  <dd className="font-mono font-semibold text-slate-900">{state.registrationCode}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-500">Nama Peserta</dt>
+                  <dd className="font-semibold text-slate-900">{state.studentName}</dd>
+                </div>
+              </dl>
+              <PublishedResult state={state} domain={domain} sessionId={sessionId} />
             </div>
           ) : null}
         </div>
@@ -97,7 +104,9 @@ export function PpdbStatusCheckForm({ domain, sessionId, nisnRequired }: { domai
   )
 }
 
-function PublishedResult({ state }: { state: Extract<PpdbStatusActionState, { status: "found"; publicationStatus: "published" }> }) {
+type PublishedState = Extract<PpdbStatusActionState, { status: "found"; publicationStatus: "published" }>
+
+function PublishedResult({ state, domain, sessionId }: { state: PublishedState; domain: string; sessionId: string }) {
   const whatsappUrl = state.submissionStatus === "accepted" ? safeWhatsappUrl(state.whatsappGroupUrl) : null
 
   return (
@@ -118,6 +127,9 @@ function PublishedResult({ state }: { state: Extract<PpdbStatusActionState, { st
           <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{state.nextSteps}</p>
         </div>
       ) : null}
+      <Button type="button" variant="outline" onClick={() => printPpdbResult({ state, domain, sessionId, whatsappUrl })} className="w-full">
+        <Printer aria-hidden="true" /> Cetak / Simpan PDF A4
+      </Button>
       {whatsappUrl ? (
         <Button nativeButton={false} render={<a href={whatsappUrl} target="_blank" rel="noopener noreferrer" />} className="w-full">
           Buka Grup WhatsApp

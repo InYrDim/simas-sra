@@ -1,4 +1,5 @@
 import { updateResultSettingsAction, publishResultsAction } from "@/app/(tenant)/[domain]/(authenticated)/ppdb/actions"
+import { PpdbResultCheckAccessToggle } from "@/app/(tenant)/[domain]/(authenticated)/ppdb/result-check-access-toggle"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -89,6 +90,16 @@ export function PpdbResultSettingsForm({
           </Button>
         </form>
         {!writable ? <p className="mt-2 text-sm text-slate-500">Tenant sedang hanya-baca; pengaturan dan publikasi hasil dinonaktifkan.</p> : null}
+      </div>
+
+      <div className="border-t border-slate-200 pt-5">
+        <PpdbResultCheckAccessToggle
+          domain={domain}
+          sessionId={session.id}
+          open={published && session.resultCheckClosedAt === null}
+          disabled={!writable || !published}
+        />
+        {!published ? <p className="mt-2 text-sm text-slate-500">Akses cek status dapat diatur setelah hasil dipublikasikan.</p> : null}
       </div>
     </section>
   )

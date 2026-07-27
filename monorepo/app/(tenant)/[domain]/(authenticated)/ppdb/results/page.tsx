@@ -15,6 +15,7 @@ const academicYearService = createAcademicYearService({ store: academicYearStore
 const resultMessages: Record<string, string> = {
   saved: "Pengaturan hasil PPDB tersimpan.",
   published: "Hasil PPDB berhasil dipublikasikan.",
+  "access-updated": "Akses cek status pendaftar berhasil diperbarui.",
   "invalid-input": "Pengaturan hasil belum valid. Periksa kembali seluruh isian.",
   "invalid-result-settings": "Pengaturan hasil belum valid. Gunakan tautan grup chat.whatsapp.com dan batasi setiap pesan hingga 2.000 karakter.",
   "not-found": "Sesi PPDB tidak ditemukan.",
@@ -22,6 +23,7 @@ const resultMessages: Record<string, string> = {
   "result-feedback-required": "Lengkapi umpan balik hasil sebelum mempublikasikan.",
   "pending-submissions": "Semua pendaftaran harus diputuskan sebelum hasil dipublikasikan.",
   "results-already-published": "Hasil sesi ini sudah dipublikasikan.",
+  "results-unpublished": "Publikasikan hasil sebelum mengatur akses cek status.",
   "result-settings-locked": "Pengaturan hasil yang sudah dipublikasikan tidak dapat diubah.",
   error: "Perubahan hasil PPDB belum dapat disimpan.",
 }
@@ -67,7 +69,7 @@ export default async function PPDBResultsPage({
       </header>
 
       {resultCode ? (
-        <p role={resultCode === "saved" || resultCode === "published" ? "status" : "alert"} className="mx-auto mt-4 max-w-4xl rounded-lg border border-slate-200 bg-white p-3 text-sm">
+        <p role={resultCode === "saved" || resultCode === "published" || resultCode === "access-updated" ? "status" : "alert"} className="mx-auto mt-4 max-w-4xl rounded-lg border border-slate-200 bg-white p-3 text-sm">
           {resultMessages[resultCode]}
         </p>
       ) : null}

@@ -20,6 +20,7 @@ function memoryStore(
   publicResults: Readonly<{
     sessionStatus?: "draft" | "published" | "ended";
     resultsPublishedAt: Date | null;
+    resultCheckClosedAt?: Date | null;
     acceptedFeedback: string;
     acceptedNextSteps: string;
     rejectedFeedback: string;
@@ -57,6 +58,7 @@ function memoryStore(
       return {
         sessionStatus: publicResults.sessionStatus ?? "ended",
         resultsPublishedAt: publicResults.resultsPublishedAt,
+        resultCheckClosedAt: publicResults.resultCheckClosedAt ?? null,
       };
     },
     async findPublicResultContext(tenantId, sessionId, registrationCode) {
@@ -264,6 +266,24 @@ test("reveals outcome feedback only after results publication", async () => {
     nextSteps: "Silakan mencoba kembali.",
     whatsappGroupUrl: null,
   });
+});
+
+test("does not expose applicant data after status checking is closed", async () => {
+  const fixture = memoryStore([requiredField], {
+    resultsPublishedAt: new Date("2026-09-01T00:00:00Z"),
+    resultCheckClosedAt: new Date("2026-09-08T00:00:00Z"),
+    acceptedFeedback: "Diterima",
+    acceptedNextSteps: "Daftar ulang",
+    rejectedFeedback: "Ditolak",
+    rejectedNextSteps: "Coba lagi",
+    whatsappGroupUrl: null,
+  });
+  const service = createPpdbSubmissionService({ store: fixture.store });
+
+  assert.deepEqual(
+    await service.checkStatus(principal.tenantId, "session-1", "PPDB-2026-ABCDEF", "0012345678"),
+    { ok: false, code: "result-check-closed" },
+  );
 });
 
 test("locks an Admin decision after results publication", async () => {

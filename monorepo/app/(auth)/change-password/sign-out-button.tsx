@@ -10,7 +10,7 @@ export function SignOutButton() {
       type="button"
       variant="ghost"
     >
-      Keluar
+      Keluars
     </Button>
   );
 }

@@ -10,6 +10,7 @@ export type PpdbStatusActionState =
   | { status: "not-found" }
   | {
       status: "found";
+      registrationCode: string;
       studentName: string;
       publicationStatus: "published";
       submissionStatus: PpdbSubmissionStatus;
@@ -45,6 +46,7 @@ export async function checkPpdbStatusAction(
 
   return {
     status: "found",
+    registrationCode: registrationCode.trim().toUpperCase(),
     studentName: result.studentName,
     publicationStatus: "published",
     submissionStatus: result.status,

@@ -21,6 +21,9 @@ export default async function PpdbSessionStatusPage({
   if (!announcement.resultsPublishedAt) {
     return <AnnouncementNotice title="Pengumuman sedang disiapkan">Masa pendaftaran telah berakhir, tetapi hasil seleksi belum dipublikasikan oleh sekolah.</AnnouncementNotice>
   }
+  if (announcement.resultCheckClosedAt) {
+    return <AnnouncementNotice title="Cek status telah ditutup">Masa akses pengumuman PPDB ini telah ditutup oleh sekolah.</AnnouncementNotice>
+  }
 
   return <PpdbStatusCheckForm domain={domain} sessionId={sessionId} nisnRequired={tenant.nisnRequired} />
 }

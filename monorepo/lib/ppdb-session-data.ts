@@ -24,6 +24,7 @@ function toSession(record: typeof ppdbSession.$inferSelect): PpdbSession {
       whatsappGroupUrl: record.whatsappGroupUrl,
     },
     resultsPublishedAt: record.resultsPublishedAt,
+    resultCheckClosedAt: record.resultCheckClosedAt,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -37,7 +38,11 @@ async function listWith(executor: Pick<typeof db, "select">, tenantId: string): 
 // Untuk halaman publik /ppdb/[domain]: temukan Sesi PPDB yang sedang "published" bagi satu Tenant, tanpa memerlukan principal.
 export async function findPpdbAnnouncementState(tenantId: string, sessionId: string) {
   const [session] = await db
-    .select({ status: ppdbSession.status, resultsPublishedAt: ppdbSession.resultsPublishedAt })
+    .select({
+          status: ppdbSession.status,
+          resultsPublishedAt: ppdbSession.resultsPublishedAt,
+          resultCheckClosedAt: ppdbSession.resultCheckClosedAt,
+        })
     .from(ppdbSession)
     .where(and(eq(ppdbSession.tenantId, tenantId), eq(ppdbSession.id, sessionId)))
     .limit(1);
@@ -104,6 +109,7 @@ export const ppdbSessionStore: PpdbSessionStore = {
               rejectedNextSteps: session.resultSettings.rejectedNextSteps,
               whatsappGroupUrl: session.resultSettings.whatsappGroupUrl,
               resultsPublishedAt: session.resultsPublishedAt,
+              resultCheckClosedAt: session.resultCheckClosedAt,
               createdAt: session.createdAt,
               updatedAt: session.updatedAt,
             });
@@ -126,6 +132,7 @@ export const ppdbSessionStore: PpdbSessionStore = {
               rejectedNextSteps: session.resultSettings.rejectedNextSteps,
               whatsappGroupUrl: session.resultSettings.whatsappGroupUrl,
               resultsPublishedAt: session.resultsPublishedAt,
+              resultCheckClosedAt: session.resultCheckClosedAt,
               updatedAt: session.updatedAt,
             })
             .where(and(eq(ppdbSession.tenantId, tenantId), eq(ppdbSession.id, session.id)));

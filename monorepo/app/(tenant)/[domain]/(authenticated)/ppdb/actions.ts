@@ -25,10 +25,11 @@ const resultActionCodes = new Set([
   "result-feedback-required",
   "pending-submissions",
   "results-already-published",
+  "results-unpublished",
   "result-settings-locked",
 ]);
 
-function finishResults(domain: string, sessionId: string, result: { ok: boolean; code?: string }, successCode: "saved" | "published") {
+function finishResults(domain: string, sessionId: string, result: { ok: boolean; code?: string }, successCode: "saved" | "published" | "access-updated") {
   const path = `/${domain}/ppdb/results`;
   const code = result.ok ? successCode : result.code && resultActionCodes.has(result.code) ? result.code : "error";
   revalidatePath(path);
@@ -110,6 +111,14 @@ export async function publishResultsAction(domain: string, formData: FormData) {
   const sessionId = String(formData.get("sessionId") ?? "");
   const result = await sessionService.publishResults(principal, sessionId);
   finishResults(domain, sessionId, result, "published");
+}
+
+export async function updateResultCheckAccessAction(domain: string, formData: FormData) {
+  const principal = await enforceMasterDataAccess(domain, "write");
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const open = formData.get("resultCheckOpen") === "true";
+  const result = await sessionService.setResultCheckOpen(principal, sessionId, open);
+  finishResults(domain, sessionId, result, "access-updated");
 }
 
 export async function decideSubmissionAction(domain: string, formData: FormData) {

@@ -42,6 +42,7 @@ export type PpdbSession = Readonly<{
   endedAt: Date | null;
   resultSettings: PpdbResultSettings;
   resultsPublishedAt: Date | null;
+  resultCheckClosedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }>;
@@ -68,6 +69,7 @@ type FailureCode =
   | "result-feedback-required"
   | "pending-submissions"
   | "results-already-published"
+  | "results-unpublished"
   | "result-settings-locked";
 const failure = (code: FailureCode) => ({ ok: false, code } as const);
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -144,6 +146,7 @@ export function createPpdbSessionService(dependencies: { store: PpdbSessionStore
         endedAt: null,
         resultSettings: emptyResultSettings,
         resultsPublishedAt: null,
+        resultCheckClosedAt: null,
         createdAt: timestamp,
         updatedAt: timestamp,
       };
@@ -169,6 +172,20 @@ export function createPpdbSessionService(dependencies: { store: PpdbSessionStore
         const resultSettings = normalizeResultSettings(input);
         if (!resultSettings) return "invalid-result-settings";
         return { ...session, resultSettings, version: session.version + 1, updatedAt: now() };
+      });
+    },
+
+    setResultCheckOpen(principal: MasterDataPrincipal, sessionId: string, open: boolean) {
+      if (!principal.capabilities.write) return Promise.resolve(failure("locked"));
+      return mutate(principal, sessionId, (session) => {
+        if (!session.resultsPublishedAt) return "results-unpublished";
+        const timestamp = now();
+        return {
+          ...session,
+          resultCheckClosedAt: open ? null : timestamp,
+          version: session.version + 1,
+          updatedAt: timestamp,
+        };
       });
     },
 

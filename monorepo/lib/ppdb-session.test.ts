@@ -49,6 +49,7 @@ test("creates a draft Sesi PPDB referencing an existing Tahun Ajaran", async () 
     whatsappGroupUrl: null,
   });
   assert.equal(created.session.resultsPublishedAt, null);
+  assert.equal(created.session.resultCheckClosedAt, null);
 });
 
 test("normalizes and validates result feedback settings", async () => {
@@ -141,6 +142,36 @@ test("publishes results only once for an ended Sesi with required feedback", asy
     }),
     { ok: false, code: "result-settings-locked" },
   );
+});
+
+test("lets an Admin close and reopen result checking after publication", async () => {
+  const fixture = memoryStore();
+  const timestamp = new Date("2026-09-08T00:00:00Z");
+  const service = createPpdbSessionService({ store: fixture.store, now: () => timestamp });
+  const created = await service.create(principal, validInput);
+  if (!created.ok) return assert.fail();
+  assert.deepEqual(await service.setResultCheckOpen(principal, created.session.id, false), { ok: false, code: "results-unpublished" });
+  await service.updateFields(principal, created.session.id, [field]);
+  await service.publish(principal, created.session.id);
+  await service.end(principal, created.session.id);
+  await service.updateResultSettings(principal, created.session.id, {
+    acceptedFeedback: "Diterima",
+    acceptedNextSteps: "",
+    rejectedFeedback: "Belum diterima",
+    rejectedNextSteps: "",
+    whatsappGroupUrl: null,
+  });
+  await service.publishResults(principal, created.session.id);
+
+  const closed = await service.setResultCheckOpen(principal, created.session.id, false);
+  assert.equal(closed.ok, true);
+  if (!closed.ok) return;
+  assert.equal(closed.session.resultCheckClosedAt?.toISOString(), timestamp.toISOString());
+
+  const reopened = await service.setResultCheckOpen(principal, created.session.id, true);
+  assert.equal(reopened.ok, true);
+  if (!reopened.ok) return;
+  assert.equal(reopened.session.resultCheckClosedAt, null);
 });
 
 test("rejects publishing a Sesi with no Form fields", async () => {

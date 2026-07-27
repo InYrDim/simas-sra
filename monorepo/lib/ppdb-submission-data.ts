@@ -78,7 +78,11 @@ export const ppdbSubmissionStore: PpdbSubmissionStore = {
 
   async findResultAvailability(tenantId, sessionId) {
     const [session] = await db
-      .select({ sessionStatus: ppdbSession.status, resultsPublishedAt: ppdbSession.resultsPublishedAt })
+      .select({
+              sessionStatus: ppdbSession.status,
+              resultsPublishedAt: ppdbSession.resultsPublishedAt,
+              resultCheckClosedAt: ppdbSession.resultCheckClosedAt,
+            })
       .from(ppdbSession)
       .where(and(eq(ppdbSession.tenantId, tenantId), eq(ppdbSession.id, sessionId)))
       .limit(1);

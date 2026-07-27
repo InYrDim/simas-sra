@@ -62,8 +62,10 @@ export function TenantSidebar({ role, domain, tenantName }: { role: TenantRole; 
               onClick={() => authClient.signOut({ fetchOptions: { onSuccess: () => window.location.assign("/login") } })}
               tooltip="Keluar"
               variant="outline"
+              className="border-red-400/20 bg-red-500/5 text-red-300 hover:border-red-400/40 hover:bg-red-500/15 hover:text-red-100"
             >
               <LogOut />
+              <span>Keluar</span>
               <span>Keluar</span>
             </SidebarMenuButton>
           </SidebarMenuItem>

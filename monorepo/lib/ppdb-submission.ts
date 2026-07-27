@@ -60,7 +60,11 @@ export interface PpdbSubmissionStore {
     documents?: readonly PpdbSubmissionDocument[],
   ): Promise<{ ok: true } | { ok: false; code: "duplicate-code" }>;
   findByRegistrationCode(tenantId: string, registrationCode: string): Promise<PpdbSubmission | null>;
-  findResultAvailability(tenantId: string, sessionId: string): Promise<Readonly<{ sessionStatus: "draft" | "published" | "ended"; resultsPublishedAt: Date | null }> | null>;
+  findResultAvailability(tenantId: string, sessionId: string): Promise<Readonly<{
+    sessionStatus: "draft" | "published" | "ended";
+    resultsPublishedAt: Date | null;
+    resultCheckClosedAt: Date | null;
+  }> | null>;
   findPublicResultContext(tenantId: string, sessionId: string, registrationCode: string): Promise<PpdbPublicResultContext | null>;
   findById(tenantId: string, submissionId: string): Promise<PpdbSubmission | null>;
   list(tenantId: string, sessionId?: string): Promise<PpdbSubmission[]>;
@@ -185,6 +189,7 @@ export function createPpdbSubmissionService(dependencies: {
       if (!availability) return { ok: false, code: "not-found" } as const;
       if (availability.sessionStatus !== "ended") return { ok: false, code: "session-not-ended" } as const;
       if (!availability.resultsPublishedAt) return { ok: false, code: "results-unpublished" } as const;
+      if (availability.resultCheckClosedAt) return { ok: false, code: "result-check-closed" } as const;
       const context = await dependencies.store.findPublicResultContext(tenantId, sessionId, registrationCode.trim().toUpperCase());
       if (!context) return { ok: false, code: "not-found" } as const;
       const submittedNisn = nisn.trim();

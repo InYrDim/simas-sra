@@ -803,6 +803,7 @@ export const ppdbSession = mysqlTable(
     rejectedNextSteps: text("rejected_next_steps"),
     whatsappGroupUrl: varchar("whatsapp_group_url", { length: 2048 }),
     resultsPublishedAt: timestamp("results_published_at", { fsp: 3 }),
+    resultCheckClosedAt: timestamp("result_check_closed_at", { fsp: 3 }),
     createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { fsp: 3 })
       .defaultNow()
