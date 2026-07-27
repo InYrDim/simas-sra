@@ -35,6 +35,15 @@ async function listWith(executor: Pick<typeof db, "select">, tenantId: string): 
 }
 
 // Untuk halaman publik /ppdb/[domain]: temukan Sesi PPDB yang sedang "published" bagi satu Tenant, tanpa memerlukan principal.
+export async function findPpdbAnnouncementState(tenantId: string, sessionId: string) {
+  const [session] = await db
+    .select({ status: ppdbSession.status, resultsPublishedAt: ppdbSession.resultsPublishedAt })
+    .from(ppdbSession)
+    .where(and(eq(ppdbSession.tenantId, tenantId), eq(ppdbSession.id, sessionId)))
+    .limit(1);
+  return session ?? null;
+}
+
 export async function findPublicPpdbSession(tenantId: string, sessionId?: string): Promise<Readonly<{ id: string; endDate: string; fields: PpdbFormField[] }> | null> {
   const [session] = await db
     .select({ id: ppdbSession.id, endDate: ppdbSession.endDate, fields: ppdbSession.fields })

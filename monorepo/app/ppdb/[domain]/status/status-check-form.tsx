@@ -88,14 +88,7 @@ export function PpdbStatusCheckForm({ domain, sessionId, nisnRequired }: { domai
                 <p className="text-xs text-slate-500">Nama Peserta</p>
                 <p className="font-semibold text-slate-900">{state.studentName}</p>
               </div>
-              {state.publicationStatus === "unpublished" ? (
-                <div className="rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
-                  <p className="font-semibold">Pendaftaran masih dalam peninjauan</p>
-                  <p className="mt-1">Hasil belum dipublikasikan oleh sekolah. Silakan periksa kembali nanti.</p>
-                </div>
-              ) : (
-                <PublishedResult state={state} />
-              )}
+              <PublishedResult state={state} />
             </div>
           ) : null}
         </div>

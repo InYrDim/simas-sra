@@ -40,6 +40,7 @@ export type PpdbSubmissionDocumentInput = Readonly<{
 export type PpdbSubmissionInput = Readonly<{ studentName: string; nisn: string; formData: Readonly<Record<string, unknown>> }>;
 export type PpdbPublishedSession = Readonly<{ id: string; fields: readonly PpdbFormField[] }>;
 export type PpdbPublicResultContext = Readonly<{
+  sessionStatus: "draft" | "published" | "ended";
   studentName: string;
   nisn: string;
   status: PpdbSubmissionStatus;
@@ -59,6 +60,7 @@ export interface PpdbSubmissionStore {
     documents?: readonly PpdbSubmissionDocument[],
   ): Promise<{ ok: true } | { ok: false; code: "duplicate-code" }>;
   findByRegistrationCode(tenantId: string, registrationCode: string): Promise<PpdbSubmission | null>;
+  findResultAvailability(tenantId: string, sessionId: string): Promise<Readonly<{ sessionStatus: "draft" | "published" | "ended"; resultsPublishedAt: Date | null }> | null>;
   findPublicResultContext(tenantId: string, sessionId: string, registrationCode: string): Promise<PpdbPublicResultContext | null>;
   findById(tenantId: string, submissionId: string): Promise<PpdbSubmission | null>;
   list(tenantId: string, sessionId?: string): Promise<PpdbSubmission[]>;
@@ -179,13 +181,15 @@ export function createPpdbSubmissionService(dependencies: {
       nisn: string,
       options: Readonly<{ nisnRequired: boolean }> = { nisnRequired: true },
     ) {
+      const availability = await dependencies.store.findResultAvailability(tenantId, sessionId);
+      if (!availability) return { ok: false, code: "not-found" } as const;
+      if (availability.sessionStatus !== "ended") return { ok: false, code: "session-not-ended" } as const;
+      if (!availability.resultsPublishedAt) return { ok: false, code: "results-unpublished" } as const;
       const context = await dependencies.store.findPublicResultContext(tenantId, sessionId, registrationCode.trim().toUpperCase());
+      if (!context) return { ok: false, code: "not-found" } as const;
       const submittedNisn = nisn.trim();
-      if (!context || (options.nisnRequired && context.nisn !== submittedNisn)) {
+      if (options.nisnRequired && context.nisn !== submittedNisn) {
         return { ok: false, code: "not-found" } as const;
-      }
-      if (!context.resultsPublishedAt) {
-        return { ok: true, studentName: context.studentName, publicationStatus: "unpublished" } as const;
       }
       if (context.status === "pending") {
         return {

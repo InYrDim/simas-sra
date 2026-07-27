@@ -76,9 +76,19 @@ export const ppdbSubmissionStore: PpdbSubmissionStore = {
     return record ? toSubmission(record) : null;
   },
 
+  async findResultAvailability(tenantId, sessionId) {
+    const [session] = await db
+      .select({ sessionStatus: ppdbSession.status, resultsPublishedAt: ppdbSession.resultsPublishedAt })
+      .from(ppdbSession)
+      .where(and(eq(ppdbSession.tenantId, tenantId), eq(ppdbSession.id, sessionId)))
+      .limit(1);
+    return session ?? null;
+  },
+
   async findPublicResultContext(tenantId, sessionId, registrationCode) {
     const [record] = await db
       .select({
+        sessionStatus: ppdbSession.status,
         studentName: ppdbSubmission.studentName,
         nisn: ppdbSubmission.nisn,
         status: ppdbSubmission.status,

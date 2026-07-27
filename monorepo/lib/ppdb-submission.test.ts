@@ -18,6 +18,7 @@ const requiredField = { id: "f1", label: "Nama Lengkap Sesuai Ijazah", type: "te
 function memoryStore(
   sessionFields: readonly PpdbFormField[] = [requiredField],
   publicResults: Readonly<{
+    sessionStatus?: "draft" | "published" | "ended";
     resultsPublishedAt: Date | null;
     acceptedFeedback: string;
     acceptedNextSteps: string;
@@ -25,6 +26,7 @@ function memoryStore(
     rejectedNextSteps: string;
     whatsappGroupUrl: string | null;
   }> = {
+    sessionStatus: "ended",
     resultsPublishedAt: null,
     acceptedFeedback: "",
     acceptedNextSteps: "",
@@ -50,10 +52,17 @@ function memoryStore(
       const found = submissions.find((item) => item.tenantId === tenantId && item.registrationCode === registrationCode);
       return found ? structuredClone(found) : null;
     },
+    async findResultAvailability(tenantId, sessionId) {
+      if (tenantId !== principal.tenantId || sessionId !== "session-1") return null;
+      return {
+        sessionStatus: publicResults.sessionStatus ?? "ended",
+        resultsPublishedAt: publicResults.resultsPublishedAt,
+      };
+    },
     async findPublicResultContext(tenantId, sessionId, registrationCode) {
       const found = submissions.find((item) => item.tenantId === tenantId && item.sessionId === sessionId && item.registrationCode === registrationCode);
       if (!found) return null;
-      return structuredClone({ ...found, ...publicResults }) satisfies PpdbPublicResultContext;
+      return structuredClone({ ...found, ...publicResults, sessionStatus: publicResults.sessionStatus ?? "ended" }) satisfies PpdbPublicResultContext;
     },
 
     async findById(tenantId, submissionId) {
@@ -134,7 +143,7 @@ test("accepts an SD submission without NISN and checks status using its registra
   if (!submitted.ok) return;
   assert.deepEqual(
     await service.checkStatus(principal.tenantId, "session-1", submitted.registrationCode, "", { nisnRequired: false }),
-    { ok: true, studentName: "Ahmad Budi", publicationStatus: "unpublished" },
+    { ok: false, code: "results-unpublished" },
   );
 });
 
@@ -151,7 +160,7 @@ test("checks an SD submission by registration code even when an optional NISN wa
 
   assert.deepEqual(
     await service.checkStatus(principal.tenantId, "session-1", submitted.registrationCode, "", { nisnRequired: false }),
-    { ok: true, studentName: "Ahmad Budi", publicationStatus: "unpublished" },
+    { ok: false, code: "results-unpublished" },
   );
 });
 
@@ -186,13 +195,37 @@ test("rejects a submission missing a required Form field", async () => {
   assert.deepEqual(await service.submit(principal.tenantId, "session-1", { studentName: "Ahmad", nisn: "001", formData: {} }), { ok: false, code: "invalid-input" });
 });
 
-test("lets a Calon Siswa check status anonymously with registration code and NISN", async () => {
+test("does not expose applicant status before the Sesi has ended", async () => {
+  const fixture = memoryStore([requiredField], {
+    sessionStatus: "published",
+    resultsPublishedAt: null,
+    acceptedFeedback: "",
+    acceptedNextSteps: "",
+    rejectedFeedback: "",
+    rejectedNextSteps: "",
+    whatsappGroupUrl: null,
+  });
+  const service = createPpdbSubmissionService({ store: fixture.store });
+  const submitted = await service.submit(principal.tenantId, "session-1", { studentName: "Ahmad Budi", nisn: "0012345678", formData: { f1: "Ahmad Budi" } });
+  if (!submitted.ok) return assert.fail();
+
+  assert.deepEqual(
+    await service.checkStatus(principal.tenantId, "session-1", submitted.registrationCode, "0012345678"),
+    { ok: false, code: "session-not-ended" },
+  );
+  assert.deepEqual(
+    await service.checkStatus(principal.tenantId, "session-1", "INVALID", "0012345678"),
+    { ok: false, code: "session-not-ended" },
+  );
+});
+
+test("does not expose applicant identity before results publication", async () => {
   const fixture = memoryStore();
   const service = createPpdbSubmissionService({ store: fixture.store });
   const submitted = await service.submit(principal.tenantId, "session-1", { studentName: "Ahmad Budi", nisn: "0012345678", formData: { f1: "Ahmad Budi" } });
   if (!submitted.ok) return assert.fail();
-  assert.deepEqual(await service.checkStatus(principal.tenantId, "session-1", submitted.registrationCode, "0012345678"), { ok: true, studentName: "Ahmad Budi", publicationStatus: "unpublished" });
-  assert.deepEqual(await service.checkStatus(principal.tenantId, "session-1", submitted.registrationCode, "wrong-nisn"), { ok: false, code: "not-found" });
+  assert.deepEqual(await service.checkStatus(principal.tenantId, "session-1", submitted.registrationCode, "0012345678"), { ok: false, code: "results-unpublished" });
+  assert.deepEqual(await service.checkStatus(principal.tenantId, "session-1", submitted.registrationCode, "wrong-nisn"), { ok: false, code: "results-unpublished" });
   assert.deepEqual(await service.checkStatus(principal.tenantId, "session-2", submitted.registrationCode, "0012345678"), { ok: false, code: "not-found" });
 });
 

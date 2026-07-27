@@ -8,7 +8,6 @@ import { ppdbSubmissionStore } from "@/lib/ppdb-submission-data";
 export type PpdbStatusActionState =
   | { status: "idle" }
   | { status: "not-found" }
-  | { status: "found"; studentName: string; publicationStatus: "unpublished" }
   | {
       status: "found";
       studentName: string;
@@ -43,9 +42,7 @@ export async function checkPpdbStatusAction(
     { nisnRequired: tenant.nisnRequired },
   );
   if (!result.ok) return { status: "not-found" };
-  if (result.publicationStatus === "unpublished") {
-    return { status: "found", studentName: result.studentName, publicationStatus: "unpublished" };
-  }
+
   return {
     status: "found",
     studentName: result.studentName,
