@@ -29,6 +29,9 @@ async function cleanup(connection: Connection) {
     await connection.query("DELETE FROM session WHERE user_id IN (?)", [userIds]);
     await connection.query("DELETE FROM account WHERE user_id IN (?)", [userIds]);
     await connection.query("DELETE FROM applicant WHERE user_id IN (?)", [userIds]);
+    await connection.query("DELETE FROM ppdb_submission_document WHERE tenant_id IN (?)", [tenantIds]);
+    await connection.query("DELETE FROM ppdb_submission WHERE tenant_id IN (?)", [tenantIds]);
+    await connection.query("DELETE FROM ppdb_session WHERE tenant_id IN (?)", [tenantIds]);
     await connection.query("DELETE FROM academic_semester WHERE tenant_id IN (?)", [tenantIds]);
     await connection.query("DELETE FROM academic_year WHERE tenant_id IN (?)", [tenantIds]);
     await connection.query("DELETE FROM tenant WHERE id IN (?)", [tenantIds]);
@@ -109,6 +112,14 @@ export default async function globalSetup() {
 
     await createTenant(connection, e2e.alpha, e2e.alpha.adminId);
     await createTenant(connection, e2e.beta, e2e.beta.adminId);
+    await connection.execute(
+      "INSERT INTO ppdb_session (id,tenant_id,academic_year_id,end_date,status,fields,draft_fields,version,published_at,created_at,updated_at) VALUES (?,?,?,'2031-06-30','published',JSON_ARRAY(),JSON_ARRAY(),1,NOW(3),NOW(3),NOW(3))",
+      [e2e.alpha.ppdbSessionId, e2e.alpha.tenantId, e2e.alpha.academicYearId],
+    );
+    await connection.execute(
+      "INSERT INTO ppdb_submission (id,tenant_id,session_id,registration_code,student_name,nisn,status,score,form_data,form_fields,version,submitted_at,updated_at) VALUES (?,?,?,'PPDB-E2E-001','Peserta PPDB dengan Nama Panjang','0012345678','pending',85,JSON_OBJECT(),JSON_ARRAY(),1,NOW(3),NOW(3))",
+      [e2e.alpha.ppdbSubmissionId, e2e.alpha.tenantId, e2e.alpha.ppdbSessionId],
+    );
     await connection.execute("UPDATE user SET tenant_id=?,tenant_role='school-admin' WHERE id=?", [e2e.alpha.tenantId, e2e.alpha.adminId]);
     await connection.execute("UPDATE user SET tenant_id=?,tenant_role='staff' WHERE id=?", [e2e.alpha.tenantId, e2e.alpha.staffId]);
     await connection.execute("UPDATE user SET tenant_id=?,tenant_role='school-admin' WHERE id=?", [e2e.beta.tenantId, e2e.beta.adminId]);

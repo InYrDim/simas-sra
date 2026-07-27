@@ -15,6 +15,8 @@ export const e2e = {
     staffEmail: "master-staff-alpha@e2e.invalid",
     academicYearId: "e2e00000-0000-4000-8000-000000000051",
     academicYearLabel: "2030/2031 Alpha",
+    ppdbSessionId: "e2e00000-0000-4000-8000-000000000061",
+    ppdbSubmissionId: "e2e00000-0000-4000-8000-000000000071",
   },
   beta: {
     tenantId: "e2e00000-0000-4000-8000-000000000002",
