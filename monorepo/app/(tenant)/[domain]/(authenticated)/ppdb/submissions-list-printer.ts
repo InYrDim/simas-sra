@@ -1,15 +1,27 @@
 import type { PpdbSubmission, PpdbSubmissionStatus } from "@/lib/ppdb-submission";
 
-export type PpdbPrintColumn = "registrationCode" | "studentName" | "nisn" | "score" | "submittedAt" | "status";
+export type PpdbSystemPrintColumn = "registrationCode" | "studentName" | "nisn" | "score" | "submittedAt" | "status";
+export type PpdbPrintColumn = Readonly<{ key: PpdbSystemPrintColumn | `field:${string}`; label: string }>;
 
-const columnLabels: Record<PpdbPrintColumn, string> = {
-  registrationCode: "Kode Pendaftaran",
-  studentName: "Nama Peserta",
-  nisn: "NISN",
-  score: "Skor",
-  submittedAt: "Tanggal Daftar",
-  status: "Status",
-};
+export const ppdbSystemPrintColumns: readonly PpdbPrintColumn[] = [
+  { key: "registrationCode", label: "Kode Pendaftaran" },
+  { key: "studentName", label: "Nama Peserta" },
+  { key: "nisn", label: "NISN" },
+  { key: "score", label: "Skor" },
+  { key: "submittedAt", label: "Tanggal Daftar" },
+  { key: "status", label: "Status" },
+];
+
+export function getPpdbDynamicPrintColumns(submissions: readonly PpdbSubmission[]): PpdbPrintColumn[] {
+  const fields = new Map<string, string>();
+  for (const submission of submissions) {
+    for (const field of submission.formFields) {
+      if (field.purpose || fields.has(field.id)) continue;
+      fields.set(field.id, field.label);
+    }
+  }
+  return [...fields].map(([id, label]) => ({ key: `field:${id}` as const, label }));
+}
 
 const statusLabels: Record<PpdbSubmissionStatus, string> = {
   pending: "Menunggu",
@@ -18,10 +30,23 @@ const statusLabels: Record<PpdbSubmissionStatus, string> = {
 };
 
 function columnValue(submission: PpdbSubmission, column: PpdbPrintColumn) {
-  if (column === "status") return statusLabels[submission.status];
-  if (column === "submittedAt") return submission.submittedAt.toLocaleDateString("id-ID", { dateStyle: "medium" });
-  if (column === "score") return submission.score === null ? "–" : String(submission.score);
-  return submission[column] || "–";
+  if (column.key.startsWith("field:")) {
+    const fieldId = column.key.slice("field:".length);
+    const field = submission.formFields.find((item) => item.id === fieldId);
+    if (field?.type === "file") {
+      return submission.documents.find((document) => document.fieldId === fieldId)?.originalFileName ?? "–";
+    }
+    const value = submission.formData[fieldId];
+    if (Array.isArray(value)) return value.length ? value.join(", ") : "–";
+    return value === undefined || value === null || String(value).trim() === "" ? "–" : String(value);
+  }
+  if (column.key === "status") return statusLabels[submission.status];
+  if (column.key === "submittedAt") return submission.submittedAt.toLocaleDateString("id-ID", { dateStyle: "medium" });
+  if (column.key === "score") return submission.score === null ? "–" : String(submission.score);
+  if (column.key === "registrationCode") return submission.registrationCode;
+  if (column.key === "studentName") return submission.studentName;
+  if (column.key === "nisn") return submission.nisn || "–";
+  return "–";
 }
 
 export function printPpdbSubmissionsList({
@@ -104,7 +129,7 @@ export function printPpdbSubmissionsList({
 
   for (const column of columns) {
     const heading = printDocument.createElement("th");
-    heading.textContent = columnLabels[column];
+    heading.textContent = column.label;
     tableHead?.appendChild(heading);
   }
 

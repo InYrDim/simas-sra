@@ -35,8 +35,12 @@ export async function submitPpdbApplicationAction(
   const documents: PpdbSubmissionDocumentInput[] = [];
   for (const field of session.fields) {
     const raw = formData.get(field.id);
+    if (field.type === "checkbox") {
+      dynamicFormData[field.id] = formData.getAll(field.id).map(String);
+      continue;
+    }
     if (field.type !== "file") {
-      dynamicFormData[field.id] = raw;
+      dynamicFormData[field.id] = typeof raw === "string" ? raw : "";
       continue;
     }
     if (!(raw instanceof File) || raw.size === 0) continue;

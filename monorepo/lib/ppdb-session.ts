@@ -1,7 +1,7 @@
 import type { MasterDataPrincipal } from "@/lib/tenant-master-data-access";
 
 export type PpdbSessionStatus = "draft" | "published" | "ended";
-export type PpdbFieldType = "text" | "number" | "file" | "select";
+export type PpdbFieldType = "text" | "textarea" | "number" | "date" | "file" | "select" | "radio" | "checkbox";
 export type PpdbFieldPurpose = "studentName" | "nisn";
 export type PpdbFormField = Readonly<{
   id: string;
@@ -9,8 +9,35 @@ export type PpdbFormField = Readonly<{
   type: PpdbFieldType;
   required: boolean;
   purpose?: PpdbFieldPurpose;
+  description?: string;
+  placeholder?: string;
   options?: readonly string[];
 }>;
+
+export const ppdbChoiceFieldTypes: readonly PpdbFieldType[] = ["select", "radio", "checkbox"];
+
+export const ppdbSystemFields: readonly PpdbFormField[] = [
+  { id: "system-student-name", label: "Nama Lengkap Calon Siswa", type: "text", required: true, purpose: "studentName" },
+  { id: "system-nisn", label: "NISN", type: "text", required: false, purpose: "nisn", description: "Wajib untuk sekolah yang menggunakan NISN." },
+];
+
+export function ensurePpdbSystemFields(fields: readonly PpdbFormField[]): PpdbFormField[] {
+  const next = [...fields];
+  for (const systemField of [...ppdbSystemFields].reverse()) {
+    const existing = findPpdbIdentityField(next, systemField.purpose!);
+    if (existing) {
+      const index = next.indexOf(existing);
+      next[index] = { ...existing, purpose: systemField.purpose };
+    } else {
+      next.unshift(systemField);
+    }
+  }
+  return next;
+}
+
+export function isPpdbChoiceField(field: PpdbFormField) {
+  return ppdbChoiceFieldTypes.includes(field.type);
+}
 
 export function findPpdbIdentityField(fields: readonly PpdbFormField[], purpose: PpdbFieldPurpose) {
   return fields.find((field) => field.purpose === purpose)
@@ -75,7 +102,21 @@ const failure = (code: FailureCode) => ({ ok: false, code } as const);
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
 function validFields(fields: readonly PpdbFormField[]) {
-  return fields.every((field) => field.label.trim().length > 0 && (field.type !== "select" || (field.options?.length ?? 0) > 0));
+  const validTypes: readonly PpdbFieldType[] = ["text", "textarea", "number", "date", "file", ...ppdbChoiceFieldTypes];
+  const ids = new Set<string>();
+  const purposes = new Set<PpdbFieldPurpose>();
+  return fields.every((field) => {
+    if (!field.id.trim() || ids.has(field.id) || !field.label.trim() || !validTypes.includes(field.type)) return false;
+    ids.add(field.id);
+    if (field.purpose) {
+      if (!(["studentName", "nisn"] as const).includes(field.purpose) || purposes.has(field.purpose)) return false;
+      purposes.add(field.purpose);
+    }
+    if (!ppdbChoiceFieldTypes.includes(field.type)) return true;
+    const options = field.options ?? [];
+    const normalized = options.map((option) => option.trim());
+    return normalized.length >= 2 && normalized.every(Boolean) && new Set(normalized).size === normalized.length;
+  }) && Boolean(findPpdbIdentityField(fields, "studentName")) && Boolean(findPpdbIdentityField(fields, "nisn"));
 }
 
 const emptyResultSettings: PpdbResultSettings = {
@@ -140,7 +181,7 @@ export function createPpdbSessionService(dependencies: { store: PpdbSessionStore
         endDate: input.endDate,
         status: "draft",
         fields: [],
-        draftFields: [],
+        draftFields: ppdbSystemFields,
         version: 1,
         publishedAt: null,
         endedAt: null,

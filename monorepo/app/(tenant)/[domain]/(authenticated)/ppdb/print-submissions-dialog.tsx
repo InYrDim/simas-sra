@@ -4,8 +4,9 @@ import { useMemo, useState } from "react";
 import { Printer } from "lucide-react";
 
 import {
+  getPpdbDynamicPrintColumns,
+  ppdbSystemPrintColumns,
   printPpdbSubmissionsList,
-  type PpdbPrintColumn,
 } from "@/app/(tenant)/[domain]/(authenticated)/ppdb/submissions-list-printer";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -21,14 +22,7 @@ import {
 import { Label } from "@/components/ui/label";
 import type { PpdbSubmission, PpdbSubmissionStatus } from "@/lib/ppdb-submission";
 
-const printColumns: readonly { value: PpdbPrintColumn; label: string }[] = [
-  { value: "registrationCode", label: "Kode pendaftaran" },
-  { value: "studentName", label: "Nama peserta" },
-  { value: "nisn", label: "NISN" },
-  { value: "score", label: "Skor" },
-  { value: "submittedAt", label: "Tanggal daftar" },
-  { value: "status", label: "Status" },
-];
+
 
 const printStatuses: readonly { value: PpdbSubmissionStatus; label: string }[] = [
   { value: "pending", label: "Menunggu" },
@@ -43,14 +37,18 @@ export function PrintSubmissionsDialog({
   domain: string;
   submissions: readonly PpdbSubmission[];
 }) {
-  const [columns, setColumns] = useState<Set<PpdbPrintColumn>>(() => new Set(printColumns.map(({ value }) => value)));
+  const availableColumns = useMemo(
+    () => [...ppdbSystemPrintColumns, ...getPpdbDynamicPrintColumns(submissions)],
+    [submissions],
+  );
+  const [columns, setColumns] = useState<Set<string>>(() => new Set(ppdbSystemPrintColumns.map(({ key }) => key)));
   const [statuses, setStatuses] = useState<Set<PpdbSubmissionStatus>>(() => new Set(printStatuses.map(({ value }) => value)));
   const filteredSubmissions = useMemo(
     () => submissions.filter((submission) => statuses.has(submission.status)),
     [statuses, submissions],
   );
 
-  function toggleColumn(column: PpdbPrintColumn, checked: boolean) {
+  function toggleColumn(column: string, checked: boolean) {
     setColumns((current) => {
       const next = new Set(current);
       if (checked) next.add(column);
@@ -69,7 +67,7 @@ export function PrintSubmissionsDialog({
   }
 
   function print() {
-    const selectedColumns = printColumns.map(({ value }) => value).filter((column) => columns.has(column));
+    const selectedColumns = availableColumns.filter((column) => columns.has(column.key));
     printPpdbSubmissionsList({ domain, submissions: filteredSubmissions, columns: selectedColumns });
   }
 
@@ -88,18 +86,19 @@ export function PrintSubmissionsDialog({
         </DialogHeader>
 
         <div className="grid gap-5 sm:grid-cols-2">
-          <fieldset className="space-y-3 rounded-xl border border-slate-200 p-4">
+          <fieldset className="max-h-72 space-y-3 overflow-y-auto rounded-xl border border-slate-200 p-4">
             <legend className="px-1 font-semibold">Kolom yang dicetak</legend>
-            {printColumns.map((column) => {
-              const id = `print-column-${column.value}`;
+            {availableColumns.map((column, index) => {
+              const id = `print-column-${index}`;
+              const dynamic = column.key.startsWith("field:");
               return (
-                <Label key={column.value} htmlFor={id} className="flex cursor-pointer items-center gap-3 font-normal">
+                <Label key={column.key} htmlFor={id} className="flex cursor-pointer items-center gap-3 font-normal">
                   <Checkbox
                     id={id}
-                    checked={columns.has(column.value)}
-                    onCheckedChange={(checked) => toggleColumn(column.value, checked === true)}
+                    checked={columns.has(column.key)}
+                    onCheckedChange={(checked) => toggleColumn(column.key, checked === true)}
                   />
-                  {column.label}
+                  <span>{column.label}{dynamic ? <span className="block text-xs text-slate-400">Field formulir</span> : null}</span>
                 </Label>
               );
             })}

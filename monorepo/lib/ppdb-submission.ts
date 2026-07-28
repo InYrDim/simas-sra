@@ -90,6 +90,7 @@ function requiredFieldsSatisfied(
   return fields.filter((field) => field.required).every((field) => {
     if (field.type === "file") return documents.some((document) => document.fieldId === field.id);
     const value = input.formData[field.id];
+    if (Array.isArray(value)) return value.some((item) => String(item).trim() !== "");
     return value !== undefined && value !== null && String(value).trim() !== "";
   });
 }

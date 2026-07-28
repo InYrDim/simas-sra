@@ -2,10 +2,11 @@
 
 import Link from "next/link"
 import { startTransition, useActionState, useRef, useState } from "react"
-import { CheckCircle2, ChevronRight, UploadCloud } from "lucide-react"
+import { CheckCircle2, ChevronRight, Printer, UploadCloud } from "lucide-react"
 import { toast } from "sonner"
 
 import { submitPpdbApplicationAction, type PpdbApplicationActionState } from "@/app/ppdb/[domain]/actions"
+import { printPpdbRegistrationReceipt, type PpdbReceiptAnswers } from "@/app/ppdb/[domain]/registration-receipt-printer"
 import { PpdbSessionClosedNotice } from "@/app/ppdb/[domain]/session-closed-notice"
 import { PPDB_FILE_MAX_MB, validatePpdbFileSize } from "@/lib/ppdb-file-validation"
 import { buildPpdbFormSteps } from "@/lib/ppdb-form-steps"
@@ -31,12 +32,15 @@ export function PpdbApplyForm({
   const totalSteps = steps.length
   const [step, setStep] = useState(0)
   const [fileNames, setFileNames] = useState<Record<string, string>>({})
+  const [submittedAnswers, setSubmittedAnswers] = useState<PpdbReceiptAnswers>({})
   const formRef = useRef<HTMLFormElement>(null)
   const stepRefs = useRef<Array<HTMLDivElement | null>>([])
   const [state, formAction, pending] = useActionState(submitPpdbApplicationAction.bind(null, domain, sessionId), initialState)
 
   if (!fields.length || state.status === "closed") return <PpdbSessionClosedNotice />
-  if (state.status === "success") return <PpdbApplySuccess sessionId={sessionId} registrationCode={state.registrationCode} />
+  if (state.status === "success") {
+    return <PpdbApplySuccess domain={domain} sessionId={sessionId} registrationCode={state.registrationCode} fields={fields} answers={submittedAnswers} />
+  }
 
   function goNext() {
     const container = stepRefs.current[step]
@@ -153,6 +157,13 @@ export function PpdbApplyForm({
                 onClick={() => {
                   if (!formRef.current) return
                   const formData = new FormData(formRef.current)
+                  const answers: Record<string, string | readonly string[]> = {}
+                  for (const field of fields) {
+                    if (field.type === "checkbox") answers[field.id] = formData.getAll(field.id).map(String)
+                    else if (field.type === "file") answers[field.id] = fileNames[field.id] ?? ""
+                    else answers[field.id] = String(formData.get(field.id) ?? "")
+                  }
+                  setSubmittedAnswers(answers)
                   startTransition(() => formAction(formData))
                 }}
                 className="flex-[2] rounded-xl bg-sky-500 py-3 text-sm font-bold text-white shadow-lg shadow-sky-500/20 flex justify-center items-center gap-2 hover:bg-sky-600 transition-colors disabled:opacity-50"
@@ -168,28 +179,47 @@ export function PpdbApplyForm({
 }
 
 function DynamicField({ field, nisnRequired }: { field: PpdbFormField; nisnRequired: boolean }) {
-  return (
-    <div>
-      <label className="text-sm font-medium text-slate-700">
-        {field.label}
-        {field.required || (field.purpose === "nisn" && nisnRequired) ? " *" : ""}
-      </label>
-      {field.type === "select" ? (
-        <select name={field.id} required={field.required || (field.purpose === "nisn" && nisnRequired)} defaultValue="" className={`${fieldClassName} bg-white`}>
-          <option value="" disabled>Pilih {field.label}</option>
+  const required = field.required || (field.purpose === "nisn" && nisnRequired)
+  const labelText = field.label + (required ? " *" : "")
+
+  if (field.type === "radio" || field.type === "checkbox") {
+    return (
+      <fieldset className="rounded-xl border border-slate-200 p-4">
+        <legend className="px-1 text-sm font-medium text-slate-700">{labelText}</legend>
+        {field.description ? <p className="mb-2 text-xs text-slate-500">{field.description}</p> : null}
+        <div className="mt-2 space-y-2">
           {(field.options ?? []).map((option) => (
-            <option key={option} value={option}>{option}</option>
+            <label key={option} className="flex cursor-pointer items-center gap-3 text-sm text-slate-700">
+              <input type={field.type} name={field.id} value={option} required={field.type === "radio" && required} className="size-4 accent-sky-500" />
+              {option}
+            </label>
           ))}
+        </div>
+      </fieldset>
+    )
+  }
+
+  return (
+    <label className="block">
+      <span className="text-sm font-medium text-slate-700">{labelText}</span>
+      {field.description ? <span className="mt-1 block text-xs text-slate-500">{field.description}</span> : null}
+      {field.type === "select" ? (
+        <select name={field.id} required={required} defaultValue="" className={`${fieldClassName} bg-white`}>
+          <option value="" disabled>Pilih {field.label}</option>
+          {(field.options ?? []).map((option) => <option key={option} value={option}>{option}</option>)}
         </select>
+      ) : field.type === "textarea" ? (
+        <textarea name={field.id} required={required} placeholder={field.placeholder} rows={4} className={fieldClassName} />
       ) : (
         <input
-          type={field.type === "number" ? "number" : "text"}
+          type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
           name={field.id}
-          required={field.required || (field.purpose === "nisn" && nisnRequired)}
+          required={required}
+          placeholder={field.placeholder}
           className={fieldClassName}
         />
       )}
-    </div>
+    </label>
   )
 }
 
@@ -241,7 +271,19 @@ function FileField({
   )
 }
 
-function PpdbApplySuccess({ sessionId, registrationCode }: { sessionId: string; registrationCode: string }) {
+function PpdbApplySuccess({
+  domain,
+  sessionId,
+  registrationCode,
+  fields,
+  answers,
+}: {
+  domain: string
+  sessionId: string
+  registrationCode: string
+  fields: readonly PpdbFormField[]
+  answers: PpdbReceiptAnswers
+}) {
   return (
     <div className="min-h-svh bg-slate-100 flex justify-center pb-20">
       <main className="w-full max-w-md bg-white shadow-xl min-h-[100dvh] flex flex-col items-center justify-center gap-4 p-6 text-center">
@@ -256,9 +298,17 @@ function PpdbApplySuccess({ sessionId, registrationCode }: { sessionId: string; 
           <p className="text-xs font-semibold text-sky-600 uppercase">Kode Pendaftaran</p>
           <p className="mt-1 text-2xl font-bold tracking-wide text-sky-700">{registrationCode}</p>
         </div>
+        <button
+          type="button"
+          onClick={() => printPpdbRegistrationReceipt({ domain, sessionId, registrationCode, fields, answers })}
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-sky-500 py-3 text-sm font-bold text-sky-700 transition-colors hover:bg-sky-50"
+        >
+          <Printer className="size-4" />
+          Cetak Bukti Pendaftaran
+        </button>
         <Link
           href={`/ppdb/${sessionId}/status`}
-          className="mt-2 w-full rounded-xl bg-sky-500 py-3 text-sm font-bold text-white shadow-lg shadow-sky-500/20 flex justify-center items-center gap-2 hover:bg-sky-600 transition-colors"
+          className="w-full rounded-xl bg-sky-500 py-3 text-sm font-bold text-white shadow-lg shadow-sky-500/20 flex justify-center items-center gap-2 hover:bg-sky-600 transition-colors"
         >
           Cek Status Pendaftaran
         </Link>
