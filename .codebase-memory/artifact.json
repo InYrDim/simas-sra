@@ -1,0 +1,11 @@
+{
+    "schema_version": 2,
+    "commit": "e8c7bf959381544e9df908d330181d37323cfa1b",
+    "indexed_at": "2026-07-27T05:51:00Z",
+    "project": "simas",
+    "nodes": 7061,
+    "edges": 14593,
+    "original_size": 10092544,
+    "compressed_size": 2207855,
+    "compression_level": 9
+}

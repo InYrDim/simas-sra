@@ -5,6 +5,7 @@ import { Check, CheckCircle, Clock, Eye, FileText, Loader2, X, XCircle } from "l
 
 import { decideSubmissionAction } from "@/app/(tenant)/[domain]/(authenticated)/ppdb/actions";
 import { DocumentPreview } from "@/app/(tenant)/[domain]/(authenticated)/ppdb/document-preview";
+import { PrintSubmissionsDialog } from "@/app/(tenant)/[domain]/(authenticated)/ppdb/print-submissions-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -172,7 +173,12 @@ export function SubmissionsTable({
     );
   }
   return (
-    <Table>
+    <div>
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-4">
+        <p className="text-sm text-slate-500">{submissions.length} calon siswa</p>
+        <PrintSubmissionsDialog domain={domain} submissions={submissions} />
+      </div>
+      <Table>
       <TableHeader className="bg-slate-50">
         <TableRow>
           <TableHead className="font-semibold">Kode Pendaftaran</TableHead>
@@ -226,6 +232,7 @@ export function SubmissionsTable({
           </TableRow>
         ))}
       </TableBody>
-    </Table>
+      </Table>
+    </div>
   );
 }
