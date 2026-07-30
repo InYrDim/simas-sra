@@ -1,4 +1,4 @@
-import { hasFeature } from "@/lib/features";
+import { hasFeature } from "@/lib/features/features";
 
 const chartHeights = [42, 68, 35, 81, 56, 74, 49, 91, 63, 77, 52, 86];
 

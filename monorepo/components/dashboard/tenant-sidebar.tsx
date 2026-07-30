@@ -12,7 +12,7 @@ import {
 import { BookOpen, LogOut } from "lucide-react"
 import { TenantNavMenu } from "@/components/tenant-nav-menu"
 import { tenantMenuItems } from "@/components/tenant-nav-menu/config"
-import { authClient } from "@/lib/auth-client"
+import { authClient } from "@/lib/platform/auth-client"
 
 import { type TenantRole } from "@/types/TenantRole"
 

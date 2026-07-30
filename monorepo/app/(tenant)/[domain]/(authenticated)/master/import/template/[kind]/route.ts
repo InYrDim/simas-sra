@@ -1,5 +1,5 @@
-import { buildPeopleImportTemplate, type PeopleImportKind } from "@/lib/people-import";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { buildPeopleImportTemplate, type PeopleImportKind } from "@/lib/imports/people-import";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 const kinds = new Set(["student", "teacher", "staff"]);
 export async function GET(_request: Request, context: { params: Promise<{ domain: string; kind: string }> }) {
   const { domain, kind } = await context.params; await enforceMasterDataAccess(domain, "download-template");

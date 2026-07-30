@@ -1,4 +1,4 @@
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 export default async function WhatsAppBotPage({
   params,

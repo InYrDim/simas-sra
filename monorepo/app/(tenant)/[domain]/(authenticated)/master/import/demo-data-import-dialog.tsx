@@ -17,7 +17,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { DEMO_MASTER_DATA_TYPES } from "@/lib/demo-master-data";
+import { DEMO_MASTER_DATA_TYPES } from "@/lib/master-data/demo-master-data";
 
 function DemoImportActions() {
   const { pending } = useFormStatus();

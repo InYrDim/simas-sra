@@ -1,7 +1,7 @@
-import { createPeopleImportService } from "@/lib/people-import";
-import { peopleImportStore } from "@/lib/people-import-data";
-import { createProtectedFileStorage } from "@/lib/protected-file-storage";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { createPeopleImportService } from "@/lib/imports/people-import";
+import { peopleImportStore } from "@/lib/imports/people-import-data";
+import { createProtectedFileStorage } from "@/lib/platform/protected-file-storage";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 export async function POST(request: Request, context: { params: Promise<{ domain: string }> }) {
   const { domain } = await context.params, principal = await enforceMasterDataAccess(domain, "validate-import");
   const form = await request.formData(), file = form.get("file");

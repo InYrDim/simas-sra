@@ -8,9 +8,9 @@ import { toast } from "sonner"
 import { submitPpdbApplicationAction, type PpdbApplicationActionState } from "@/app/ppdb/[domain]/actions"
 import { printPpdbRegistrationReceipt, type PpdbReceiptAnswers } from "@/app/ppdb/[domain]/registration-receipt-printer"
 import { PpdbSessionClosedNotice } from "@/app/ppdb/[domain]/session-closed-notice"
-import { PPDB_FILE_MAX_MB, validatePpdbFileSize } from "@/lib/ppdb-file-validation"
-import { buildPpdbFormSteps } from "@/lib/ppdb-form-steps"
-import type { PpdbFormField } from "@/lib/ppdb-session"
+import { PPDB_FILE_MAX_MB, validatePpdbFileSize } from "@/lib/admissions/ppdb-file-validation"
+import { buildPpdbFormSteps } from "@/lib/admissions/ppdb-form-steps"
+import type { PpdbFormField } from "@/lib/admissions/ppdb-session"
 
 const fieldClassName =
   "mt-1 w-full rounded-lg border border-slate-300 p-3 text-sm focus:border-sky-500 focus:ring-1 focus:ring-sky-500 outline-none"

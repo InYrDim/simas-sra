@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { generateSubjectCode } from "@/lib/subject-code";
+import { generateSubjectCode } from "@/lib/academic/subject-code";
 
 export function SubjectIdentityFields({
   defaultCode = "",

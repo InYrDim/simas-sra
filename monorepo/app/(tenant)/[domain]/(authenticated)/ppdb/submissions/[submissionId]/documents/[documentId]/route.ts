@@ -1,6 +1,6 @@
-import { createProtectedFileStorage } from "@/lib/protected-file-storage";
-import { ppdbSubmissionStore } from "@/lib/ppdb-submission-data";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { createProtectedFileStorage } from "@/lib/platform/protected-file-storage";
+import { ppdbSubmissionStore } from "@/lib/admissions/ppdb-submission-data";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 export async function GET(
   request: Request,

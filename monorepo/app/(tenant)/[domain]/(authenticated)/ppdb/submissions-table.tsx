@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import type { PpdbSubmission } from "@/lib/ppdb-submission";
+import type { PpdbSubmission } from "@/lib/admissions/ppdb-submission";
 
 function formatAnswer(value: unknown) {
   if (value === undefined || value === null || String(value).trim() === "") return "–";

@@ -6,11 +6,11 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { ApplicationForm } from "@/app/apply/application-form";
-import { auth } from "@/lib/auth";
-import { createApplicantPortalQuery, type ApplicantApplicationSnapshot } from "@/lib/applicant-portal";
-import { applicantPortalStore } from "@/lib/applicant-portal-data";
-import { resolveCentralDestination } from "@/lib/central-identity";
-import { getCentralIdentity } from "@/lib/central-identity-data";
+import { auth } from "@/lib/platform/auth";
+import { createApplicantPortalQuery, type ApplicantApplicationSnapshot } from "@/lib/applicants/applicant-portal";
+import { applicantPortalStore } from "@/lib/applicants/applicant-portal-data";
+import { resolveCentralDestination } from "@/lib/platform/central-identity";
+import { getCentralIdentity } from "@/lib/platform/central-identity-data";
 
 export default async function ApplyPage() {
   const session = await auth.api.getSession({ headers: await headers() });

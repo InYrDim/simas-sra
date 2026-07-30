@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import {
   PROVIDER_FEATURES,
   type ProviderFeatureSelection,
-} from "@/lib/provider-feature-settings";
+} from "@/lib/provider/provider-feature-settings";
 
 const initialState: FeatureSettingsActionState = { status: "idle" };
 

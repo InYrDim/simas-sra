@@ -1,9 +1,9 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createSchoolPersonMasterDataService } from "@/lib/school-person-master-data";
-import { schoolPersonMasterDataStore } from "@/lib/school-person-master-data-data";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { createSchoolPersonMasterDataService } from "@/lib/master-data/school-person-master-data";
+import { schoolPersonMasterDataStore } from "@/lib/master-data/school-person-master-data-data";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 const service = createSchoolPersonMasterDataService({ store: schoolPersonMasterDataStore });
 const allowedOrigins = new Set(["siswa", "guru", "staf"]);

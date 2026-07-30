@@ -1,8 +1,8 @@
 import { notFound } from "next/navigation";
 
-import { getPublicTenantLandingPage } from "@/lib/tenant-landing-page-data";
-import { renderTenantLandingPage } from "@/lib/tenant-landing-page";
-import { findPublicPpdbSession } from "@/lib/ppdb-session-data";
+import { getPublicTenantLandingPage } from "@/lib/tenancy/tenant-landing-page-data";
+import { renderTenantLandingPage } from "@/lib/tenancy/tenant-landing-page";
+import { findPublicPpdbSession } from "@/lib/admissions/ppdb-session-data";
 
 export default async function TenantPage({ params }: { params: Promise<{ domain: string }> }) {
   const { domain } = await params;

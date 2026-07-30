@@ -5,17 +5,17 @@ import { ActiveSessionControls } from "@/app/(tenant)/[domain]/(authenticated)/u
 import { DemoQuestionsDialog } from "@/app/(tenant)/[domain]/(authenticated)/ulangan/[sessionId]/demo-questions-dialog";
 import { activateSessionAction, removeQuestionAction } from "@/app/(tenant)/[domain]/(authenticated)/ulangan/actions";
 import { Button } from "@/components/ui/button";
-import { createAcademicYearService } from "@/lib/academic-year";
-import { academicYearStore } from "@/lib/academic-year-data";
-import { createClassGroupService } from "@/lib/class-group";
-import { classGroupStore } from "@/lib/class-group-data";
-import { createQuizSessionService } from "@/lib/quiz";
-import { quizSessionStore } from "@/lib/quiz-data";
-import { createStudentMasterDataService } from "@/lib/student-master-data";
-import { studentMasterDataStore } from "@/lib/student-master-data-data";
-import { createSubjectCatalogService } from "@/lib/subject-catalog";
-import { subjectCatalogStore } from "@/lib/subject-catalog-data";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { createAcademicYearService } from "@/lib/academic/academic-year";
+import { academicYearStore } from "@/lib/academic/academic-year-data";
+import { createClassGroupService } from "@/lib/academic/class-group";
+import { classGroupStore } from "@/lib/academic/class-group-data";
+import { createQuizSessionService } from "@/lib/quiz/quiz";
+import { quizSessionStore } from "@/lib/quiz/quiz-data";
+import { createStudentMasterDataService } from "@/lib/master-data/student-master-data";
+import { studentMasterDataStore } from "@/lib/master-data/student-master-data-data";
+import { createSubjectCatalogService } from "@/lib/academic/subject-catalog";
+import { subjectCatalogStore } from "@/lib/academic/subject-catalog-data";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 import { ArrowLeft, CheckCircle, FileText, PlayCircle, PlusCircle, Trash2 } from "lucide-react";
 
 const sessionService = createQuizSessionService({ store: quizSessionStore });

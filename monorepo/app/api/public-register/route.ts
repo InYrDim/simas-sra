@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { resolveProxyRoute } from "@/lib/proxy-routing";
-import { createPublicRegistration } from "@/lib/public-registration";
-import { publicRegistrationStore } from "@/lib/public-registration-data";
+import { resolveProxyRoute } from "@/lib/platform/proxy-routing";
+import { createPublicRegistration } from "@/lib/admissions/public-registration";
+import { publicRegistrationStore } from "@/lib/admissions/public-registration-data";
 
 export async function POST(request: NextRequest) {
   if (resolveProxyRoute(request.headers.get("host") ?? "", "/register", process.env.APP_DOMAIN).kind !== "next") {

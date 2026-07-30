@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 
 import { MasterDataDetailDialog } from "@/components/master-data/master-data-detail-dialog";
 import { MasterDataFilterForm } from "@/components/master-data/master-data-filter-form";
-import type { MasterDataQuery } from "@/lib/master-data-workspace";
-import { serializeMasterDataQuery } from "@/lib/master-data-workspace";
+import type { MasterDataQuery } from "@/lib/master-data/master-data-workspace";
+import { serializeMasterDataQuery } from "@/lib/master-data/master-data-workspace";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {

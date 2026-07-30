@@ -1,9 +1,9 @@
 "use server";
 
 import { resolvePublicTenant } from "@/app/ppdb/[domain]/resolve-tenant";
-import type { PpdbSubmissionStatus } from "@/lib/ppdb-submission";
-import { createPpdbSubmissionService } from "@/lib/ppdb-submission";
-import { ppdbSubmissionStore } from "@/lib/ppdb-submission-data";
+import type { PpdbSubmissionStatus } from "@/lib/admissions/ppdb-submission";
+import { createPpdbSubmissionService } from "@/lib/admissions/ppdb-submission";
+import { ppdbSubmissionStore } from "@/lib/admissions/ppdb-submission-data";
 
 export type PpdbStatusActionState =
   | { status: "idle" }

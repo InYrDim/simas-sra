@@ -2,11 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createAddSchoolAccreditationCommand, createCorrectSchoolAccreditationCommand } from "@/lib/school-accreditation";
-import { createUploadSchoolLogoCommand } from "@/lib/school-profile-assets";
-import { schoolAccreditationStore, schoolAssetStore } from "@/lib/school-profile-history-data";
-import { createProtectedFileStorage, schoolAssetRetentionDays } from "@/lib/protected-file-storage";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { createAddSchoolAccreditationCommand, createCorrectSchoolAccreditationCommand } from "@/lib/master-data/school-accreditation";
+import { createUploadSchoolLogoCommand } from "@/lib/master-data/school-profile-assets";
+import { schoolAccreditationStore, schoolAssetStore } from "@/lib/master-data/school-profile-history-data";
+import { createProtectedFileStorage, schoolAssetRetentionDays } from "@/lib/platform/protected-file-storage";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 export type ProfileHistoryActionState =
   | { status: "idle" }

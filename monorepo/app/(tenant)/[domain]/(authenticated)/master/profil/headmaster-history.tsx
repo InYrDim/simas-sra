@@ -12,7 +12,7 @@ import { Field, FieldLabel, FieldContent } from "@/components/ui/field";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import type { HeadmasterAssignmentView, HeadmasterTeacher } from "@/lib/headmaster-assignment";
+import type { HeadmasterAssignmentView, HeadmasterTeacher } from "@/lib/master-data/headmaster-assignment";
 
 const messages: Record<string, string> = { saved: "Kepala Sekolah tersimpan.", "invalid-input": "Tanggal efektif dan alasan wajib valid.", "invalid-teacher": "Pilih Guru aktif yang belum diarsipkan dari sekolah ini.", overlap: "Tanggal efektif bertumpang tindih dengan riwayat Kepala Sekolah.", conflict: "Penugasan berubah bersamaan. Muat ulang lalu coba lagi.", "read-only": "Profil ini hanya dapat dibaca." };
 

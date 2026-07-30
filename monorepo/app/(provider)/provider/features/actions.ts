@@ -2,12 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 
-import { updateTenantFeatureConfiguration } from "@/lib/provider-feature-data";
+import { updateTenantFeatureConfiguration } from "@/lib/provider/provider-feature-data";
 import {
   PROVIDER_FEATURES,
   type ProviderFeatureSelection,
-} from "@/lib/provider-feature-settings";
-import { requireProviderActionAccess } from "@/lib/provider-access";
+} from "@/lib/provider/provider-feature-settings";
+import { requireProviderActionAccess } from "@/lib/provider/provider-access";
 
 export type FeatureSettingsActionState =
   | { status: "idle" }

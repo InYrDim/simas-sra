@@ -6,12 +6,12 @@ import { redirect } from "next/navigation";
 import {
   createClassGroupService,
   type ClassGroupEducationLevel,
-} from "@/lib/class-group";
-import { classGroupStore } from "@/lib/class-group-data";
-import { createClassMembershipService } from "@/lib/class-membership";
-import { classMembershipStore } from "@/lib/class-membership-data";
-import { rombelResultPath } from "@/lib/rombel-route";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+} from "@/lib/academic/class-group";
+import { classGroupStore } from "@/lib/academic/class-group-data";
+import { createClassMembershipService } from "@/lib/academic/class-membership";
+import { classMembershipStore } from "@/lib/academic/class-membership-data";
+import { rombelResultPath } from "@/lib/academic/rombel-route";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 const service = createClassGroupService({ store: classGroupStore });
 const relationshipService = createClassMembershipService({

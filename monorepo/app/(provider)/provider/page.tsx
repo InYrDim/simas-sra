@@ -13,8 +13,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 
-import { APPLICATION_STATUS_LABELS } from "@/lib/provider-applications";
-import { getProviderSummary } from "@/lib/provider-summary-data";
+import { APPLICATION_STATUS_LABELS } from "@/lib/provider/provider-applications";
+import { getProviderSummary } from "@/lib/provider/provider-summary-data";
 
 function formatDate(value: Date | null) {
   return value?.toLocaleDateString("id-ID", { dateStyle: "medium" }) ?? "—";

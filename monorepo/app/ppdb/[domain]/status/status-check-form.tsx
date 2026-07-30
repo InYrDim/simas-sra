@@ -8,7 +8,7 @@ import { printPpdbResult } from "@/app/ppdb/[domain]/status/ppdb-result-printer"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import type { PpdbSubmissionStatus } from "@/lib/ppdb-submission"
+import type { PpdbSubmissionStatus } from "@/lib/admissions/ppdb-submission"
 
 const initialState: PpdbStatusActionState = { status: "idle" }
 

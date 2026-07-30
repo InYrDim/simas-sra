@@ -2,13 +2,13 @@ import Link from "next/link";
 
 import { markAttendanceAction } from "@/app/(tenant)/[domain]/(authenticated)/ulangan/actions";
 import { Button } from "@/components/ui/button";
-import { createClassGroupService } from "@/lib/class-group";
-import { classGroupStore } from "@/lib/class-group-data";
-import { createQuizSessionService } from "@/lib/quiz";
-import { quizSessionStore } from "@/lib/quiz-data";
-import { createStudentMasterDataService } from "@/lib/student-master-data";
-import { studentMasterDataStore } from "@/lib/student-master-data-data";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { createClassGroupService } from "@/lib/academic/class-group";
+import { classGroupStore } from "@/lib/academic/class-group-data";
+import { createQuizSessionService } from "@/lib/quiz/quiz";
+import { quizSessionStore } from "@/lib/quiz/quiz-data";
+import { createStudentMasterDataService } from "@/lib/master-data/student-master-data";
+import { studentMasterDataStore } from "@/lib/master-data/student-master-data-data";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 import { ArrowLeft, CheckCircle, UserX, Clock } from "lucide-react";
 
 const sessionService = createQuizSessionService({ store: quizSessionStore });

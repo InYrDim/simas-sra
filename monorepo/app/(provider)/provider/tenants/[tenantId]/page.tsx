@@ -5,8 +5,8 @@ import { ResetCredentialForm } from "@/app/(provider)/provider/tenants/[tenantId
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getProviderTenantDetail } from "@/lib/provider-tenant-data";
-import { tenantUsageStageLabel } from "@/lib/provider-tenants";
+import { getProviderTenantDetail } from "@/lib/provider/provider-tenant-data";
+import { tenantUsageStageLabel } from "@/lib/provider/provider-tenants";
 
 export default async function ProviderTenantDetailPage({
   params,

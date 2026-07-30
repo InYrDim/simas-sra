@@ -1,10 +1,10 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { auth } from "@/lib/auth";
-import { getCentralIdentity } from "@/lib/central-identity-data";
-import { resolveTenantLogin } from "@/lib/tenant-login";
-import { tenantLoginStore } from "@/lib/tenant-login-data";
+import { auth } from "@/lib/platform/auth";
+import { getCentralIdentity } from "@/lib/platform/central-identity-data";
+import { resolveTenantLogin } from "@/lib/tenancy/tenant-login";
+import { tenantLoginStore } from "@/lib/tenancy/tenant-login-data";
 
 export default async function ContinueTenantLoginPage({ params, searchParams }: {
   params: Promise<{ domain: string }>;

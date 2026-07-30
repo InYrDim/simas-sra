@@ -3,11 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { createPpdbSessionService, type PpdbFormField } from "@/lib/ppdb-session";
-import { ppdbSessionStore } from "@/lib/ppdb-session-data";
-import { createPpdbSubmissionService } from "@/lib/ppdb-submission";
-import { ppdbSubmissionStore } from "@/lib/ppdb-submission-data";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { createPpdbSessionService, type PpdbFormField } from "@/lib/admissions/ppdb-session";
+import { ppdbSessionStore } from "@/lib/admissions/ppdb-session-data";
+import { createPpdbSubmissionService } from "@/lib/admissions/ppdb-submission";
+import { ppdbSubmissionStore } from "@/lib/admissions/ppdb-submission-data";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 const sessionService = createPpdbSessionService({ store: ppdbSessionStore });
 const submissionService = createPpdbSubmissionService({ store: ppdbSubmissionStore });

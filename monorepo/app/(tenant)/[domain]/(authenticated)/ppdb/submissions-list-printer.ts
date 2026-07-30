@@ -1,4 +1,4 @@
-import type { PpdbSubmission, PpdbSubmissionStatus } from "@/lib/ppdb-submission";
+import type { PpdbSubmission, PpdbSubmissionStatus } from "@/lib/admissions/ppdb-submission";
 
 export type PpdbSystemPrintColumn = "registrationCode" | "studentName" | "nisn" | "score" | "submittedAt" | "status";
 export type PpdbPrintColumn = Readonly<{ key: PpdbSystemPrintColumn | `field:${string}`; label: string }>;

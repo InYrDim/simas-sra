@@ -3,10 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { createQuizSessionService, type QuizAttendanceStatus, type QuizQuestionInput, type QuizSessionMode } from "@/lib/quiz";
-import { quizSessionStore } from "@/lib/quiz-data";
-import { DEMO_QUIZ_QUESTIONS } from "@/lib/quiz-demo";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { createQuizSessionService, type QuizAttendanceStatus, type QuizQuestionInput, type QuizSessionMode } from "@/lib/quiz/quiz";
+import { quizSessionStore } from "@/lib/quiz/quiz-data";
+import { DEMO_QUIZ_QUESTIONS } from "@/lib/quiz/quiz-demo";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 const sessionService = createQuizSessionService({ store: quizSessionStore });
 

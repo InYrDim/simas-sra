@@ -2,7 +2,7 @@ import { MasterDataFormDialog } from "@/components/master-data/master-data-form-
 
 import { createLocationAction,editLocationAction,manageLocationAction } from "./actions";
 import { MasterDataWorkspace } from "@/components/master-data/master-data-workspace";
-import { createLocationService,LOCATION_TYPES,type Location } from "@/lib/location";import { locationStore } from "@/lib/location-data";import { queryLocations } from "@/lib/location-query";import type { MasterDataSearchParams } from "@/lib/master-data-workspace";import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { createLocationService,LOCATION_TYPES,type Location } from "@/lib/master-data/location";import { locationStore } from "@/lib/master-data/location-data";import { queryLocations } from "@/lib/master-data/location-query";import type { MasterDataSearchParams } from "@/lib/master-data/master-data-workspace";import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";

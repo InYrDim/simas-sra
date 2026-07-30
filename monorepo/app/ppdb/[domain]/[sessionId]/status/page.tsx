@@ -2,7 +2,7 @@ import { notFound } from "next/navigation"
 
 import { resolvePublicTenant } from "@/app/ppdb/[domain]/resolve-tenant"
 import { PpdbStatusCheckForm } from "@/app/ppdb/[domain]/status/status-check-form"
-import { findPpdbAnnouncementState } from "@/lib/ppdb-session-data"
+import { findPpdbAnnouncementState } from "@/lib/admissions/ppdb-session-data"
 
 export default async function PpdbSessionStatusPage({
   params,

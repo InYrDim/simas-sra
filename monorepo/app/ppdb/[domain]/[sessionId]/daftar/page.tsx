@@ -3,7 +3,7 @@ import { notFound } from "next/navigation"
 import { PpdbApplyForm } from "@/app/ppdb/[domain]/apply-form"
 import { resolvePublicTenant } from "@/app/ppdb/[domain]/resolve-tenant"
 import { PpdbSessionClosedNotice } from "@/app/ppdb/[domain]/session-closed-notice"
-import { findPublicPpdbSession } from "@/lib/ppdb-session-data"
+import { findPublicPpdbSession } from "@/lib/admissions/ppdb-session-data"
 
 export default async function PpdbSessionApplicationPage({
   params,

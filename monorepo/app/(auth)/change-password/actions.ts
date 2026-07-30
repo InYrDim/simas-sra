@@ -6,9 +6,9 @@ import { redirect } from "next/navigation";
 
 import { db } from "@/db";
 import { tenant } from "@/db/schema";
-import { auth } from "@/lib/auth";
-import { createChangeSchoolAdminPasswordCommand } from "@/lib/temporary-credential-activation";
-import { temporaryCredentialActivationStore } from "@/lib/temporary-credential-activation-data";
+import { auth } from "@/lib/platform/auth";
+import { createChangeSchoolAdminPasswordCommand } from "@/lib/tenancy/temporary-credential-activation";
+import { temporaryCredentialActivationStore } from "@/lib/tenancy/temporary-credential-activation-data";
 
 export async function changeRequiredPasswordAction(formData: FormData) {
   const session = await auth.api.getSession({ headers: await headers() });

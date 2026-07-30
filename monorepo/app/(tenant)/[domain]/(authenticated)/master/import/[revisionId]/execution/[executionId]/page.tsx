@@ -1,4 +1,4 @@
-import Link from "next/link";import{notFound}from"next/navigation";import{enforceMasterDataAccess}from"@/lib/tenant-master-data-route-access";import{getPeopleImportExecution}from"@/lib/people-import-execution-data";
+import Link from "next/link";import{notFound}from"next/navigation";import{enforceMasterDataAccess}from"@/lib/master-data/tenant-master-data-route-access";import{getPeopleImportExecution}from"@/lib/imports/people-import-execution-data";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 const labels={created:"Dibuat",linked:"Ditautkan",skipped:"Dilewati",rejected:"Ditolak",failed:"Gagal","already-committed":"Sudah dikomit"};

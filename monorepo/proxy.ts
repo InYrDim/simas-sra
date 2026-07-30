@@ -1,5 +1,5 @@
-import { resolveRawPublicIntent } from "@/lib/central-identity";
-import { resolveProxyRoute, TENANT_PATHNAME_HEADER } from "@/lib/proxy-routing";
+import { resolveRawPublicIntent } from "@/lib/platform/central-identity";
+import { resolveProxyRoute, TENANT_PATHNAME_HEADER } from "@/lib/platform/proxy-routing";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 

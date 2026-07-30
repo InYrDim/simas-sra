@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import {
   getTenantFeatureConfiguration,
   listTenantsForFeatureManagement,
-} from "@/lib/provider-feature-data";
+} from "@/lib/provider/provider-feature-data";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 

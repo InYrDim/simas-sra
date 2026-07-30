@@ -1,4 +1,4 @@
-import type { PpdbFormField } from "@/lib/ppdb-session"
+import type { PpdbFormField } from "@/lib/admissions/ppdb-session"
 
 export type PpdbReceiptAnswers = Readonly<Record<string, string | readonly string[]>>
 

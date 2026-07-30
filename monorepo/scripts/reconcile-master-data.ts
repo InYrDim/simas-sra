@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 import {
   reconcileMasterData,
   type ReconciliationSnapshot,
-} from "@/lib/master-data-reconciliation";
+} from "@/lib/master-data/master-data-reconciliation";
 
 async function main() {
   const snapshotPath = process.argv[2];

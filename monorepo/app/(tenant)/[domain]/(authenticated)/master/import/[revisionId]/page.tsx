@@ -5,9 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { executeImportAction, saveDecisionAction } from "./actions";
-import { queryImportReview, type ReviewRow } from "@/lib/people-import-review";
-import { getImportReview } from "@/lib/people-import-review-data";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { queryImportReview, type ReviewRow } from "@/lib/imports/people-import-review";
+import { getImportReview } from "@/lib/imports/people-import-review-data";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 const stateLabels = { ready: "Siap", warning: "Perlu keputusan", rejected: "Ditolak" } as const;
 const decisionLabels: Record<string, string> = {

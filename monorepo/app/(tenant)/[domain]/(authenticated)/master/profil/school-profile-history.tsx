@@ -12,7 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format, parseISO } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { SchoolAccreditation } from "@/lib/school-accreditation";
+import type { SchoolAccreditation } from "@/lib/master-data/school-accreditation";
 
 const initialState: ProfileHistoryActionState = { status: "idle" };
 

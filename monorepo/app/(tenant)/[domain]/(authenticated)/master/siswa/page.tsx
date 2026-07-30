@@ -21,26 +21,26 @@ import {
   SchoolPersonArchiveForm,
   SharedPersonImpact,
 } from "@/components/master-data/school-person-profile-context";
-import { createSchoolPersonMasterDataService } from "@/lib/school-person-master-data";
-import { schoolPersonMasterDataStore } from "@/lib/school-person-master-data-data";
+import { createSchoolPersonMasterDataService } from "@/lib/master-data/school-person-master-data";
+import { schoolPersonMasterDataStore } from "@/lib/master-data/school-person-master-data-data";
 import {
   createStudentMasterDataService,
   STUDENT_STATUSES,
   type SchoolPerson,
   type StudentInput,
   type StudentRecord,
-} from "@/lib/student-master-data";
-import { studentMasterDataStore } from "@/lib/student-master-data-data";
+} from "@/lib/master-data/student-master-data";
+import { studentMasterDataStore } from "@/lib/master-data/student-master-data-data";
 import {
   queryStudents,
   STUDENT_ACCOUNT_STATUSES,
   STUDENT_GENDERS,
-} from "@/lib/student-master-data-query";
+} from "@/lib/master-data/student-master-data-query";
 import {
   serializeMasterDataQuery,
   type MasterDataSearchParams,
-} from "@/lib/master-data-workspace";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+} from "@/lib/master-data/master-data-workspace";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {

@@ -9,7 +9,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { MAX_TENANT_LANDING_PAGE_HTML_LENGTH } from "@/lib/tenant-landing-page";
+import { MAX_TENANT_LANDING_PAGE_HTML_LENGTH } from "@/lib/tenancy/tenant-landing-page";
 
 const initialState: LandingPageActionState = { status: "idle" };
 

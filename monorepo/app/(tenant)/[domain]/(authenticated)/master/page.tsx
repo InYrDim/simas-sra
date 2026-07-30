@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { getMasterDataOverview } from "@/lib/master-data-overview-data";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { getMasterDataOverview } from "@/lib/master-data/master-data-overview-data";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 export default async function MasterDataOverviewPage({ params }: { params: Promise<{ domain: string }> }) {
   const { domain } = await params;

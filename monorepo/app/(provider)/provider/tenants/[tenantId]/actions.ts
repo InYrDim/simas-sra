@@ -1,11 +1,11 @@
 "use server";
 
-import { requireProviderActionAccess } from "@/lib/provider-access";
+import { requireProviderActionAccess } from "@/lib/provider/provider-access";
 import {
   createResetTemporaryCredentialCommand,
   TemporaryCredentialResetDeniedError,
-} from "@/lib/temporary-credential-activation";
-import { temporaryCredentialActivationStore } from "@/lib/temporary-credential-activation-data";
+} from "@/lib/tenancy/temporary-credential-activation";
+import { temporaryCredentialActivationStore } from "@/lib/tenancy/temporary-credential-activation-data";
 
 export type ResetCredentialState =
   | { status: "idle" }

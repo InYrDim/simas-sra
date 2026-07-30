@@ -10,7 +10,7 @@ async function main() {
     process.exit(1);
   }
 
-  const { deprovisionProviderAdminByEmail } = await import("@/lib/provider-admin");
+  const { deprovisionProviderAdminByEmail } = await import("@/lib/provider/provider-admin");
   const result = await deprovisionProviderAdminByEmail(email);
   console.log(JSON.stringify(result));
   process.exit(result.status === "user-not-found" ? 1 : 0);

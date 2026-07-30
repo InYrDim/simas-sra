@@ -1,11 +1,11 @@
 import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
-import { createAcademicYearService } from "@/lib/academic-year"
-import { academicYearStore } from "@/lib/academic-year-data"
-import { createPpdbSessionService } from "@/lib/ppdb-session"
-import { ppdbSessionStore } from "@/lib/ppdb-session-data"
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access"
+import { createAcademicYearService } from "@/lib/academic/academic-year"
+import { academicYearStore } from "@/lib/academic/academic-year-data"
+import { createPpdbSessionService } from "@/lib/admissions/ppdb-session"
+import { ppdbSessionStore } from "@/lib/admissions/ppdb-session-data"
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access"
 
 const sessionService = createPpdbSessionService({ store: ppdbSessionStore })
 const academicYearService = createAcademicYearService({ store: academicYearStore })

@@ -1,10 +1,10 @@
 "use server";
 
 import { captureActionError, finishMasterDataAction } from "../action-result";
-import { createTeacherMasterDataService } from "@/lib/teacher-master-data";
-import { teacherMasterDataStore } from "@/lib/teacher-master-data-data";
-import { parseTeacherForm, parseTeacherLifecycleForm, teacherResultCode } from "@/lib/teacher-master-data-route";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { createTeacherMasterDataService } from "@/lib/master-data/teacher-master-data";
+import { teacherMasterDataStore } from "@/lib/master-data/teacher-master-data-data";
+import { parseTeacherForm, parseTeacherLifecycleForm, teacherResultCode } from "@/lib/master-data/teacher-master-data-route";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 const service = createTeacherMasterDataService({ store: teacherMasterDataStore });
 

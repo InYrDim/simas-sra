@@ -8,7 +8,7 @@ import {
   resolveLegacyTenantOperationalAccess,
   verifyTenantAccessShadow,
   type TenantOperationalMigrationRow,
-} from "@/lib/tenant-operational-migration";
+} from "@/lib/tenancy/tenant-operational-migration";
 
 const migrationKey = "tenant-operational-model-v1";
 

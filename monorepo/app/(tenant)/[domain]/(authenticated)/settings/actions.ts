@@ -4,9 +4,9 @@ import { revalidatePath } from "next/cache";
 
 import {
   MAX_TENANT_LANDING_PAGE_HTML_LENGTH,
-} from "@/lib/tenant-landing-page";
-import { updateTenantLandingPage } from "@/lib/tenant-landing-page-data";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+} from "@/lib/tenancy/tenant-landing-page";
+import { updateTenantLandingPage } from "@/lib/tenancy/tenant-landing-page-data";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 export type LandingPageActionState =
   | { status: "idle" }

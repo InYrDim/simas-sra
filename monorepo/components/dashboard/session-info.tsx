@@ -1,6 +1,6 @@
 "use client";
 
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "@/lib/platform/auth-client";
 import { useParams } from "next/navigation";
 
 export function SessionInfo() {

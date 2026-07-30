@@ -3,8 +3,8 @@ import Link from "next/link";
 import { DemoDataImportDialog } from "@/app/(tenant)/[domain]/(authenticated)/master/import/demo-data-import-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { listImportRevisions } from "@/lib/people-import-review-data";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { listImportRevisions } from "@/lib/imports/people-import-review-data";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 const demoMessages: Record<string, string> = {
   success: "Master data demo berhasil diisi. Halaman Akademik dan Pendaftaran sekarang dapat digunakan.",

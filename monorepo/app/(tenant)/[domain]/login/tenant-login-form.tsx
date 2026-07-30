@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "@/lib/platform/auth-client";
 
 export function TenantLoginForm({ domain, continuation }: { domain: string; continuation: string | null }) {
   const [error, setError] = useState("");

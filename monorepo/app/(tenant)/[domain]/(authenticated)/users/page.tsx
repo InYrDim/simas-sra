@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { user } from "@/db/schema";
-import { enforceTenantPageAccess } from "@/lib/tenant-access";
+import { enforceTenantPageAccess } from "@/lib/tenancy/tenant-access";
 import {
   Table,
   TableBody,

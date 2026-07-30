@@ -17,7 +17,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { DEMO_QUIZ_QUESTIONS, DEMO_QUIZ_TOTAL_POINTS } from "@/lib/quiz-demo";
+import { DEMO_QUIZ_QUESTIONS, DEMO_QUIZ_TOTAL_POINTS } from "@/lib/quiz/quiz-demo";
 
 function DemoQuestionActions() {
   const { pending } = useFormStatus();

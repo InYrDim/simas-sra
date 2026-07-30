@@ -1,6 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";import { redirect } from "next/navigation";
-import { createLocationService,type LocationType } from "@/lib/location";import { locationStore } from "@/lib/location-data";import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { createLocationService,type LocationType } from "@/lib/master-data/location";import { locationStore } from "@/lib/master-data/location-data";import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 const service=createLocationService({store:locationStore});
 const fields=(f:FormData)=>({name:String(f.get("name")??""),code:String(f.get("code")??""),type:String(f.get("type")??"") as LocationType,capacity:f.get("capacity")?Number(f.get("capacity")):null,description:String(f.get("description")??"")||null,parentId:String(f.get("parentId")??"")||null});
 function finish(domain:string,result:{ok:boolean;code?:string}){revalidatePath(`/${domain}/master/sarpras`);redirect(`/${domain}/master/sarpras?result=${result.ok?"saved":result.code??"error"}`);}

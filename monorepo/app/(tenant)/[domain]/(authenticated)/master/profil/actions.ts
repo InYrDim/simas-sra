@@ -3,11 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { createHeadmasterAssignmentService } from "@/lib/headmaster-assignment";
-import { headmasterAssignmentStore } from "@/lib/headmaster-assignment-data";
-import { createGetSchoolProfileQuery, createUpdateSchoolProfileCommand } from "@/lib/school-profile";
-import { schoolProfileStore } from "@/lib/school-profile-data";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { createHeadmasterAssignmentService } from "@/lib/master-data/headmaster-assignment";
+import { headmasterAssignmentStore } from "@/lib/master-data/headmaster-assignment-data";
+import { createGetSchoolProfileQuery, createUpdateSchoolProfileCommand } from "@/lib/master-data/school-profile";
+import { schoolProfileStore } from "@/lib/master-data/school-profile-data";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 export type SchoolProfileFormValues = Readonly<{
   displayName: string;

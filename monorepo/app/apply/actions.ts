@@ -3,9 +3,9 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { auth } from "@/lib/auth";
-import { createApplicantApplicationSubmission } from "@/lib/applicant-application-submission";
-import { applicantApplicationSubmissionStore } from "@/lib/applicant-application-submission-data";
+import { auth } from "@/lib/platform/auth";
+import { createApplicantApplicationSubmission } from "@/lib/applicants/applicant-application-submission";
+import { applicantApplicationSubmissionStore } from "@/lib/applicants/applicant-application-submission-data";
 
 export type ApplicationFormState = { success: boolean; message?: string; errors?: Record<string, string> };
 

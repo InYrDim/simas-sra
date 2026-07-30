@@ -1,5 +1,5 @@
 import { archiveSchoolPersonAction } from "@/app/(tenant)/[domain]/(authenticated)/master/warga-sekolah/actions";
-import type { SchoolPersonAggregate, SchoolProfileKind } from "@/lib/school-person-master-data";
+import type { SchoolPersonAggregate, SchoolProfileKind } from "@/lib/master-data/school-person-master-data";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";

@@ -9,7 +9,7 @@ import {
   planApplicantOwnershipBackfill,
   type ApplicantIdentityMigrationSnapshot,
   type OwnershipMapping,
-} from "@/lib/applicant-identity-migration";
+} from "@/lib/applicants/applicant-identity-migration";
 
 interface UserRow extends RowDataPacket {
   id: string;

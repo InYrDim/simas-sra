@@ -3,9 +3,9 @@ import Link from "next/link";
 import { LandingPageForm } from "@/app/(tenant)/[domain]/(authenticated)/settings/landing-page-form";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getTenantLandingPageSettings } from "@/lib/tenant-landing-page-data";
-import { findPublicPpdbSession } from "@/lib/ppdb-session-data";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { getTenantLandingPageSettings } from "@/lib/tenancy/tenant-landing-page-data";
+import { findPublicPpdbSession } from "@/lib/admissions/ppdb-session-data";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 export default async function TenantSettingsPage({ params }: { params: Promise<{ domain: string }> }) {
   const { domain } = await params;

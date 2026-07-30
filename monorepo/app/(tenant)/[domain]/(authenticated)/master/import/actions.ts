@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { importDemoMasterData } from "@/lib/demo-master-data-import";
-import { schoolProfileStore } from "@/lib/school-profile-data";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { importDemoMasterData } from "@/lib/master-data/demo-master-data-import";
+import { schoolProfileStore } from "@/lib/master-data/school-profile-data";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 const educationLevels = ["SD", "SMP", "SMA", "SMK"] as const;
 type EducationLevel = (typeof educationLevels)[number];

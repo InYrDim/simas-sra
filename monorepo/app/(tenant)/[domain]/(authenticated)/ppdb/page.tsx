@@ -4,13 +4,13 @@ import { endSessionAction } from "@/app/(tenant)/[domain]/(authenticated)/ppdb/a
 import { SubmissionsTable } from "@/app/(tenant)/[domain]/(authenticated)/ppdb/submissions-table";
 import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
-import { createAcademicYearService } from "@/lib/academic-year";
-import { academicYearStore } from "@/lib/academic-year-data";
-import { createPpdbSessionService } from "@/lib/ppdb-session";
-import { ppdbSessionStore } from "@/lib/ppdb-session-data";
-import { createPpdbSubmissionService } from "@/lib/ppdb-submission";
-import { ppdbSubmissionStore } from "@/lib/ppdb-submission-data";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { createAcademicYearService } from "@/lib/academic/academic-year";
+import { academicYearStore } from "@/lib/academic/academic-year-data";
+import { createPpdbSessionService } from "@/lib/admissions/ppdb-session";
+import { ppdbSessionStore } from "@/lib/admissions/ppdb-session-data";
+import { createPpdbSubmissionService } from "@/lib/admissions/ppdb-submission";
+import { ppdbSubmissionStore } from "@/lib/admissions/ppdb-submission-data";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 import { ClipboardList, FileSearch, History, Megaphone, PencilLine, PlusCircle, Search, StopCircle } from "lucide-react";
 
 const sessionService = createPpdbSessionService({ store: ppdbSessionStore });

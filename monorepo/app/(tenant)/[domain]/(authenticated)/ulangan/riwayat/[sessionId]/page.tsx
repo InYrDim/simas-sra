@@ -5,17 +5,17 @@ import { ArrowLeft, CheckCircle, Clock, FileQuestion, Trophy, UserCheck, UserX }
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { createAcademicYearService } from "@/lib/academic-year";
-import { academicYearStore } from "@/lib/academic-year-data";
-import { createClassGroupService } from "@/lib/class-group";
-import { classGroupStore } from "@/lib/class-group-data";
-import { createQuizSessionService, type QuizAttendanceStatus } from "@/lib/quiz";
-import { quizSessionStore } from "@/lib/quiz-data";
-import { createStudentMasterDataService } from "@/lib/student-master-data";
-import { studentMasterDataStore } from "@/lib/student-master-data-data";
-import { createSubjectCatalogService } from "@/lib/subject-catalog";
-import { subjectCatalogStore } from "@/lib/subject-catalog-data";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { createAcademicYearService } from "@/lib/academic/academic-year";
+import { academicYearStore } from "@/lib/academic/academic-year-data";
+import { createClassGroupService } from "@/lib/academic/class-group";
+import { classGroupStore } from "@/lib/academic/class-group-data";
+import { createQuizSessionService, type QuizAttendanceStatus } from "@/lib/quiz/quiz";
+import { quizSessionStore } from "@/lib/quiz/quiz-data";
+import { createStudentMasterDataService } from "@/lib/master-data/student-master-data";
+import { studentMasterDataStore } from "@/lib/master-data/student-master-data-data";
+import { createSubjectCatalogService } from "@/lib/academic/subject-catalog";
+import { subjectCatalogStore } from "@/lib/academic/subject-catalog-data";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 const sessionService = createQuizSessionService({ store: quizSessionStore });
 const academicYearService = createAcademicYearService({ store: academicYearStore });

@@ -1,5 +1,5 @@
 import { ProviderShell } from "@/components/provider/provider-shell";
-import { getProviderPageAccess } from "@/lib/provider-access";
+import { getProviderPageAccess } from "@/lib/provider/provider-access";
 
 export default async function ProviderLayout({ children }: { children: React.ReactNode }) {
   const access = await getProviderPageAccess();

@@ -2,10 +2,10 @@
 
 import { revalidatePath } from "next/cache";
 
-import { tenantProtectedAction } from "@/lib/action-utils";
-import { requireTenantFeatureAccess } from "@/lib/tenant-access";
-import { TenantOnboardingError } from "@/lib/tenant-onboarding";
-import { completeTenantOnboarding } from "@/lib/tenant-onboarding-server";
+import { tenantProtectedAction } from "@/lib/platform/action-utils";
+import { requireTenantFeatureAccess } from "@/lib/tenancy/tenant-access";
+import { TenantOnboardingError } from "@/lib/tenancy/tenant-onboarding";
+import { completeTenantOnboarding } from "@/lib/tenancy/tenant-onboarding-server";
 
 export type OnboardingActionState =
   | { status: "idle" }

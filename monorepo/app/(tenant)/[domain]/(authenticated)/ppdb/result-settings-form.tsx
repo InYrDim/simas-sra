@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import type { PpdbSession } from "@/lib/ppdb-session"
+import type { PpdbSession } from "@/lib/admissions/ppdb-session"
 
 export function PpdbResultSettingsForm({
   domain,

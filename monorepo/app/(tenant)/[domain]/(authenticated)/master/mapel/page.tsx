@@ -11,12 +11,12 @@ import { Label } from "@/components/ui/label";
 import { buttonVariants } from "@/components/ui/button";
 import { MasterDataFormDialog } from "@/components/master-data/master-data-form-dialog";
 import { MasterDataWorkspace } from "@/components/master-data/master-data-workspace";
-import { createSubjectCatalogService, type Subject } from "@/lib/subject-catalog";
-import { subjectCatalogStore } from "@/lib/subject-catalog-data";
-import { querySubjects } from "@/lib/subject-catalog-query";
-import { serializeMasterDataQuery, type MasterDataSearchParams } from "@/lib/master-data-workspace";
+import { createSubjectCatalogService, type Subject } from "@/lib/academic/subject-catalog";
+import { subjectCatalogStore } from "@/lib/academic/subject-catalog-data";
+import { querySubjects } from "@/lib/academic/subject-catalog-query";
+import { serializeMasterDataQuery, type MasterDataSearchParams } from "@/lib/master-data/master-data-workspace";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 
 const resultMessages: Record<string, string> = {

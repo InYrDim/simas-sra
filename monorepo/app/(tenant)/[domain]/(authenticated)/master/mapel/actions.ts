@@ -7,11 +7,11 @@ import {
   createSubjectCatalogService,
   SUBJECT_EDUCATION_LEVELS,
   type SubjectEducationLevel,
-} from "@/lib/subject-catalog";
-import { subjectCatalogStore } from "@/lib/subject-catalog-data";
-import { schoolProfileStore } from "@/lib/school-profile-data";
-import { parseSubjectForm, subjectResultCode } from "@/lib/subject-catalog-route";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+} from "@/lib/academic/subject-catalog";
+import { subjectCatalogStore } from "@/lib/academic/subject-catalog-data";
+import { schoolProfileStore } from "@/lib/master-data/school-profile-data";
+import { parseSubjectForm, subjectResultCode } from "@/lib/academic/subject-catalog-route";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 const service = createSubjectCatalogService({ store: subjectCatalogStore });
 function finish(domain: string, code: string, selected?: string): never {

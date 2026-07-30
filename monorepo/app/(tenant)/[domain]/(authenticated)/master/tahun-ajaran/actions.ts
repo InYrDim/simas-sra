@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { createAcademicYearService } from "@/lib/academic-year";
-import { academicYearStore } from "@/lib/academic-year-data";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { createAcademicYearService } from "@/lib/academic/academic-year";
+import { academicYearStore } from "@/lib/academic/academic-year-data";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 const service = createAcademicYearService({ store: academicYearStore });
 function finish(domain: string, result: { ok: boolean; code?: string }) { revalidatePath(`/${domain}/master/tahun-ajaran`); redirect(`/${domain}/master/tahun-ajaran?result=${result.ok ? "saved" : result.code ?? "error"}`); }

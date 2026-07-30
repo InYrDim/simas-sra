@@ -9,7 +9,7 @@ import { notFound } from "next/navigation";
 
 import { OnboardingForm } from "@/app/(tenant)/[domain]/(authenticated)/dashboard/onboarding-form";
 import { PocTrialAction } from "@/components/dashboard/poc-trial-action";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/platform/auth";
 
 export default async function DashboardPage({
   params,

@@ -1,16 +1,16 @@
 "use server";
 
 import { resolvePublicTenant } from "@/app/ppdb/[domain]/resolve-tenant";
-import { findPublicPpdbSession } from "@/lib/ppdb-session-data";
+import { findPublicPpdbSession } from "@/lib/admissions/ppdb-session-data";
 import {
   inspectPpdbDocument,
   ppdbDocumentSignatureScanner,
   validatePpdbFileSize,
-} from "@/lib/ppdb-file-validation";
-import { createProtectedFileStorage } from "@/lib/protected-file-storage";
-import { findPpdbIdentityField } from "@/lib/ppdb-session";
-import { createPpdbSubmissionService, type PpdbSubmissionDocumentInput } from "@/lib/ppdb-submission";
-import { ppdbSubmissionStore } from "@/lib/ppdb-submission-data";
+} from "@/lib/admissions/ppdb-file-validation";
+import { createProtectedFileStorage } from "@/lib/platform/protected-file-storage";
+import { findPpdbIdentityField } from "@/lib/admissions/ppdb-session";
+import { createPpdbSubmissionService, type PpdbSubmissionDocumentInput } from "@/lib/admissions/ppdb-submission";
+import { ppdbSubmissionStore } from "@/lib/admissions/ppdb-submission-data";
 
 export type PpdbApplicationActionState =
   | { status: "idle" }

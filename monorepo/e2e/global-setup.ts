@@ -1,6 +1,6 @@
 import mysql, { type Connection } from "mysql2/promise";
 
-import { createPublicRegistration } from "@/lib/public-registration";
+import { createPublicRegistration } from "@/lib/admissions/public-registration";
 import { e2e } from "./fixtures";
 
 const tenantIds = [e2e.alpha.tenantId, e2e.beta.tenantId];

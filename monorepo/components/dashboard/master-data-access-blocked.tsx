@@ -5,7 +5,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type {
   MasterDataGatedArea,
   MissingUrgentMasterData,
-} from "@/lib/dashboard-master-data";
+} from "@/lib/master-data/dashboard-master-data";
 
 export function MasterDataAccessBlocked({
   area,

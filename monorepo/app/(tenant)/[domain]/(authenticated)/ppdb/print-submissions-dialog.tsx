@@ -20,7 +20,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import type { PpdbSubmission, PpdbSubmissionStatus } from "@/lib/ppdb-submission";
+import type { PpdbSubmission, PpdbSubmissionStatus } from "@/lib/admissions/ppdb-submission";
 
 
 

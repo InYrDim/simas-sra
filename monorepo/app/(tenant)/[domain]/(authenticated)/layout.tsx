@@ -3,15 +3,15 @@ import { TenantSidebar } from "@/components/dashboard/tenant-sidebar";
 import { TrialBanner } from "@/components/dashboard/trial-banner";
 import { MasterDataAccessBlocked } from "@/components/dashboard/master-data-access-blocked";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/platform/auth";
 import {
   getMasterDataGatedArea,
   getMissingUrgentMasterData,
   getTenantRelativePath,
-} from "@/lib/dashboard-master-data";
-import { getUrgentMasterDataPresence } from "@/lib/dashboard-master-data-data";
-import { TENANT_PATHNAME_HEADER } from "@/lib/proxy-routing";
-import { enforceTenantPageAccess } from "@/lib/tenant-access";
+} from "@/lib/master-data/dashboard-master-data";
+import { getUrgentMasterDataPresence } from "@/lib/master-data/dashboard-master-data-data";
+import { TENANT_PATHNAME_HEADER } from "@/lib/platform/proxy-routing";
+import { enforceTenantPageAccess } from "@/lib/tenancy/tenant-access";
 import { isTenantRole } from "@/types/TenantRole";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";

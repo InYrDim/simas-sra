@@ -4,13 +4,13 @@ import { HeadmasterHistory } from "@/app/(tenant)/[domain]/(authenticated)/maste
 import { SchoolProfileForm } from "@/app/(tenant)/[domain]/(authenticated)/master/profil/school-profile-form";
 import { SchoolProfileHistory } from "@/app/(tenant)/[domain]/(authenticated)/master/profil/school-profile-history";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { createHeadmasterAssignmentService } from "@/lib/headmaster-assignment";
-import { headmasterAssignmentStore } from "@/lib/headmaster-assignment-data";
-import { createListSchoolAccreditationsQuery } from "@/lib/school-accreditation";
-import { createGetSchoolProfileQuery } from "@/lib/school-profile";
-import { schoolProfileStore } from "@/lib/school-profile-data";
-import { schoolAccreditationStore } from "@/lib/school-profile-history-data";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { createHeadmasterAssignmentService } from "@/lib/master-data/headmaster-assignment";
+import { headmasterAssignmentStore } from "@/lib/master-data/headmaster-assignment-data";
+import { createListSchoolAccreditationsQuery } from "@/lib/master-data/school-accreditation";
+import { createGetSchoolProfileQuery } from "@/lib/master-data/school-profile";
+import { schoolProfileStore } from "@/lib/master-data/school-profile-data";
+import { schoolAccreditationStore } from "@/lib/master-data/school-profile-history-data";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 const labels: Record<string, string> = {
   displayName: "Nama tampilan", "address.street": "Alamat jalan", "address.village": "Desa/Kelurahan",

@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { AlertTriangle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { getMissingUrgentMasterData } from "@/lib/dashboard-master-data";
-import { getUrgentMasterDataPresence } from "@/lib/dashboard-master-data-data";
+import { getMissingUrgentMasterData } from "@/lib/master-data/dashboard-master-data";
+import { getUrgentMasterDataPresence } from "@/lib/master-data/dashboard-master-data-data";
 
 export async function MasterDataWarningBanner({
   tenantId,

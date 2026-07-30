@@ -14,8 +14,8 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { authClient } from "@/lib/auth-client";
-import type { ProviderPrincipal } from "@/lib/provider-access";
+import { authClient } from "@/lib/platform/auth-client";
+import type { ProviderPrincipal } from "@/lib/provider/provider-access";
 
 export function ProviderSidebar({ principal }: { principal: ProviderPrincipal }) {
   return (

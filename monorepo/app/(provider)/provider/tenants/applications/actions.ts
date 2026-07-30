@@ -3,13 +3,13 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { applicationDecisionStore } from "@/lib/application-decision-data";
-import { applicationApprovalStore } from "@/lib/provider-application-data";
+import { applicationDecisionStore } from "@/lib/provider/application-decision-data";
+import { applicationApprovalStore } from "@/lib/provider/provider-application-data";
 import {
   createApproveSimasApplicationCommand,
   createRejectSimasApplicationCommand,
-} from "@/lib/provider-applications";
-import { requireProviderActionAccess } from "@/lib/provider-access";
+} from "@/lib/provider/provider-applications";
+import { requireProviderActionAccess } from "@/lib/provider/provider-access";
 
 export type ApprovalActionState =
   | { status: "idle" }

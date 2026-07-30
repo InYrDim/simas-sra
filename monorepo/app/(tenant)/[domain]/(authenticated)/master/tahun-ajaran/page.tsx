@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { MasterDataWorkspace } from "@/components/master-data/master-data-workspace";
-import { createAcademicYearService } from "@/lib/academic-year";
-import { academicYearStore } from "@/lib/academic-year-data";
-import { normalizeMasterDataQuery, type MasterDataSearchParams } from "@/lib/master-data-workspace";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { createAcademicYearService } from "@/lib/academic/academic-year";
+import { academicYearStore } from "@/lib/academic/academic-year-data";
+import { normalizeMasterDataQuery, type MasterDataSearchParams } from "@/lib/master-data/master-data-workspace";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 const lifecycleLabels = { draft: "Draft", active: "Aktif", closed: "Ditutup", cancelled: "Dibatalkan" } as const;
 const semesterLabels = { pending: "Belum Aktif", active: "Aktif", completed: "Selesai" } as const;

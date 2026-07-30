@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Field, FieldLabel, FieldGroup } from "@/components/ui/field";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { ArrowLeft, Loader2, CheckCircle2 } from "lucide-react";
-import { authClient } from "@/lib/auth-client";
+import { authClient } from "@/lib/platform/auth-client";
 
 export default function ForgotPasswordPage() {
   const [isLoading, setIsLoading] = useState(false);

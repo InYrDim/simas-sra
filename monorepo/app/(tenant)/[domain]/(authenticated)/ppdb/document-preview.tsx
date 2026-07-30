@@ -14,7 +14,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
-import type { PpdbSubmissionDocument } from "@/lib/ppdb-submission";
+import type { PpdbSubmissionDocument } from "@/lib/admissions/ppdb-submission";
 
 export function DocumentPreview({
   domain,

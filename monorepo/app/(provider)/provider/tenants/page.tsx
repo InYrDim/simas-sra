@@ -12,18 +12,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { listProviderApplications } from "@/lib/provider-application-data";
+import { listProviderApplications } from "@/lib/provider/provider-application-data";
 import {
   APPLICATION_STATUS_LABELS,
   type ApplicationStatus,
-} from "@/lib/provider-applications";
-import { listProviderTenants } from "@/lib/provider-tenant-data";
+} from "@/lib/provider/provider-applications";
+import { listProviderTenants } from "@/lib/provider/provider-tenant-data";
 import {
   normalizeTenantListQuery,
   TENANT_USAGE_STAGE_LABELS,
   tenantUsageStageLabel,
   type TenantListQuery,
-} from "@/lib/provider-tenants";
+} from "@/lib/provider/provider-tenants";
 import { cn } from "@/lib/utils";
 
 

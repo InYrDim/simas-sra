@@ -1,9 +1,9 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { confirmPeopleImportExecution } from "@/lib/people-import-execution-data";
-import { saveImportDecision } from "@/lib/people-import-review-data";
-import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
+import { confirmPeopleImportExecution } from "@/lib/imports/people-import-execution-data";
+import { saveImportDecision } from "@/lib/imports/people-import-review-data";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 export async function saveDecisionAction(domain: string, revisionId: string, formData: FormData) {
   const principal = await enforceMasterDataAccess(domain, "validate-import");
