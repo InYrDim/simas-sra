@@ -7,6 +7,7 @@ import { createClassGroupService } from "@/lib/academic/class-group";
 import { classGroupStore } from "@/lib/academic/class-group-data";
 import { createSubjectCatalogService } from "@/lib/academic/subject-catalog";
 import { subjectCatalogStore } from "@/lib/academic/subject-catalog-data";
+import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
 import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
@@ -21,8 +22,9 @@ export default async function CreateUlanganPage({
   params: Promise<{ domain: string }>;
 }) {
   const { domain } = await params;
-  const principal = await enforceMasterDataAccess(domain, "write");
-  const [years, groups, subjects] = await Promise.all([
+  const principal = await enforceMasterDataAccess(domain, "read");
+  const [availability, years, groups, subjects] = await Promise.all([
+    getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
     academicYearService.list(principal),
     classGroupService.list(principal),
     subjectService.list(principal),
@@ -52,6 +54,7 @@ export default async function CreateUlanganPage({
             selectableYears={selectableYears}
             selectableSubjects={selectableSubjects}
             selectableGroups={selectableGroups}
+            availability={availability.ulanganWrite}
           />
         </div>
       </div>

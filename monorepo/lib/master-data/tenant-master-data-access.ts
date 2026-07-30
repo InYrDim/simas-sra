@@ -85,7 +85,10 @@ export function authorizeMasterDataAccess(snapshot: MasterDataAccessSnapshot): M
       userId: snapshot.session.userId,
       tenantId: tenant.id,
       role: "school-admin",
-      capabilities,
+      capabilities: {
+        ...capabilities,
+        write: capabilities.write && tenant.featurePolicy.write,
+      },
     },
   };
 }

@@ -8,7 +8,7 @@ import { getTenantFeatureAccess } from "@/lib/features/tenant-feature-access-dat
 export async function enforceTenantFeatureAccess(
   domain: string,
   feature: TenantFeatureKey,
-  operation: "read" | "write",
+  operation: "read" | "write" | "download",
 ) {
   const access = await getTenantFeatureAccess(domain, feature, operation);
   if (access.kind === "not-found") notFound();

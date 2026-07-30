@@ -18,6 +18,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import type { PpdbSubmission } from "@/lib/admissions/ppdb-submission";
+import type { TenantFeatureAvailability } from "@/lib/features/tenant-feature-availability";
 
 function formatAnswer(value: unknown) {
   if (value === undefined || value === null || String(value).trim() === "") return "–";
@@ -104,11 +105,13 @@ function SubmissionActions({
   submissionId,
   currentScore,
   redirectPath,
+  availability,
 }: {
   domain: string;
   submissionId: string;
   currentScore: number | null;
   redirectPath: string;
+  availability: TenantFeatureAvailability;
 }) {
   const { pending } = useFormStatus();
 
@@ -122,7 +125,7 @@ function SubmissionActions({
         type="number"
         defaultValue={currentScore ?? ""}
         className="h-9 w-20"
-        disabled={pending}
+        disabled={pending || !availability.enabled}
       />
       <Button
         type="submit"
@@ -131,6 +134,7 @@ function SubmissionActions({
         size="sm"
         variant="outline"
         disabled={pending}
+        featureAvailability={availability}
         className="gap-1.5 border-emerald-600 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
       >
         {pending ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
@@ -143,6 +147,7 @@ function SubmissionActions({
         size="sm"
         variant="outline"
         disabled={pending}
+        featureAvailability={availability}
         className="gap-1.5 border-red-600 text-red-700 hover:bg-red-50 hover:text-red-800"
       >
         {pending ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5" />}
@@ -158,11 +163,13 @@ export function SubmissionsTable({
   submissions,
   writable,
   redirectPath,
+  availability,
 }: {
   domain: string;
   submissions: readonly PpdbSubmission[];
   writable: boolean;
   redirectPath: string;
+  availability: TenantFeatureAvailability;
 }) {
   if (!submissions.length) {
     return (
@@ -226,6 +233,7 @@ export function SubmissionsTable({
                   submissionId={submission.id}
                   currentScore={submission.score}
                   redirectPath={redirectPath}
+                  availability={availability}
                 />
               </TableCell>
             ) : null}

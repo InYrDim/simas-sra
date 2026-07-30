@@ -10,6 +10,7 @@ import { createPpdbSessionService } from "@/lib/admissions/ppdb-session";
 import { ppdbSessionStore } from "@/lib/admissions/ppdb-session-data";
 import { createPpdbSubmissionService } from "@/lib/admissions/ppdb-submission";
 import { ppdbSubmissionStore } from "@/lib/admissions/ppdb-submission-data";
+import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
 import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 import { ClipboardList, FileSearch, History, Megaphone, PencilLine, PlusCircle, Search, StopCircle } from "lucide-react";
 
@@ -26,7 +27,11 @@ export default async function PPDBDashboardPage({
 }) {
   const [{ domain }, raw] = await Promise.all([params, searchParams]);
   const principal = await enforceMasterDataAccess(domain, "read");
-  const [sessions, years] = await Promise.all([sessionService.list(principal), academicYearService.list(principal)]);
+  const [availability, sessions, years] = await Promise.all([
+    getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
+    sessionService.list(principal),
+    academicYearService.list(principal),
+  ]);
   const current = sessions.find((session) => session.status === "published") ?? sessions.find((session) => session.status === "draft");
   const submissions = current ? await submissionService.list(principal, current.id) : [];
   const search = (raw.q ?? "").trim().toLocaleLowerCase("id-ID");
@@ -51,26 +56,26 @@ export default async function PPDBDashboardPage({
         </div>
         <div className="flex gap-2">
           {!current ? (
-            <Button nativeButton={false} render={<Link href={`/${domain}/ppdb/settings`} />} className="gap-1.5">
+            <Button nativeButton={false} render={<Link href={`/${domain}/ppdb/settings`} />} className="gap-1.5" featureAvailability={availability.ppdbWrite}>
               <PlusCircle className="size-4" />
               Buat Sesi PPDB
             </Button>
           ) : current.status === "draft" ? (
-            <Button nativeButton={false} render={<Link href={`/${domain}/ppdb/settings`} />} variant="outline" className="gap-1.5">
+            <Button nativeButton={false} render={<Link href={`/${domain}/ppdb/settings`} />} variant="outline" className="gap-1.5" featureAvailability={availability.ppdbWrite}>
               <PencilLine className="size-4" />
               Lanjutkan Buat Form
             </Button>
           ) : principal.capabilities.write ? (
             <form action={endSessionAction.bind(null, domain)}>
               <input type="hidden" name="sessionId" value={current.id} />
-              <Button type="submit" variant="destructive" className="gap-1.5">
+              <Button type="submit" variant="destructive" className="gap-1.5" featureAvailability={availability.ppdbWrite}>
                 <StopCircle className="size-4" />
                 Akhiri Sesi PPDB
               </Button>
             </form>
           ) : null}
           {resultSession ? (
-            <Button nativeButton={false} render={<Link href={`/${domain}/ppdb/results?sessionId=${resultSession.id}`} />} variant="outline" className="gap-1.5">
+            <Button nativeButton={false} render={<Link href={`/${domain}/ppdb/results?sessionId=${resultSession.id}`} />} variant="outline" className="gap-1.5" featureAvailability={availability.ppdbWrite}>
               <Megaphone className="size-4" />
               Konfigurasi Hasil
             </Button>
@@ -113,7 +118,7 @@ export default async function PPDBDashboardPage({
                 </form>
               </div>
               <div className="flex-1 rounded-xl border border-slate-200 bg-white shadow-sm overflow-auto">
-                <SubmissionsTable domain={domain} submissions={filtered} writable={principal.capabilities.write} redirectPath={`/${domain}/ppdb`} />
+                <SubmissionsTable domain={domain} submissions={filtered} writable={principal.capabilities.write} redirectPath={`/${domain}/ppdb`} availability={availability.ppdbWrite} />
               </div>
             </>
           )}

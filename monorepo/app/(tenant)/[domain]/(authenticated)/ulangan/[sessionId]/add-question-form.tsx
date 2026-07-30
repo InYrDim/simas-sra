@@ -10,12 +10,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import type { TenantFeatureAvailability } from "@/lib/features/tenant-feature-availability"
 
-function SubmitButton() {
+function SubmitButton({ availability }: { availability: TenantFeatureAvailability }) {
   const { pending } = useFormStatus()
 
   return (
-    <Button type="submit" disabled={pending} className="flex items-center gap-2">
+    <Button type="submit" disabled={pending} className="flex items-center gap-2" featureAvailability={availability}>
       {pending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
       {pending ? "Menambah Soal..." : "Tambah Soal"}
     </Button>
@@ -25,9 +26,11 @@ function SubmitButton() {
 export function AddQuestionForm({
   domain,
   sessionId,
+  availability,
 }: {
   domain: string
   sessionId: string
+  availability: TenantFeatureAvailability
 }) {
   const [questionType, setQuestionType] = useState<string>("multiple_choice")
 
@@ -107,7 +110,7 @@ export function AddQuestionForm({
       </div>
 
       <div>
-        <SubmitButton />
+        <SubmitButton availability={availability} />
       </div>
     </form>
   )

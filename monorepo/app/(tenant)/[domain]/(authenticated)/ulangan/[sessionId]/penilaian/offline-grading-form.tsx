@@ -9,6 +9,7 @@ import {
   type OfflineScoreActionState,
 } from "@/app/(tenant)/[domain]/(authenticated)/ulangan/actions";
 import { Button } from "@/components/ui/button";
+import type { TenantFeatureAvailability } from "@/lib/features/tenant-feature-availability";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
@@ -27,11 +28,13 @@ export function OfflineGradingForm({
   sessionId,
   maxScore,
   participants,
+  availability,
 }: {
   domain: string;
   sessionId: string;
   maxScore: number;
   participants: OfflineParticipant[];
+  availability: TenantFeatureAvailability;
 }) {
   const storageKey = `quiz-offline-score-draft:${domain}:${sessionId}`;
   const [draft, setDraft] = useState<ScoreDraft>({});
@@ -113,14 +116,14 @@ export function OfflineGradingForm({
           <input type="hidden" name="sessionId" value={sessionId} />
           <input type="hidden" name="studentIds" value={JSON.stringify(entries.map(([studentId]) => studentId))} />
           <input type="hidden" name="scores" value={JSON.stringify(entries.map(([, score]) => score))} />
-          <Button type="submit" variant="outline" disabled={pending || entries.length === 0}>
+          <Button type="submit" variant="outline" disabled={pending || entries.length === 0} featureAvailability={availability}>
             {pending ? <Loader2 className="animate-spin" /> : <Save />}
             {pending ? "Menyimpan..." : "Simpan Nilai"}
           </Button>
         </form>
         <form action={finalizeOfflineGradingAction.bind(null, domain)}>
           <input type="hidden" name="sessionId" value={sessionId} />
-          <Button type="submit" disabled={!allGraded}>
+          <Button type="submit" disabled={!allGraded} featureAvailability={availability}>
             <CheckCircle />
             Selesaikan Penilaian
           </Button>

@@ -6,6 +6,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { executeImportAction, saveDecisionAction } from "./actions";
 import { queryImportReview, type ReviewRow } from "@/lib/imports/people-import-review";
+import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
+import type { TenantFeatureAvailability } from "@/lib/features/tenant-feature-availability";
 import { getImportReview } from "@/lib/imports/people-import-review-data";
 import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
@@ -29,7 +31,10 @@ type PageProps = {
 export default async function ImportReviewPage({ params, searchParams }: PageProps) {
   const [{ domain, revisionId }, query] = await Promise.all([params, searchParams]);
   const principal = await enforceMasterDataAccess(domain, "read");
-  const review = await getImportReview(principal, revisionId);
+  const [availability, review] = await Promise.all([
+    getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
+    getImportReview(principal, revisionId),
+  ]);
   if (!review) notFound();
 
   const filteredRows = queryImportReview(review.rows, query);
@@ -98,7 +103,7 @@ export default async function ImportReviewPage({ params, searchParams }: PagePro
         </Button>
       </form>
       <div className="flex flex-wrap gap-3">
-        <Button variant="outline" render={
+        <Button variant="outline" featureAvailability={availability.masterDataImportDownload} render={
           <Link href={`/${domain}/master/import/${revisionId}/correction`} />
         }>
           Unduh lembar kerja koreksi
@@ -117,14 +122,15 @@ export default async function ImportReviewPage({ params, searchParams }: PagePro
                 name="file"
                 type="file"
                 accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                disabled={!availability.masterDataImportValidation.enabled}
               />
             </label>
-            <Button variant="outline">Unggah sebagai Revisi Impor baru</Button>
+            <Button variant="outline" featureAvailability={availability.masterDataImportValidation}>Unggah sebagai Revisi Impor baru</Button>
           </form>
         ) : null}
       </div>
       {principal.capabilities.write ? (
-        <ExecutionConfirmation domain={domain} revisionId={revisionId} rows={review.rows} />
+        <ExecutionConfirmation domain={domain} revisionId={revisionId} rows={review.rows} availability={availability.masterDataImportExecution} />
       ) : null}
       <p aria-live="polite">
         Menampilkan {filteredRows.length} dari {review.rows.length} baris.
@@ -137,6 +143,7 @@ export default async function ImportReviewPage({ params, searchParams }: PagePro
             domain={domain}
             revisionId={revisionId}
             writable={principal.capabilities.write}
+            availability={availability.masterDataImportValidation}
           />
         ))}
       </div>
@@ -162,7 +169,7 @@ export default async function ImportReviewPage({ params, searchParams }: PagePro
                   <Findings row={row} />
                 </TableCell>
                 <TableCell className="p-3">
-                  <Decision row={row} domain={domain} revisionId={revisionId} writable={principal.capabilities.write} />
+                  <Decision row={row} domain={domain} revisionId={revisionId} writable={principal.capabilities.write} availability={availability.masterDataImportValidation} />
                 </TableCell>
               </TableRow>
             ))}
@@ -173,7 +180,7 @@ export default async function ImportReviewPage({ params, searchParams }: PagePro
   );
 }
 
-function RowCard({ row, ...props }: { row: ReviewRow; domain: string; revisionId: string; writable: boolean }) {
+function RowCard({ row, ...props }: { row: ReviewRow; domain: string; revisionId: string; writable: boolean; availability: TenantFeatureAvailability }) {
   return (
     <article className="rounded border p-4">
       <h2 className="font-semibold">
@@ -231,11 +238,13 @@ function Decision({
   domain,
   revisionId,
   writable,
+  availability,
 }: {
   row: Pick<ReviewRow, "id" | "state" | "decision" | "candidates">;
   domain: string;
   revisionId: string;
   writable: boolean;
+  availability: TenantFeatureAvailability;
 }) {
   if (row.state !== "warning") return <span>{stateLabels[row.state]}</span>;
 
@@ -258,6 +267,7 @@ function Decision({
           required
           name="action"
           defaultValue={row.decision?.action ?? ""}
+          disabled={!availability.enabled}
         >
           <SelectTrigger className="mt-1">
             <SelectValue />
@@ -273,7 +283,7 @@ function Decision({
       {row.candidates.length ? (
         <label>
           <span className="text-sm font-medium">Warga Sekolah tujuan</span>
-          <Select name="targetPersonId">
+          <Select name="targetPersonId" disabled={!availability.enabled}>
             <SelectTrigger className="mt-1">
               <SelectValue />
             </SelectTrigger>
@@ -288,7 +298,7 @@ function Decision({
           </Select>
         </label>
       ) : null}
-      <Button variant="outline">Simpan keputusan</Button>
+      <Button variant="outline" featureAvailability={availability}>Simpan keputusan</Button>
       {row.decision ? (
         <small>
           Terakhir: {decisionLabels[row.decision.action] ?? row.decision.action} oleh {row.decision.actorId}
@@ -298,7 +308,7 @@ function Decision({
   );
 }
 
-function ExecutionConfirmation({ domain, revisionId, rows }: { domain: string; revisionId: string; rows: ReviewRow[] }) {
+function ExecutionConfirmation({ domain, revisionId, rows, availability }: { domain: string; revisionId: string; rows: ReviewRow[]; availability: TenantFeatureAvailability }) {
   const counts = { create: 0, link: 0, skip: 0, reject: 0 };
   for (const row of rows) {
     if (row.state === "rejected") counts.reject++;
@@ -337,7 +347,7 @@ function ExecutionConfirmation({ domain, revisionId, rows }: { domain: string; r
           <div className="grid gap-2 sm:grid-cols-3">
             {rows.map((row) => (
               <label key={row.id} className="flex gap-2">
-                <input type="checkbox" name="rowId" value={row.id} defaultChecked />
+                <input type="checkbox" name="rowId" value={row.id} defaultChecked disabled={!availability.enabled} />
                 <span>
                   Baris {row.rowNumber} · {stateLabels[row.state]}
                 </span>
@@ -348,6 +358,7 @@ function ExecutionConfirmation({ domain, revisionId, rows }: { domain: string; r
         {unresolved ? <p role="alert">Semua peringatan wajib memiliki keputusan sebelum eksekusi.</p> : null}
         <Button
           disabled={unresolved}
+          featureAvailability={availability}
         >
           Bekukan pilihan baris dan antrekan eksekusi
         </Button>

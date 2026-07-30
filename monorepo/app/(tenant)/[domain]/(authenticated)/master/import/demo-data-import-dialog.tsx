@@ -16,7 +16,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { FeatureAction } from "@/components/features/feature-action";
 import { Button } from "@/components/ui/button";
+import type { TenantFeatureAvailability } from "@/lib/features/tenant-feature-availability";
 import { DEMO_MASTER_DATA_TYPES } from "@/lib/master-data/demo-master-data";
 
 function DemoImportActions() {
@@ -33,15 +35,26 @@ function DemoImportActions() {
   );
 }
 
-export function DemoDataImportDialog({ domain }: { domain: string }) {
+export function DemoDataImportDialog({ domain, availability }: { domain: string; availability: TenantFeatureAvailability }) {
   const action = importDemoMasterDataAction.bind(null, domain);
 
   return (
     <AlertDialog>
-      <AlertDialogTrigger render={<Button variant="outline" />}>
-        <DatabaseZap aria-hidden="true" />
-        Isi Data Demo
-      </AlertDialogTrigger>
+      <FeatureAction
+        availability={availability}
+        enabledTrigger={
+          <AlertDialogTrigger render={<Button variant="outline" />}>
+            <DatabaseZap aria-hidden="true" />
+            Isi Data Demo
+          </AlertDialogTrigger>
+        }
+        disabledTrigger={
+          <Button disabled variant="outline">
+            <DatabaseZap aria-hidden="true" />
+            Isi Data Demo
+          </Button>
+        }
+      />
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogMedia>

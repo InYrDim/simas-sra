@@ -5,15 +5,18 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import type { PpdbSession } from "@/lib/admissions/ppdb-session"
+import type { TenantFeatureAvailability } from "@/lib/features/tenant-feature-availability"
 
 export function PpdbResultSettingsForm({
   domain,
   session,
   writable,
+  availability,
 }: {
   domain: string
   session: PpdbSession
   writable: boolean
+  availability: TenantFeatureAvailability
 }) {
   const published = session.resultsPublishedAt !== null
   const ended = session.status === "ended"
@@ -77,7 +80,7 @@ export function PpdbResultSettingsForm({
           />
           <p className="text-xs text-slate-500">Tautan hanya ditampilkan kepada peserta yang diterima setelah hasil dipublikasikan.</p>
         </div>
-        <Button type="submit" disabled={!writable || published} className="md:col-span-2 md:justify-self-start">
+        <Button type="submit" disabled={!writable || published} className="md:col-span-2 md:justify-self-start" featureAvailability={availability}>
           Simpan Pengaturan Hasil
         </Button>
       </form>
@@ -85,7 +88,7 @@ export function PpdbResultSettingsForm({
       <div className="border-t border-slate-200 pt-5">
         <form action={publishResultsAction.bind(null, domain)}>
           <input type="hidden" name="sessionId" value={session.id} />
-          <Button type="submit" disabled={!writable || !ended || published} variant="destructive">
+          <Button type="submit" disabled={!writable || !ended || published} variant="destructive" featureAvailability={availability}>
             {published ? "Hasil Sudah Dipublikasikan" : "Publikasikan Hasil"}
           </Button>
         </form>
@@ -98,6 +101,7 @@ export function PpdbResultSettingsForm({
           sessionId={session.id}
           open={published && session.resultCheckClosedAt === null}
           disabled={!writable || !published}
+          availability={availability}
         />
         {!published ? <p className="mt-2 text-sm text-slate-500">Akses cek status dapat diatur setelah hasil dipublikasikan.</p> : null}
       </div>

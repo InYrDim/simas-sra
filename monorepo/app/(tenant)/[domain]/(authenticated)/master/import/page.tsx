@@ -3,6 +3,7 @@ import Link from "next/link";
 import { DemoDataImportDialog } from "@/app/(tenant)/[domain]/(authenticated)/master/import/demo-data-import-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
 import { listImportRevisions } from "@/lib/imports/people-import-review-data";
 import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
@@ -21,7 +22,10 @@ export default async function PeopleImportPage({
 }) {
   const [{ domain }, query] = await Promise.all([params, searchParams]);
   const principal = await enforceMasterDataAccess(domain, "read");
-  const revisions = await listImportRevisions(principal);
+  const [availability, revisions] = await Promise.all([
+    getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
+    listImportRevisions(principal),
+  ]);
   const demoResult = typeof query.demo === "string" ? query.demo : undefined;
 
   return (
@@ -48,7 +52,7 @@ export default async function PeopleImportPage({
               Isi master data urgent secara otomatis untuk mencoba alur Akademik dan Pendaftaran.
             </p>
           </div>
-          <DemoDataImportDialog domain={domain} />
+          <DemoDataImportDialog domain={domain} availability={availability.masterDataWrite} />
         </section>
       ) : null}
 
@@ -56,13 +60,15 @@ export default async function PeopleImportPage({
         <h2 className="font-semibold">Template XLSX</h2>
         <div className="flex flex-wrap gap-3">
           {(["student", "teacher", "staff"] as const).map((kind) => (
-            <Link
-              className="flex min-h-11 items-center justify-center rounded-full border px-4 py-2"
-              href={`/${domain}/master/import/template/${kind}`}
+            <Button
+              featureAvailability={availability.masterDataImportDownload}
               key={kind}
+              nativeButton={false}
+              render={<Link href={`/${domain}/master/import/template/${kind}`} />}
+              variant="outline"
             >
               Unduh {kind === "student" ? "Siswa" : kind === "teacher" ? "Guru" : "Staf"}
-            </Link>
+            </Button>
           ))}
         </div>
       </section>
@@ -82,8 +88,9 @@ export default async function PeopleImportPage({
               type="file"
               name="file"
               accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              disabled={!availability.masterDataImportValidation.enabled}
             />
-            <Button className="min-h-11 rounded-full px-4 py-2">Unggah dan validasi</Button>
+            <Button className="min-h-11 rounded-full px-4 py-2" featureAvailability={availability.masterDataImportValidation}>Unggah dan validasi</Button>
           </form>
           <p className="text-sm text-muted-foreground">
             Maksimal 10 MB. Jenis dan versi dibaca dari metadata workbook, bukan nama file.

@@ -13,6 +13,13 @@ const selection = {
   masterDataImportDownload: false,
   masterDataImportValidation: false,
   masterDataImportExecution: false,
+  ulangan: true,
+  ulanganRead: true,
+  ulanganWrite: true,
+  ppdb: true,
+  ppdbRead: true,
+  ppdbWrite: true,
+  ppdbPublic: true,
   advancedAnalytics: true,
 };
 
@@ -31,7 +38,7 @@ test("feature settings preserve onboarding and unknown feature configuration", (
   );
 });
 
-test("feature settings default every known feature to disabled", () => {
+test("feature settings preserve legacy Ulangan and PPDB access until explicitly configured", () => {
   assert.deepEqual(readProviderFeatureSelection(null), {
     masterData: false,
     masterDataRead: false,
@@ -39,6 +46,13 @@ test("feature settings default every known feature to disabled", () => {
     masterDataImportDownload: false,
     masterDataImportValidation: false,
     masterDataImportExecution: false,
+    ulangan: true,
+    ulanganRead: true,
+    ulanganWrite: true,
+    ppdb: true,
+    ppdbRead: true,
+    ppdbWrite: true,
+    ppdbPublic: true,
     advancedAnalytics: false,
   });
 });

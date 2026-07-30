@@ -9,12 +9,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import type { TenantFeatureAvailability } from "@/lib/features/tenant-feature-availability"
 
-function SubmitButton() {
+function SubmitButton({ availability }: { availability: TenantFeatureAvailability }) {
   const { pending } = useFormStatus()
 
   return (
-    <Button type="submit" disabled={pending} className="sm:col-span-2 flex items-center gap-2">
+    <Button type="submit" disabled={pending} className="sm:col-span-2 flex items-center gap-2" featureAvailability={availability}>
       {pending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
       {pending ? "Membuat Sesi Ulangan..." : "Buat Sesi Ulangan"}
     </Button>
@@ -26,11 +27,13 @@ export function CreateQuizSessionForm({
   selectableYears,
   selectableSubjects,
   selectableGroups,
+  availability,
 }: {
   domain: string
   selectableYears: { id: string; label: string }[]
   selectableSubjects: { id: string; name: string }[]
   selectableGroups: { id: string; groupName: string; grade: number }[]
+  availability: TenantFeatureAvailability
 }) {
   return (
     <form action={createSessionAction.bind(null, domain)} className="grid gap-4 sm:grid-cols-2">
@@ -104,7 +107,7 @@ export function CreateQuizSessionForm({
         <Textarea id="description" name="description" placeholder="Deskripsi singkat tentang ulangan ini..." rows={3} />
       </div>
 
-      <SubmitButton />
+      <SubmitButton availability={availability} />
     </form>
   )
 }

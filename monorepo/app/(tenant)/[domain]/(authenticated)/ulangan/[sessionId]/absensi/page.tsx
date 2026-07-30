@@ -8,6 +8,7 @@ import { createQuizSessionService } from "@/lib/quiz/quiz";
 import { quizSessionStore } from "@/lib/quiz/quiz-data";
 import { createStudentMasterDataService } from "@/lib/master-data/student-master-data";
 import { studentMasterDataStore } from "@/lib/master-data/student-master-data-data";
+import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
 import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 import { ArrowLeft, CheckCircle, UserX, Clock } from "lucide-react";
 
@@ -37,7 +38,8 @@ export default async function AbsensiPage({
   const [{ domain, sessionId }, raw] = await Promise.all([params, searchParams]);
   const principal = await enforceMasterDataAccess(domain, "read");
 
-  const [sessions, groups] = await Promise.all([
+  const [availability, sessions, groups] = await Promise.all([
+    getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
     sessionService.list(principal),
     classGroupService.list(principal),
   ]);
@@ -158,6 +160,7 @@ export default async function AbsensiPage({
                               variant={currentStatus === "present" ? "default" : "outline"}
                               size="sm"
                               className="gap-1 text-xs"
+                              featureAvailability={availability.ulanganWrite}
                             >
                               <CheckCircle className="size-3" />
                               Hadir
@@ -172,6 +175,7 @@ export default async function AbsensiPage({
                               variant={currentStatus === "late" ? "default" : "outline"}
                               size="sm"
                               className="gap-1 text-xs"
+                              featureAvailability={availability.ulanganWrite}
                             >
                               <Clock className="size-3" />
                               Terlambat
@@ -186,6 +190,7 @@ export default async function AbsensiPage({
                               variant={currentStatus === "absent" ? "destructive" : "outline"}
                               size="sm"
                               className="gap-1 text-xs"
+                              featureAvailability={availability.ulanganWrite}
                             >
                               <UserX className="size-3" />
                               Absen

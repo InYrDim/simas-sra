@@ -26,6 +26,7 @@ test("Administrasi separates Overview, Import, and Master Data", () => {
       { title: "Master Data", url: undefined, roles: ["school-admin"] },
     ],
   );
+  assert.ok(administration.every((item) => item.feature === "masterDataRead"));
 });
 
 test("Sistem & Keamanan exposes Backup & Restore only to School Admin", () => {

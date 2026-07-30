@@ -66,6 +66,16 @@ test("read and write feature policy is enforced independently on the server", ()
   })), { kind: "forbidden", reason: "feature-disabled" });
 });
 
+test("read access exposes Provider-disabled Master Data write as read-only UI capability", () => {
+  const result = authorizeMasterDataAccess(snapshot({
+    tenant: { ...snapshot().tenant!, featurePolicy: { read: true, write: false } },
+  }));
+
+  assert.equal(result.kind, "authorized");
+  if (result.kind !== "authorized") return;
+  assert.equal(result.principal.capabilities.write, false);
+});
+
 test("Tenant lifecycle grants full, read-only, or no capabilities", () => {
   const activeTrial = snapshot({ tenant: { ...snapshot().tenant!, trialEndsAt: new Date("2026-07-21T12:00:00.000Z") } });
   assert.equal(authorizeMasterDataAccess(activeTrial).kind, "authorized");

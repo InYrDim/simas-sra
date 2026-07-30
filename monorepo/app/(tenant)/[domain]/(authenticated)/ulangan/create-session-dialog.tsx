@@ -6,6 +6,7 @@ import { useFormStatus } from "react-dom"
 import { Loader2, PlusCircle } from "lucide-react"
 
 import { createSessionAction } from "@/app/(tenant)/[domain]/(authenticated)/ulangan/actions"
+import { FeatureAction } from "@/components/features/feature-action"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -20,6 +21,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import type { TenantFeatureAvailability } from "@/lib/features/tenant-feature-availability"
 
 function SubmitButton() {
   const { pending } = useFormStatus()
@@ -37,11 +39,13 @@ export function CreateSessionDialog({
   selectableYears,
   selectableSubjects,
   selectableGroups,
+  availability,
 }: {
   domain: string
   selectableYears: { id: string; label: string }[]
   selectableSubjects: { id: string; name: string }[]
   selectableGroups: { id: string; groupName: string; grade: number }[]
+  availability: TenantFeatureAvailability
 }) {
   const [open, setOpen] = useState(false)
   const router = useRouter()
@@ -59,12 +63,21 @@ export function CreateSessionDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
-        render={<Button className="gap-1.5" />}
-      >
-        <PlusCircle className="size-4" />
-        Buat Sesi Ulangan
-      </DialogTrigger>
+      <FeatureAction
+        availability={availability}
+        enabledTrigger={
+          <DialogTrigger render={<Button className="gap-1.5" />}>
+            <PlusCircle className="size-4" />
+            Buat Sesi Ulangan
+          </DialogTrigger>
+        }
+        disabledTrigger={
+          <Button className="gap-1.5" disabled>
+            <PlusCircle className="size-4" />
+            Buat Sesi Ulangan
+          </Button>
+        }
+      />
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Buat Sesi Ulangan Baru</DialogTitle>

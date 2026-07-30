@@ -7,6 +7,7 @@ import { createAcademicYearService } from "@/lib/academic/academic-year"
 import { academicYearStore } from "@/lib/academic/academic-year-data"
 import { createPpdbSessionService } from "@/lib/admissions/ppdb-session"
 import { ppdbSessionStore } from "@/lib/admissions/ppdb-session-data"
+import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data"
 import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access"
 import { ArrowLeft, ExternalLink } from "lucide-react"
 
@@ -24,7 +25,11 @@ export default async function PPDBSettingsPage({
 }) {
   const [{ domain }, raw] = await Promise.all([params, searchParams])
   const principal = await enforceMasterDataAccess(domain, "read")
-  const [sessions, years] = await Promise.all([sessionService.list(principal), academicYearService.list(principal)])
+  const [availability, sessions, years] = await Promise.all([
+    getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
+    sessionService.list(principal),
+    academicYearService.list(principal),
+  ])
   const current = sessions.find((session) => session.status === "published") ?? sessions.find((session) => session.status === "draft")
   const selectableYears = years.filter((year) => !year.archived && year.lifecycle !== "closed" && year.lifecycle !== "cancelled")
   const yearLabel = current ? years.find((year) => year.id === current.academicYearId)?.label ?? current.academicYearId : null
@@ -41,7 +46,7 @@ export default async function PPDBSettingsPage({
         </div>
         <div className="flex gap-2">
           {current?.status === "published" ? (
-            <Button nativeButton={false} render={<Link href={`/ppdb/${current.id}/daftar`} target="_blank" />} variant="outline" className="gap-1.5 border-sky-600 text-sky-700 hover:bg-sky-50 hover:text-sky-800">
+            <Button nativeButton={false} render={<Link href={`/ppdb/${domain}/${current.id}/daftar`} target="_blank" />} variant="outline" featureAvailability={availability.ppdbPublic} className="gap-1.5 border-sky-600 text-sky-700 hover:bg-sky-50 hover:text-sky-800">
               <ExternalLink className="size-4" />
               Lihat Form Publik
             </Button>
@@ -77,7 +82,7 @@ export default async function PPDBSettingsPage({
                 .
               </p>
             ) : (
-              <CreateSessionForm domain={domain} selectableYears={selectableYears.map((year) => ({ id: year.id, label: year.label }))} />
+              <CreateSessionForm domain={domain} selectableYears={selectableYears.map((year) => ({ id: year.id, label: year.label }))} availability={availability.ppdbWrite} />
             )}
           </div>
         ) : (
@@ -93,6 +98,7 @@ export default async function PPDBSettingsPage({
               initialFields={current.draftFields}
               publishedFields={current.fields}
               published={current.status === "published"}
+              availability={availability.ppdbWrite}
             />
           </div>
         )}

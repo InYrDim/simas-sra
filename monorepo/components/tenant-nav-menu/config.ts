@@ -63,20 +63,23 @@ export const tenantMenuItems: TenantNavItem[] = [
     icon: LayoutDashboard,
     url: "/master",
     roles: ["school-admin"],
-    group: "Administrasi"
+    group: "Administrasi",
+    feature: "masterDataRead"
   },
   {
     title: "Import",
     icon: Upload,
     url: "/master/import",
     roles: ["school-admin"],
-    group: "Administrasi"
+    group: "Administrasi",
+    feature: "masterDataRead"
   },
   {
     title: "Master Data",
     icon: Database,
     roles: ["school-admin"],
     group: "Administrasi",
+    feature: "masterDataRead",
     items: [
       { title: "Profil Sekolah", url: "/master/profil", roles: ["school-admin"] },
       { title: "Tahun Ajaran", url: "/master/tahun-ajaran", roles: ["school-admin"] },

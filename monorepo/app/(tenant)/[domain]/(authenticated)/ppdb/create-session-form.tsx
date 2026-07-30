@@ -8,12 +8,13 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import type { TenantFeatureAvailability } from "@/lib/features/tenant-feature-availability"
 
-function SubmitButton() {
+function SubmitButton({ availability }: { availability: TenantFeatureAvailability }) {
   const { pending } = useFormStatus()
 
   return (
-    <Button type="submit" disabled={pending} className="sm:col-span-2 flex items-center gap-2">
+    <Button type="submit" disabled={pending} className="sm:col-span-2 flex items-center gap-2" featureAvailability={availability}>
       {pending ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
       {pending ? "Membuat Sesi PPDB..." : "Buat Sesi PPDB"}
     </Button>
@@ -23,9 +24,11 @@ function SubmitButton() {
 export function CreateSessionForm({
   domain,
   selectableYears,
+  availability,
 }: {
   domain: string
   selectableYears: { id: string; label: string }[]
+  availability: TenantFeatureAvailability
 }) {
   return (
     <form action={createSessionAction.bind(null, domain)} className="grid gap-4 sm:grid-cols-2">
@@ -48,7 +51,7 @@ export function CreateSessionForm({
         <Label htmlFor="endDate">Tanggal Berakhir Pendaftaran</Label>
         <Input id="endDate" name="endDate" type="date" required />
       </div>
-      <SubmitButton />
+      <SubmitButton availability={availability} />
     </form>
   )
 }

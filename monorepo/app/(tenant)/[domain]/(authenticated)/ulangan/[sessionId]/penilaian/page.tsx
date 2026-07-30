@@ -14,6 +14,7 @@ import { studentMasterDataStore } from "@/lib/master-data/student-master-data-da
 
 import { createSubjectCatalogService } from "@/lib/academic/subject-catalog";
 import { subjectCatalogStore } from "@/lib/academic/subject-catalog-data";
+import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
 import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 import { ArrowLeft, CheckCircle, FileText } from "lucide-react";
 
@@ -47,7 +48,8 @@ export default async function PenilaianPage({
   const principal = await enforceMasterDataAccess(domain, "read");
   const writable = principal.capabilities.write;
 
-  const [sessions, years, groups, subjects, students] = await Promise.all([
+  const [availability, sessions, years, groups, subjects, students] = await Promise.all([
+    getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
     sessionService.list(principal),
     academicYearService.list(principal),
     classGroupService.list(principal),
@@ -109,7 +111,7 @@ export default async function PenilaianPage({
           {writable && session.mode === "daring" && session.status === "ended" && (
             <form action={gradeSessionAction.bind(null, domain)}>
               <input type="hidden" name="sessionId" value={session.id} />
-              <Button type="submit" className="gap-1.5 bg-blue-600 hover:bg-blue-700">
+              <Button type="submit" className="gap-1.5 bg-blue-600 hover:bg-blue-700" featureAvailability={availability.ulanganWrite}>
                 <CheckCircle className="size-4" />
                 Proses Penilaian Otomatis
               </Button>
@@ -152,7 +154,7 @@ export default async function PenilaianPage({
             <p className="text-sm text-slate-500">Lembar nilai belum disiapkan. Ini dapat terjadi pada sesi luring yang selesai sebelum fitur penilaian manual tersedia.</p>
             <form action={prepareOfflineGradingAction.bind(null, domain)}>
               <input type="hidden" name="sessionId" value={session.id} />
-              <Button type="submit" variant="outline">Siapkan Peserta Penilaian</Button>
+              <Button type="submit" variant="outline" featureAvailability={availability.ulanganWrite}>Siapkan Peserta Penilaian</Button>
             </form>
           </div>
         ) : session.mode === "luring" && session.status === "ended" && writable ? (
@@ -161,6 +163,7 @@ export default async function PenilaianPage({
             sessionId={session.id}
             maxScore={totalMaxScore}
             participants={offlineParticipants}
+            availability={availability.ulanganWrite}
           />
         ) : sorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-slate-300 bg-white py-16">

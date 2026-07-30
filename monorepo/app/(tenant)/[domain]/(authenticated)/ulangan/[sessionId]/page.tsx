@@ -15,6 +15,7 @@ import { createStudentMasterDataService } from "@/lib/master-data/student-master
 import { studentMasterDataStore } from "@/lib/master-data/student-master-data-data";
 import { createSubjectCatalogService } from "@/lib/academic/subject-catalog";
 import { subjectCatalogStore } from "@/lib/academic/subject-catalog-data";
+import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
 import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 import { ArrowLeft, CheckCircle, FileText, PlayCircle, PlusCircle, Trash2 } from "lucide-react";
 
@@ -60,7 +61,8 @@ export default async function QuizSessionDetailPage({
   const principal = await enforceMasterDataAccess(domain, "read");
   const writable = principal.capabilities.write;
 
-  const [sessions, years, groups, subjects] = await Promise.all([
+  const [availability, sessions, years, groups, subjects] = await Promise.all([
+    getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
     sessionService.list(principal),
     academicYearService.list(principal),
     classGroupService.list(principal),
@@ -121,7 +123,7 @@ export default async function QuizSessionDetailPage({
             {writable && session.status === "draft" && questions.length > 0 && (
               <form action={activateSessionAction.bind(null, domain)}>
                 <input type="hidden" name="sessionId" value={session.id} />
-                <Button type="submit" className="gap-1.5 bg-green-600 hover:bg-green-700">
+                <Button type="submit" className="gap-1.5 bg-green-600 hover:bg-green-700" featureAvailability={availability.ulanganWrite}>
                   <PlayCircle className="size-4" />
                   Mulai Ulangan
                 </Button>
@@ -135,6 +137,7 @@ export default async function QuizSessionDetailPage({
                 groupName={groupName}
                 mode={session.mode}
                 students={attendanceStudents}
+                availability={availability.ulanganWrite}
               />
             )}
             {session.status === "ended" && (
@@ -169,7 +172,7 @@ export default async function QuizSessionDetailPage({
             Daftar Soal ({sortedQuestions.length} soal, {totalPoints} poin)
           </h2>
           {writable && session.status === "draft" ? (
-            <DemoQuestionsDialog domain={domain} sessionId={session.id} />
+            <DemoQuestionsDialog domain={domain} sessionId={session.id} availability={availability.ulanganWrite} />
           ) : null}
         </div>
 
@@ -210,7 +213,7 @@ export default async function QuizSessionDetailPage({
                     <form action={removeQuestionAction.bind(null, domain)}>
                       <input type="hidden" name="sessionId" value={session.id} />
                       <input type="hidden" name="questionId" value={q.id} />
-                      <Button type="submit" variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50">
+                      <Button type="submit" variant="ghost" size="sm" className="text-red-500 hover:text-red-700 hover:bg-red-50" featureAvailability={availability.ulanganWrite}>
                         <Trash2 className="size-4" />
                       </Button>
                     </form>
@@ -227,7 +230,7 @@ export default async function QuizSessionDetailPage({
               <PlusCircle className="size-4" />
               Tambah Soal
             </h3>
-            <AddQuestionForm domain={domain} sessionId={session.id} />
+            <AddQuestionForm domain={domain} sessionId={session.id} availability={availability.ulanganWrite} />
           </div>
         )}
       </div>

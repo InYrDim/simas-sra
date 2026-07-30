@@ -9,6 +9,7 @@ import { createQuizSessionService } from "@/lib/quiz/quiz";
 import { quizSessionStore } from "@/lib/quiz/quiz-data";
 import { createSubjectCatalogService } from "@/lib/academic/subject-catalog";
 import { subjectCatalogStore } from "@/lib/academic/subject-catalog-data";
+import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
 import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 import { ClipboardCheck, Monitor, PenLine } from "lucide-react";
 
@@ -45,7 +46,8 @@ export default async function UlanganPage({
 }) {
   const [{ domain }, raw] = await Promise.all([params, searchParams]);
   const principal = await enforceMasterDataAccess(domain, "read");
-  const [sessions, years, groups, subjects] = await Promise.all([
+  const [availability, sessions, years, groups, subjects] = await Promise.all([
+    getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
     sessionService.list(principal),
     academicYearService.list(principal),
     classGroupService.list(principal),
@@ -72,6 +74,7 @@ export default async function UlanganPage({
           selectableYears={years.filter((y) => !y.archived).map((y) => ({ id: y.id, label: y.label }))}
           selectableSubjects={subjects.filter((s) => !s.archived).map((s) => ({ id: s.id, name: s.name }))}
           selectableGroups={groups.filter((g) => !g.archived).map((g) => ({ id: g.id, groupName: g.groupName, grade: g.grade }))}
+          availability={availability.ulanganWrite}
         />
       </header>
 

@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { ensurePpdbSystemFields, isPpdbChoiceField, type PpdbFieldType, type PpdbFormField } from "@/lib/admissions/ppdb-session"
+import type { TenantFeatureAvailability } from "@/lib/features/tenant-feature-availability"
 
 const FIELD_TYPE_OPTIONS: readonly { value: PpdbFieldType; label: string }[] = [
   { value: "text", label: "Jawaban singkat" },
@@ -45,12 +46,14 @@ export function PpdbFieldBuilder({
   initialFields,
   publishedFields = [],
   published = false,
+  availability,
 }: {
   domain: string
   sessionId: string
   initialFields: readonly PpdbFormField[]
   publishedFields?: readonly PpdbFormField[]
   published?: boolean
+  availability: TenantFeatureAvailability
 }) {
   const normalizedInitialFields = ensurePpdbSystemFields(initialFields)
   const [fields, setFields] = useState<PpdbFormField[]>(() => normalizedInitialFields)
@@ -97,7 +100,7 @@ export function PpdbFieldBuilder({
         <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
           <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-bold">Struktur Formulir</h2>
-            <Button type="button" variant="outline" onClick={addTemplateFields} className="gap-2 border-sky-600 text-sky-700 hover:bg-sky-50">
+            <Button type="button" variant="outline" onClick={addTemplateFields} featureAvailability={availability} className="gap-2 border-sky-600 text-sky-700 hover:bg-sky-50">
               <Plus className="size-4" /> Tambahkan Field Template
             </Button>
           </div>
@@ -158,10 +161,10 @@ export function PpdbFieldBuilder({
                         </Label>
                       </div>
                       <div className="flex items-center gap-1">
-                        <Button type="button" variant="ghost" size="icon" onClick={() => moveField(index, -1)} disabled={index === 0} aria-label="Naikkan pertanyaan"><ArrowUp className="size-4" /></Button>
-                        <Button type="button" variant="ghost" size="icon" onClick={() => moveField(index, 1)} disabled={index === fields.length - 1} aria-label="Turunkan pertanyaan"><ArrowDown className="size-4" /></Button>
-                        <Button type="button" variant="ghost" size="icon" onClick={() => duplicateField(field)} aria-label="Duplikat pertanyaan"><Copy className="size-4" /></Button>
-                        <Button type="button" variant="ghost" size="icon" onClick={() => removeField(field.id)} disabled={Boolean(field.purpose)} aria-label="Hapus pertanyaan" className="text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="size-4" /></Button>
+                        <Button type="button" variant="ghost" size="icon" onClick={() => moveField(index, -1)} disabled={index === 0} featureAvailability={availability} aria-label="Naikkan pertanyaan"><ArrowUp className="size-4" /></Button>
+                        <Button type="button" variant="ghost" size="icon" onClick={() => moveField(index, 1)} disabled={index === fields.length - 1} featureAvailability={availability} aria-label="Turunkan pertanyaan"><ArrowDown className="size-4" /></Button>
+                        <Button type="button" variant="ghost" size="icon" onClick={() => duplicateField(field)} featureAvailability={availability} aria-label="Duplikat pertanyaan"><Copy className="size-4" /></Button>
+                        <Button type="button" variant="ghost" size="icon" onClick={() => removeField(field.id)} disabled={Boolean(field.purpose)} featureAvailability={availability} aria-label="Hapus pertanyaan" className="text-slate-400 hover:bg-red-50 hover:text-red-600"><Trash2 className="size-4" /></Button>
                       </div>
                     </div>
                   </div>
@@ -170,11 +173,11 @@ export function PpdbFieldBuilder({
             ))}
           </div>
 
-          <Button type="button" variant="outline" onClick={addField} className="mt-6 h-auto w-full gap-2 border-2 border-dashed border-slate-300 p-4 text-slate-500 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700">
+          <Button type="button" variant="outline" onClick={addField} featureAvailability={availability} className="mt-6 h-auto w-full gap-2 border-2 border-dashed border-slate-300 p-4 text-slate-500 hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700">
             <Plus className="size-5" /> Tambah pertanyaan
           </Button>
           <div className="mt-6 flex justify-end">
-            <PendingSubmitButton idleLabel={published ? "Simpan Draft Perubahan" : "Simpan Form"} pendingLabel="Menyimpan..." icon={<Save className="size-4" />} disabled={!hasDraftChanges} />
+            <PendingSubmitButton idleLabel={published ? "Simpan Draft Perubahan" : "Simpan Form"} pendingLabel="Menyimpan..." icon={<Save className="size-4" />} disabled={!hasDraftChanges} availability={availability} />
           </div>
         </div>
       </form>
@@ -188,13 +191,14 @@ export function PpdbFieldBuilder({
           icon={<Rocket className="size-4" />}
           disabled={fields.length === 0 || (published && !hasUnpublishedChanges)}
           className="bg-emerald-600 hover:bg-emerald-700"
+          availability={availability}
         />
       </form>
     </div>
   )
 }
 
-function PendingSubmitButton({ idleLabel, pendingLabel, icon, disabled = false, className }: { idleLabel: string; pendingLabel: string; icon?: ReactNode; disabled?: boolean; className?: string }) {
+function PendingSubmitButton({ idleLabel, pendingLabel, icon, disabled = false, className, availability }: { idleLabel: string; pendingLabel: string; icon?: ReactNode; disabled?: boolean; className?: string; availability: TenantFeatureAvailability }) {
   const { pending } = useFormStatus()
-  return <Button type="submit" disabled={disabled || pending} className={`gap-2 ${className ?? ""}`}>{pending ? <Loader2 className="size-4 animate-spin" /> : icon}{pending ? pendingLabel : idleLabel}</Button>
+  return <Button type="submit" disabled={disabled || pending} className={`gap-2 ${className ?? ""}`} featureAvailability={availability}>{pending ? <Loader2 className="size-4 animate-spin" /> : icon}{pending ? pendingLabel : idleLabel}</Button>
 }

@@ -1,5 +1,67 @@
-import Link from "next/link";import{notFound}from"next/navigation";import{enforceMasterDataAccess}from"@/lib/master-data/tenant-master-data-route-access";import{getPeopleImportExecution}from"@/lib/imports/people-import-execution-data";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+
 import { Button } from "@/components/ui/button";
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-const labels={created:"Dibuat",linked:"Ditautkan",skipped:"Dilewati",rejected:"Ditolak",failed:"Gagal","already-committed":"Sudah dikomit"};
-export default async function ExecutionPage({params}:{params:Promise<{domain:string;revisionId:string;executionId:string}>}){const{domain,revisionId,executionId}=await params,principal=await enforceMasterDataAccess(domain,"read"),result=await getPeopleImportExecution(principal.tenantId,executionId);if(!result)notFound();return <main className="space-y-5 p-4 md:p-6"><h1 className="text-2xl font-semibold">Hasil Eksekusi Impor</h1><p>Status: {result.status}</p><dl className="grid gap-3 sm:grid-cols-3">{Object.entries(result.counts).map(([key,value])=><div className="rounded border p-3" key={key}><dt>{labels[key as keyof typeof labels]}</dt><dd className="text-2xl font-semibold">{value}</dd></div>)}</dl><Button variant="outline" render={<Link href={`/${domain}/master/import/${revisionId}/execution/${executionId}/result`} />}>Download workbook hasil</Button><Table className="w-full text-left"><TableHeader><TableRow><TableHead>Row</TableHead><TableHead>Outcome</TableHead><TableHead>Error</TableHead></TableRow></TableHeader><TableBody>{result.rows.map(row=><TableRow key={row.rowNumber}><TableCell>{row.rowNumber}</TableCell><TableCell>{row.outcome?labels[row.outcome as keyof typeof labels]:"Menunggu"}</TableCell><TableCell>{row.errorCode??"-"}</TableCell></TableRow>)}</TableBody></Table></main>}
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
+import { getPeopleImportExecution } from "@/lib/imports/people-import-execution-data";
+import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+
+const labels = {
+  created: "Dibuat",
+  linked: "Ditautkan",
+  skipped: "Dilewati",
+  rejected: "Ditolak",
+  failed: "Gagal",
+  "already-committed": "Sudah dikomit",
+};
+
+export default async function ExecutionPage({
+  params,
+}: {
+  params: Promise<{ domain: string; revisionId: string; executionId: string }>;
+}) {
+  const { domain, revisionId, executionId } = await params;
+  const principal = await enforceMasterDataAccess(domain, "read");
+  const [availability, result] = await Promise.all([
+    getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
+    getPeopleImportExecution(principal.tenantId, executionId),
+  ]);
+  if (!result) notFound();
+
+  return (
+    <main className="space-y-5 p-4 md:p-6">
+      <h1 className="text-2xl font-semibold">Hasil Eksekusi Impor</h1>
+      <p>Status: {result.status}</p>
+      <dl className="grid gap-3 sm:grid-cols-3">
+        {Object.entries(result.counts).map(([key, value]) => (
+          <div className="rounded border p-3" key={key}>
+            <dt>{labels[key as keyof typeof labels]}</dt>
+            <dd className="text-2xl font-semibold">{value}</dd>
+          </div>
+        ))}
+      </dl>
+      <Button
+        featureAvailability={availability.masterDataImportDownload}
+        variant="outline"
+        render={<Link href={`/${domain}/master/import/${revisionId}/execution/${executionId}/result`} />}
+      >
+        Download workbook hasil
+      </Button>
+      <Table className="w-full text-left">
+        <TableHeader>
+          <TableRow><TableHead>Row</TableHead><TableHead>Outcome</TableHead><TableHead>Error</TableHead></TableRow>
+        </TableHeader>
+        <TableBody>
+          {result.rows.map((row) => (
+            <TableRow key={row.rowNumber}>
+              <TableCell>{row.rowNumber}</TableCell>
+              <TableCell>{row.outcome ? labels[row.outcome as keyof typeof labels] : "Menunggu"}</TableCell>
+              <TableCell>{row.errorCode ?? "-"}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </main>
+  );
+}

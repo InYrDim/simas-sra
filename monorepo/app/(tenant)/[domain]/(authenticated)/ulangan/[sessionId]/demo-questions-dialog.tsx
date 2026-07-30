@@ -16,7 +16,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { FeatureAction } from "@/components/features/feature-action";
 import { Button } from "@/components/ui/button";
+import type { TenantFeatureAvailability } from "@/lib/features/tenant-feature-availability";
 import { DEMO_QUIZ_QUESTIONS, DEMO_QUIZ_TOTAL_POINTS } from "@/lib/quiz/quiz-demo";
 
 function DemoQuestionActions() {
@@ -36,16 +38,29 @@ function DemoQuestionActions() {
 export function DemoQuestionsDialog({
   domain,
   sessionId,
+  availability,
 }: {
   domain: string;
   sessionId: string;
+  availability: TenantFeatureAvailability;
 }) {
   return (
     <AlertDialog>
-      <AlertDialogTrigger render={<Button variant="outline" />}>
-        <FilePlus2 aria-hidden="true" />
-        Isi Demo Soal
-      </AlertDialogTrigger>
+      <FeatureAction
+        availability={availability}
+        enabledTrigger={
+          <AlertDialogTrigger render={<Button variant="outline" />}>
+            <FilePlus2 aria-hidden="true" />
+            Isi Demo Soal
+          </AlertDialogTrigger>
+        }
+        disabledTrigger={
+          <Button disabled variant="outline">
+            <FilePlus2 aria-hidden="true" />
+            Isi Demo Soal
+          </Button>
+        }
+      />
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogMedia>

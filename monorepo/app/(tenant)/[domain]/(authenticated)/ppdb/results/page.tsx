@@ -7,6 +7,7 @@ import { createAcademicYearService } from "@/lib/academic/academic-year"
 import { academicYearStore } from "@/lib/academic/academic-year-data"
 import { createPpdbSessionService } from "@/lib/admissions/ppdb-session"
 import { ppdbSessionStore } from "@/lib/admissions/ppdb-session-data"
+import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data"
 import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access"
 
 const sessionService = createPpdbSessionService({ store: ppdbSessionStore })
@@ -37,7 +38,11 @@ export default async function PPDBResultsPage({
 }) {
   const [{ domain }, raw] = await Promise.all([params, searchParams])
   const principal = await enforceMasterDataAccess(domain, "read")
-  const [sessions, years] = await Promise.all([sessionService.list(principal), academicYearService.list(principal)])
+  const [availability, sessions, years] = await Promise.all([
+    getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
+    sessionService.list(principal),
+    academicYearService.list(principal),
+  ])
   const ended = sessions
     .filter((item) => item.status === "ended")
     .sort((a, b) => (b.endedAt?.getTime() ?? 0) - (a.endedAt?.getTime() ?? 0))
@@ -75,7 +80,7 @@ export default async function PPDBResultsPage({
       ) : null}
 
       <div className="mx-auto max-w-4xl p-6">
-        <PpdbResultSettingsForm domain={domain} session={session} writable={principal.capabilities.write} />
+        <PpdbResultSettingsForm domain={domain} session={session} writable={principal.capabilities.write} availability={availability.ppdbWrite} />
       </div>
     </main>
   )

@@ -9,6 +9,7 @@ import { createPpdbSessionService } from "@/lib/admissions/ppdb-session"
 import { ppdbSessionStore } from "@/lib/admissions/ppdb-session-data"
 import { createPpdbSubmissionService } from "@/lib/admissions/ppdb-submission"
 import { ppdbSubmissionStore } from "@/lib/admissions/ppdb-submission-data"
+import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data"
 import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access"
 
 const sessionService = createPpdbSessionService({ store: ppdbSessionStore })
@@ -24,7 +25,8 @@ export default async function PPDBHistoryDetailPage({
 }) {
   const [{ domain, sessionId }, raw] = await Promise.all([params, searchParams])
   const principal = await enforceMasterDataAccess(domain, "read")
-  const [sessions, years, submissions] = await Promise.all([
+  const [availability, sessions, years, submissions] = await Promise.all([
+    getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
     sessionService.list(principal),
     academicYearService.list(principal),
     submissionService.list(principal, sessionId),
@@ -43,7 +45,7 @@ export default async function PPDBHistoryDetailPage({
           </p>
         </div>
         <div className="flex gap-2">
-          <Button nativeButton={false} render={<Link href={`/${domain}/ppdb/results?sessionId=${sessionId}`} />}>
+          <Button nativeButton={false} render={<Link href={`/${domain}/ppdb/results?sessionId=${sessionId}`} />} featureAvailability={availability.ppdbWrite}>
             Konfigurasi Hasil
           </Button>
           <Button nativeButton={false} render={<Link href={`/${domain}/ppdb/riwayat`} />} variant="outline">
@@ -65,6 +67,7 @@ export default async function PPDBHistoryDetailPage({
             submissions={submissions}
             writable={principal.capabilities.write}
             redirectPath={`/${domain}/ppdb/riwayat/${sessionId}`}
+            availability={availability.ppdbWrite}
           />
         </div>
       </div>

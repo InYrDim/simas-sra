@@ -9,6 +9,7 @@ import {
   type EndSessionActionState,
   type SaveAttendanceActionState,
 } from "@/app/(tenant)/[domain]/(authenticated)/ulangan/actions";
+import { FeatureAction } from "@/components/features/feature-action";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,6 +20,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import type { TenantFeatureAvailability } from "@/lib/features/tenant-feature-availability";
 
 type AttendanceStatus = "present" | "absent" | "late";
 type AttendanceStudent = { id: string; name: string; status: AttendanceStatus | null };
@@ -47,6 +49,7 @@ export function ActiveSessionControls({
   groupName,
   mode,
   students,
+  availability,
 }: {
   domain: string;
   sessionId: string;
@@ -54,6 +57,7 @@ export function ActiveSessionControls({
   groupName: string;
   mode: "daring" | "luring";
   students: AttendanceStudent[];
+  availability: TenantFeatureAvailability;
 }) {
   const storageKey = `quiz-attendance-draft:${domain}:${sessionId}`;
   const [attendanceOpen, setAttendanceOpen] = useState(false);
@@ -127,10 +131,21 @@ export function ActiveSessionControls({
   return (
     <>
       <Dialog open={attendanceOpen} onOpenChange={setAttendanceOpen}>
-        <DialogTrigger render={<Button type="button" variant="outline" className="gap-1.5" />}>
-          <UserCheck className="size-4" />
-          Absensi
-        </DialogTrigger>
+        <FeatureAction
+          availability={availability}
+          enabledTrigger={
+            <DialogTrigger render={<Button type="button" variant="outline" className="gap-1.5" />}>
+              <UserCheck className="size-4" />
+              Absensi
+            </DialogTrigger>
+          }
+          disabledTrigger={
+            <Button type="button" variant="outline" className="gap-1.5" disabled>
+              <UserCheck className="size-4" />
+              Absensi
+            </Button>
+          }
+        />
         <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-5xl">
           <DialogHeader>
             <DialogTitle>Absensi: {sessionTitle}</DialogTitle>
@@ -194,7 +209,7 @@ export function ActiveSessionControls({
         </DialogContent>
       </Dialog>
 
-      <Button type="button" variant="destructive" className="gap-1.5" disabled={endPending} onClick={requestEnd}>
+      <Button type="button" variant="destructive" className="gap-1.5" disabled={endPending} onClick={requestEnd} featureAvailability={availability}>
         {endPending ? <Loader2 className="size-4 animate-spin" /> : <StopCircle className="size-4" />}
         {endPending ? "Mengakhiri..." : "Akhiri Sesi"}
       </Button>
