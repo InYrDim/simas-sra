@@ -100,6 +100,16 @@ Out-of-scope work never graduates — the frontier stops at the destination — 
 
 Ruling something out of scope is a scoping act, not a step on the route. When a ticket that already exists turns out to sit past the destination — mis-scoped in while charting, or exposed by a resolution — **close it** (a closed ticket is unambiguously off the frontier) and leave one line in the **Out of scope** section: the gist plus why it's out of scope, linking the closed ticket. It stays out of **Decisions so far**, which records the route actually walked — a scope boundary isn't a step on it.
 
+## Tenant-facing destinations
+
+When the destination introduces a new Tenant-facing feature, module, page, action, public endpoint, or worker, the frontier must include the question of whether Provider controls it per Tenant.
+
+If that isn't already settled, create or resolve an early ticket — usually `grilling` — phrased as:
+
+> Should Provider be able to enable or disable this feature per Tenant, should it inherit a parent feature or package entitlement, or is it universal for every eligible Tenant?
+
+Record the answer in that ticket, not restated elsewhere, so a later `/implement` session does not ask again. If the answer is "gated", note in the ticket that `/tenant-feature-gating` governs its design and implementation.
+
 ## Invocation
 
 Two modes. Either way, **never resolve more than one ticket per session** — with the exception of research tickets.

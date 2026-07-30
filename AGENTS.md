@@ -18,6 +18,11 @@ The loader should provide clear visual feedback to the user that the system is p
 ### Custom skills
 
 - **new-feature** — Start a new feature with its own worktree and branch from staging, then plan it with wayfinder. See `.agents/skills/new-feature/SKILL.md`.
+- **tenant-feature-gating** — Assess and implement Provider-controlled feature gates for Tenant-facing features. See `.agents/skills/tenant-feature-gating/SKILL.md`.
+
+### Tenant feature assessment
+
+When implementing a new Tenant-facing feature, always invoke `tenant-feature-gating`. If the request does not already state whether Provider should control the feature per Tenant, ask the user before implementation. Do not add feature keys when the user decides the feature is universal.
 
 ### Issue tracker
 

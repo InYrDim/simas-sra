@@ -51,6 +51,13 @@ Not feature work — upkeep.
 
 - **`/improve-codebase-architecture`** — run whenever you have a spare moment to keep the codebase good for agents to operate in. It surfaces **deepening opportunities**; picking one _generates an idea_ you can take into the main flow at `/grill-with-docs`. It's the survey that finds the candidates; **`/codebase-design`** (below) is the bench you design the chosen one on.
 
+## Repo-specific policy layers
+
+Model-invoked, cross-cutting checks this repo's skills pull in automatically — reach for them directly when you want to check a policy in isolation.
+
+- **`/tenant-feature-gating`** — assesses and implements Provider-controlled per-Tenant feature gates. `/implement` runs this as a preflight for any Tenant-facing work, and `/wayfinder` folds the gating question into the frontier for Tenant-facing destinations.
+- **`/code-security`** — security review for input, auth, database, file, network, and infrastructure code. `/implement` and `/tenant-feature-gating` both pull it in.
+
 ## Vocabulary underneath
 
 Two model-invoked references that run *beneath* the other skills — each the single source of truth for its vocabulary. Reach for them directly when the **words**, not the process, are the problem; or let the skills above pull them in.
