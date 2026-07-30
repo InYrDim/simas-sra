@@ -96,7 +96,8 @@ export const tenantMenuItems: TenantNavItem[] = [
     group: "Sistem & Keamanan",
     items: [
       { title: "Manajemen Pengguna", url: "/users", roles: ["*"] },
-      { title: "Pengaturan Sistem", url: "/settings", roles: ["school-admin"] }
+      { title: "Pengaturan Sistem", url: "/settings", roles: ["school-admin"] },
+      { title: "Backup & Restore", url: "/settings/backup-restore", roles: ["school-admin"] }
     ]
   },
 ]

@@ -28,6 +28,17 @@ test("Administrasi separates Overview, Import, and Master Data", () => {
   );
 });
 
+test("Sistem & Keamanan exposes Backup & Restore only to School Admin", () => {
+  const management = tenantMenuItems.find((item) => item.title === "Manajemen");
+  const backupRestore = management?.items?.find((item) => item.title === "Backup & Restore");
+
+  assert.deepEqual(backupRestore, {
+    title: "Backup & Restore",
+    url: "/settings/backup-restore",
+    roles: ["school-admin"],
+  });
+});
+
 test("Tenant navigation prefixes every route with the current domain", () => {
   assert.equal(tenantNavigationHref("sekolah-a", "/dashboard"), "/sekolah-a/dashboard");
   assert.equal(tenantNavigationHref("/sekolah-a/", "/master/siswa"), "/sekolah-a/master/siswa");

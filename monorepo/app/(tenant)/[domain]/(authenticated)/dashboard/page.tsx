@@ -1,5 +1,6 @@
 import { SessionInfo } from "@/components/dashboard/session-info";
 import { AdvancedAnalytics } from "@/components/dashboard/advanced-analytics";
+import { MasterDataWarningBanner } from "@/components/dashboard/master-data-warning-banner";
 import { db } from "@/db";
 import { tenant } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -41,6 +42,10 @@ export default async function DashboardPage({
       </div>
       
       <SessionInfo />
+
+      {session?.user.tenantRole === "school-admin" ? (
+        <MasterDataWarningBanner tenantId={tenantData.id} domain={domain} />
+      ) : null}
 
       {needsAdminOnboarding ? (
         <OnboardingForm domain={domain} defaultSchoolYear={defaultSchoolYear} />
