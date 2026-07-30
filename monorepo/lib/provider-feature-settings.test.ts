@@ -7,6 +7,7 @@ import {
 } from "@/lib/provider-feature-settings";
 
 const selection = {
+  masterData: true,
   masterDataRead: true,
   masterDataWrite: true,
   masterDataImportDownload: false,
@@ -32,6 +33,7 @@ test("feature settings preserve onboarding and unknown feature configuration", (
 
 test("feature settings default every known feature to disabled", () => {
   assert.deepEqual(readProviderFeatureSelection(null), {
+    masterData: false,
     masterDataRead: false,
     masterDataWrite: false,
     masterDataImportDownload: false,

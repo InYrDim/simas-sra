@@ -5,6 +5,7 @@ import mysql from "mysql2/promise";
 import { buildExecutionConfirmation, type ClaimedExecutionRow, type ExecutionOutcome, type ExecutionRow, type PeopleImportExecutionStore } from "@/lib/people-import-execution";
 import type { MasterDataPrincipal } from "@/lib/tenant-master-data-access";
 import { validatePeopleImportValues, type PeopleImportKind } from "@/lib/people-import";
+import { isTenantFeatureEnabled } from "@/lib/tenant-feature-policy";
 
 const url=process.env.DATABASE_URL; let database:mysql.Pool|undefined; const db=()=>database??=mysql.createPool({uri:url!,connectionLimit:8});
 const json=<T>(value:unknown):T=>typeof value==="string"?JSON.parse(value) as T:value as T;
@@ -32,7 +33,7 @@ export const peopleImportExecutionStore:PeopleImportExecutionStore={
    const[r]=await c.query<mysql.RowDataPacket[]>("SELECT er.*,e.batch_id,e.actor_user_id,pr.entity_kind,source_row.values_json,source_row.state,t.operational_status,t.trial_ends_at,t.settings,u.tenant_role,u.tenant_id user_tenant FROM people_import_execution_row er JOIN people_import_execution e ON e.tenant_id=er.tenant_id AND e.id=er.execution_id JOIN people_import_revision pr ON pr.tenant_id=er.tenant_id AND pr.id=er.revision_id JOIN people_import_row source_row ON source_row.tenant_id=er.tenant_id AND source_row.id=er.row_id JOIN tenant t ON t.id=er.tenant_id JOIN user u ON u.id=e.actor_user_id WHERE er.tenant_id=? AND er.execution_id=? AND er.row_id=? FOR UPDATE",[claim.tenantId,claim.executionId,claim.rowId]);
    const x=r[0];if(!x||x.outcome){await c.rollback();return}
    const settings=json<{features?:Record<string,unknown>}>(x.settings??{});
-   if(x.operational_status!=="active"||(x.trial_ends_at&&new Date(x.trial_ends_at)<=new Date())||x.tenant_role!=="school-admin"||x.user_tenant!==x.tenant_id||settings.features?.masterDataWrite!==true||settings.features?.masterDataImportExecution!==true)throw new Error("authority-revoked");
+   if(x.operational_status!=="active"||(x.trial_ends_at&&new Date(x.trial_ends_at)<=new Date())||x.tenant_role!=="school-admin"||x.user_tenant!==x.tenant_id||!isTenantFeatureEnabled(settings,"masterDataImportExecution"))throw new Error("authority-revoked");
    if(x.planned_action==="skip"||x.planned_action==="reject"){await c.execute("UPDATE people_import_execution_row SET outcome=?,completed_at=NOW(3) WHERE id=?",[x.planned_action==="skip"?"skipped":"rejected",x.id]);await finish(c,x);await c.commit();return}
    const[s]=await c.query<mysql.RowDataPacket[]>("SELECT id FROM people_import_success WHERE tenant_id=? AND batch_id=? AND revision_id=? AND row_id=?",[x.tenant_id,x.batch_id,x.revision_id,x.row_id]);
    if(s[0]){await c.execute("UPDATE people_import_execution_row SET outcome='already-committed',completed_at=NOW(3) WHERE id=?",[x.id]);await finish(c,x);await c.commit();return}

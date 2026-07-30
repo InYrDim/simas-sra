@@ -74,7 +74,7 @@ async function createTenant(
   );
   await connection.execute(
     "INSERT INTO tenant (id,name,domain,npsn,source_application_id,approved_at,operational_status,settings,created_at,updated_at) VALUES (?,?,?,?,?,NOW(3),'active',?,NOW(3),NOW(3))",
-    [fixture.tenantId, fixture.name, fixture.domain, fixture.npsn, fixture.applicationId, JSON.stringify({ features: { masterDataRead: true, masterDataWrite: true, masterDataImportDownload: true, masterDataImportValidation: true, masterDataImportExecution: true } })],
+    [fixture.tenantId, fixture.name, fixture.domain, fixture.npsn, fixture.applicationId, JSON.stringify({ features: { masterData: true, masterDataRead: true, masterDataWrite: true, masterDataImportDownload: true, masterDataImportValidation: true, masterDataImportExecution: true } })],
   );
   await connection.execute(
     "UPDATE simas_application SET status='approved',decided_at=NOW(3),decided_by_provider_admin_id=?,approved_tenant_id=? WHERE id=?",
