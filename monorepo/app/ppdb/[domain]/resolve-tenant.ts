@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
 import { simasApplication, tenant } from "@/db/schema";
+import { isTenantFeatureEnabled } from "@/lib/features/tenant-feature-policy";
 
 export type PublicTenant = Readonly<{
   id: string;
@@ -12,14 +13,19 @@ export type PublicTenant = Readonly<{
 // Halaman publik /ppdb/[domain] tidak memerlukan login — Tenant diresolusi langsung dari domain.
 export async function resolvePublicTenant(domain: string): Promise<PublicTenant | null> {
   const [row] = await db
-    .select({ id: tenant.id, educationLevel: simasApplication.educationLevel })
+    .select({
+      id: tenant.id,
+      educationLevel: simasApplication.educationLevel,
+      settings: tenant.settings,
+    })
     .from(tenant)
     .innerJoin(simasApplication, eq(tenant.sourceApplicationId, simasApplication.id))
     .where(eq(tenant.domain, domain))
     .limit(1);
-  if (!row) return null;
+  if (!row || !isTenantFeatureEnabled(row.settings, "ppdbPublic")) return null;
   return {
-    ...row,
+    id: row.id,
+    educationLevel: row.educationLevel,
     nisnRequired: row.educationLevel.trim().toUpperCase() !== "SD",
   };
 }

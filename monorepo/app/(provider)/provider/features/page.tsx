@@ -25,7 +25,7 @@ export default async function ProviderFeaturesPage({
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Fitur Tenant</h1>
         <p className="mt-2 text-muted-foreground">
-          Pilih Tenant, lalu tentukan fitur yang dapat digunakan oleh sekolah tersebut.
+          Pilih Tenant, lalu kelola fitur berdasarkan domain fungsi atau rute halaman yang dilindungi.
         </p>
       </div>
 
@@ -48,7 +48,7 @@ export default async function ProviderFeaturesPage({
 
       <Card>
         <CardHeader>
-          <CardTitle>2. Set Fitur</CardTitle>
+          <CardTitle>2. Atur Fitur</CardTitle>
           <CardDescription>
             {selectedTenant
               ? `${selectedTenant.name} · ${selectedTenant.domain}`

@@ -10,6 +10,7 @@ import {
   getTenantRelativePath,
 } from "@/lib/master-data/dashboard-master-data";
 import { getUrgentMasterDataPresence } from "@/lib/master-data/dashboard-master-data-data";
+import { getResolvedTenantFeatures } from "@/lib/features/tenant-feature-access-data";
 import { TENANT_PATHNAME_HEADER } from "@/lib/platform/proxy-routing";
 import { enforceTenantPageAccess } from "@/lib/tenancy/tenant-access";
 import { isTenantRole } from "@/types/TenantRole";
@@ -27,6 +28,7 @@ export default async function DashboardLayout({ children, params }: {
   const role = session?.user.tenantRole;
   if (!isTenantRole(role)) notFound();
 
+  const features = await getResolvedTenantFeatures(tenant.id);
   const pathname = requestHeaders.get(TENANT_PATHNAME_HEADER);
   const gatedArea = pathname
     ? getMasterDataGatedArea(getTenantRelativePath(domain, pathname))
@@ -39,7 +41,7 @@ export default async function DashboardLayout({ children, params }: {
     : children;
 
   return <SidebarProvider>
-    <TenantSidebar role={role} domain={domain} tenantName={tenant.name} />
+    <TenantSidebar role={role} domain={domain} tenantName={tenant.name} features={features} />
     <SidebarInset>
       <TrialBanner domain={domain} />
       <DashboardHeader domain={domain} />

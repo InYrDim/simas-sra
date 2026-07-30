@@ -31,6 +31,7 @@ export const tenantMenuItems: TenantNavItem[] = [
     icon: UserPlus,
     roles: ["*"],
     group: "Pendaftaran",
+    feature: "ppdbRead",
     items: [
       { title: "Review Pendaftar", url: "/ppdb", roles: ["school-admin"] },
       { title: "Sesi & Form", url: "/ppdb/settings", roles: ["school-admin"] },
@@ -42,6 +43,7 @@ export const tenantMenuItems: TenantNavItem[] = [
     icon: FileCheck,
     roles: ["*"],
     group: "Akademik",
+    feature: "ulanganRead",
     items: [
       { title: "Sesi Ulangan", url: "/ulangan", roles: ["*"] },
       { title: "Riwayat", url: "/ulangan/riwayat", roles: ["*"] }

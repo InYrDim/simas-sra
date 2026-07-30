@@ -42,6 +42,42 @@ test("legacy Master Data child flags remain enabled until the parent is explicit
   }, "masterDataRead"), true);
 });
 
+test("legacy tenants keep Ulangan and PPDB enabled until explicitly configured", () => {
+  assert.equal(isTenantFeatureEnabled(fullyEnabledMasterData, "ulanganWrite"), true);
+  assert.equal(isTenantFeatureEnabled(fullyEnabledMasterData, "ppdbPublic"), true);
+});
+
+test("Ulangan and PPDB descendants follow their parent and Master Data dependencies", () => {
+  const settings = {
+    features: {
+      ...fullyEnabledMasterData.features,
+      ulangan: false,
+      ulanganRead: true,
+      ulanganWrite: true,
+      ppdb: true,
+      ppdbRead: true,
+      ppdbWrite: true,
+      ppdbPublic: true,
+    },
+  };
+
+  assert.equal(isTenantFeatureEnabled(settings, "ulanganRead"), false);
+  assert.equal(isTenantFeatureEnabled(settings, "ulanganWrite"), false);
+  assert.equal(isTenantFeatureEnabled(settings, "ppdbWrite"), true);
+  assert.equal(isTenantFeatureEnabled({
+    features: { ...settings.features, masterData: false },
+  }, "ppdbPublic"), false);
+});
+
+test("explicit Ulangan and PPDB child flags fail closed", () => {
+  assert.equal(isTenantFeatureEnabled({
+    features: { ...fullyEnabledMasterData.features, ulangan: true, ulanganRead: false },
+  }, "ulanganRead"), false);
+  assert.equal(isTenantFeatureEnabled({
+    features: { ...fullyEnabledMasterData.features, ppdb: true, ppdbPublic: false },
+  }, "ppdbPublic"), false);
+});
+
 test("unknown, missing, and non-boolean values fail closed", () => {
   assert.equal(isTenantFeatureEnabled(null, "advancedAnalytics"), false);
   assert.equal(isTenantFeatureEnabled({ features: { advancedAnalytics: "true" } }, "advancedAnalytics"), false);

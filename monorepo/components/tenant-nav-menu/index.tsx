@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import { ChevronRight } from "lucide-react"
+import { ChevronRight, LockKeyhole } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
@@ -21,6 +21,7 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
 
+import type { TenantFeatureSelection } from "@/lib/features/tenant-feature-policy"
 import { type TenantRole } from "@/types/TenantRole"
 import { type TenantNavItem } from "@/types/components/TenantNavItem"
 
@@ -31,7 +32,7 @@ export function tenantNavigationHref(domain: string, url: string | undefined) {
   return `/${normalizedDomain}${normalizedUrl}`
 }
 
-function TenantNavCollapsibleItem({ item, role, pathname, domain }: { item: TenantNavItem, role: TenantRole, pathname: string, domain: string }) {
+function TenantNavCollapsibleItem({ item, role, pathname, domain, disabled }: { item: TenantNavItem, role: TenantRole, pathname: string, domain: string, disabled: boolean }) {
   const filteredSubItems = item.items!.filter((subItem) => subItem.roles.includes(role) || subItem.roles.includes("*"))
   const isActive = filteredSubItems.some((subItem) => pathname === tenantNavigationHref(domain, subItem.url))
 
@@ -47,6 +48,22 @@ function TenantNavCollapsibleItem({ item, role, pathname, domain }: { item: Tena
   }
 
   if (filteredSubItems.length === 0) return null
+
+  if (disabled) {
+    return (
+      <SidebarMenuItem>
+        <SidebarMenuButton
+          className="cursor-not-allowed opacity-45"
+          disabled
+          tooltip={`${item.title} dinonaktifkan oleh Provider`}
+        >
+          {item.icon && <item.icon />}
+          <span>{item.title}</span>
+          <LockKeyhole className="ml-auto" />
+        </SidebarMenuButton>
+      </SidebarMenuItem>
+    )
+  }
 
   return (
     <SidebarMenuItem>
@@ -85,10 +102,12 @@ export function TenantNavMenu({
   items,
   role,
   domain,
+  features,
 }: {
   items: TenantNavItem[]
   role: TenantRole
   domain: string
+  features: TenantFeatureSelection
 }) {
   const pathname = usePathname()
 
@@ -110,21 +129,26 @@ export function TenantNavMenu({
           <SidebarGroupLabel>{groupName}</SidebarGroupLabel>
           <SidebarMenu>
             {groupItems.map((item) => {
+              const disabled = Boolean(item.feature && !features[item.feature])
+
               // Nested item scenario
               if (item.items && item.items.length > 0) {
-                return <TenantNavCollapsibleItem key={item.title} item={item} role={role} pathname={pathname} domain={domain} />
+                return <TenantNavCollapsibleItem key={item.title} item={item} role={role} pathname={pathname} domain={domain} disabled={disabled} />
               }
 
               // Normal item scenario
               return (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
-                    render={<Link href={tenantNavigationHref(domain, item.url)} aria-current={pathname === tenantNavigationHref(domain, item.url) ? "page" : undefined} />}
-                    tooltip={item.title}
-                    isActive={pathname === tenantNavigationHref(domain, item.url)}
+                    className={disabled ? "cursor-not-allowed opacity-45" : undefined}
+                    disabled={disabled}
+                    render={disabled ? undefined : <Link href={tenantNavigationHref(domain, item.url)} aria-current={pathname === tenantNavigationHref(domain, item.url) ? "page" : undefined} />}
+                    tooltip={disabled ? `${item.title} dinonaktifkan oleh Provider` : item.title}
+                    isActive={!disabled && pathname === tenantNavigationHref(domain, item.url)}
                   >
                     {item.icon && <item.icon />}
                     <span>{item.title}</span>
+                    {disabled ? <LockKeyhole className="ml-auto" /> : null}
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )

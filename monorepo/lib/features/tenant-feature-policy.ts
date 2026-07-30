@@ -33,6 +33,20 @@ export function readTenantFeatureSelection(settings: unknown): TenantFeatureSele
     ].some((key) => features[key] === true);
   }
 
+  // These modules predate the feature registry. Preserve access for existing tenants
+  // until a provider explicitly saves one of their feature flags.
+  for (const key of [
+    "ulangan",
+    "ulanganRead",
+    "ulanganWrite",
+    "ppdb",
+    "ppdbRead",
+    "ppdbWrite",
+    "ppdbPublic",
+  ] as const) {
+    if (!Object.prototype.hasOwnProperty.call(features, key)) selection[key] = true;
+  }
+
   return selection;
 }
 

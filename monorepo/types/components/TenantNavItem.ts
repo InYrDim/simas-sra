@@ -1,4 +1,5 @@
 import { type LucideIcon } from "lucide-react"
+import type { TenantFeatureKey } from "@/config/tenant-features"
 import { type TenantRoleMatcher } from "@/types/TenantRole"
 
 export type TenantNavItem = {
@@ -7,5 +8,6 @@ export type TenantNavItem = {
   icon?: LucideIcon
   roles: TenantRoleMatcher[]
   group?: string
+  feature?: TenantFeatureKey
   items?: Omit<TenantNavItem, "icon" | "group">[]
 }
