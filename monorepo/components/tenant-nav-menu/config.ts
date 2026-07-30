@@ -1,4 +1,4 @@
-import { Home, Database, Calendar, ClipboardCheck, FileCheck, LayoutDashboard, Library, Mail, Settings, Upload, UserPlus } from "lucide-react"
+import { Home, Database, Calendar, ClipboardCheck, FileCheck, LayoutDashboard, Library, Mail, Plug, Settings, Upload, UserPlus } from "lucide-react"
 import { type TenantNavItem } from "@/types/components/TenantNavItem"
 
 export const tenantMenuItems: TenantNavItem[] = [
@@ -98,6 +98,15 @@ export const tenantMenuItems: TenantNavItem[] = [
       { title: "Manajemen Pengguna", url: "/users", roles: ["*"] },
       { title: "Pengaturan Sistem", url: "/settings", roles: ["school-admin"] },
       { title: "Backup & Restore", url: "/settings/backup-restore", roles: ["school-admin"] }
+    ]
+  },
+  {
+    title: "Integrasi",
+    icon: Plug,
+    roles: ["school-admin"],
+    group: "Sistem & Keamanan",
+    items: [
+      { title: "WhatsApp Bot", url: "/integrasi/whatsapp-bot", roles: ["school-admin"] }
     ]
   },
 ]

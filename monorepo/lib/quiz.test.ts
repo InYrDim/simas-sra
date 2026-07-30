@@ -46,7 +46,11 @@ function createStore(initialAttendance: QuizAttendance[] = []) {
     async list() { return sessions; },
     async save(session) { sessions[0] = session; },
     async listQuestions() { return questions; },
-    async saveQuestion() {},
+    async saveQuestion(question) {
+      const index = questions.findIndex((current) => current.id === question.id);
+      if (index === -1) questions.push(question);
+      else questions[index] = question;
+    },
     async deleteQuestion() {},
     async listAnswerSheets() { return answerSheets; },
     async findAnswerSheet(answerSheetId) { return answerSheets.find((sheet) => sheet.id === answerSheetId) ?? null; },
@@ -71,6 +75,42 @@ function createStore(initialAttendance: QuizAttendance[] = []) {
   };
   return { store, sessions, attendance, answerSheets, questions };
 }
+
+test("addQuestions fills a draft session once and skips duplicate question text", async () => {
+  const fixture = createStore();
+  fixture.sessions[0] = { ...activeSession, status: "draft", startedAt: null };
+  const service = createQuizSessionService({
+    store: fixture.store,
+    id: () => `question-${fixture.questions.length + 1}`,
+    now: () => new Date("2026-07-22T07:30:00Z"),
+  });
+  const demo = [
+    { questionText: "Dua tambah dua?", questionType: "multiple_choice" as const, options: ["3", "4"], correctAnswer: "4", points: 10 },
+    { questionText: "Bumi itu bulat.", questionType: "true_false" as const, options: ["Benar", "Salah"], correctAnswer: "Benar", points: 10 },
+  ];
+
+  const first = await service.addQuestions(principal, "session-1", demo);
+  const second = await service.addQuestions(principal, "session-1", demo);
+
+  assert.deepEqual(first, { ok: true, addedCount: 2 });
+  assert.deepEqual(second, { ok: true, addedCount: 0 });
+  assert.deepEqual(fixture.questions.map(({ questionText, orderIndex }) => ({ questionText, orderIndex })), [
+    { questionText: "Dua tambah dua?", orderIndex: 0 },
+    { questionText: "Bumi itu bulat.", orderIndex: 1 },
+  ]);
+});
+
+test("addQuestions rejects non-draft and cross-tenant sessions", async () => {
+  const fixture = createStore();
+  const service = createQuizSessionService({ store: fixture.store });
+  const questions = [{ questionText: "Soal demo", questionType: "essay" as const }];
+
+  assert.deepEqual(await service.addQuestions(principal, "session-1", questions), { ok: false, code: "locked" });
+  assert.deepEqual(
+    await service.addQuestions({ ...principal, tenantId: "tenant-2" }, "session-1", questions),
+    { ok: false, code: "not-found" },
+  );
+});
 
 test("end reports students whose attendance is incomplete", async () => {
   const fixture = createStore();

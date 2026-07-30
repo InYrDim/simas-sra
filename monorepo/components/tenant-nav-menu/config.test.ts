@@ -39,6 +39,20 @@ test("Sistem & Keamanan exposes Backup & Restore only to School Admin", () => {
   });
 });
 
+test("Sistem & Keamanan exposes WhatsApp Bot integration only to School Admin", () => {
+  const integration = tenantMenuItems.find((item) => item.title === "Integrasi");
+
+  assert.equal(integration?.group, "Sistem & Keamanan");
+  assert.deepEqual(integration?.roles, ["school-admin"]);
+  assert.deepEqual(integration?.items, [
+    {
+      title: "WhatsApp Bot",
+      url: "/integrasi/whatsapp-bot",
+      roles: ["school-admin"],
+    },
+  ]);
+});
+
 test("Tenant navigation prefixes every route with the current domain", () => {
   assert.equal(tenantNavigationHref("sekolah-a", "/dashboard"), "/sekolah-a/dashboard");
   assert.equal(tenantNavigationHref("/sekolah-a/", "/master/siswa"), "/sekolah-a/master/siswa");

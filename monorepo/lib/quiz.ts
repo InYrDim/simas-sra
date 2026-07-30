@@ -381,6 +381,44 @@ export function createQuizSessionService(dependencies: { store: QuizSessionStore
       });
     },
 
+    addQuestions(principal: MasterDataPrincipal, sessionId: string, inputs: readonly QuizQuestionInput[]) {
+      if (inputs.length === 0 || inputs.some((input) => !input.questionText.trim())) {
+        return Promise.resolve(failure("invalid-input"));
+      }
+      return dependencies.store.transaction(principal.tenantId, async (transaction) => {
+        const all = await transaction.list();
+        const current = all.find((session) => session.id === sessionId && session.tenantId === principal.tenantId);
+        if (!current) return failure("not-found");
+        if (current.status !== "draft") return failure("locked");
+
+        const existing = await transaction.listQuestions(sessionId);
+        const existingTexts = new Set(existing.map((question) => question.questionText.trim().toLocaleLowerCase("id-ID")));
+        const timestamp = now();
+        const firstOrderIndex = existing.length;
+        let addedCount = 0;
+        for (const input of inputs) {
+          const questionText = input.questionText.trim();
+          const normalizedText = questionText.toLocaleLowerCase("id-ID");
+          if (existingTexts.has(normalizedText)) continue;
+          await transaction.saveQuestion({
+            id: id(),
+            tenantId: principal.tenantId,
+            sessionId,
+            questionText,
+            questionType: input.questionType,
+            options: input.options ?? null,
+            correctAnswer: input.correctAnswer ?? null,
+            points: input.points ?? 1,
+            orderIndex: firstOrderIndex + addedCount,
+            createdAt: timestamp,
+          });
+          existingTexts.add(normalizedText);
+          addedCount += 1;
+        }
+        return { ok: true, addedCount } as const;
+      });
+    },
+
     addQuestion(principal: MasterDataPrincipal, sessionId: string, input: QuizQuestionInput) {
       if (!input.questionText.trim()) return Promise.resolve(failure("invalid-input"));
       return dependencies.store.transaction(principal.tenantId, async (transaction) => {

@@ -2,6 +2,7 @@ import Link from "next/link";
 
 import { AddQuestionForm } from "@/app/(tenant)/[domain]/(authenticated)/ulangan/[sessionId]/add-question-form";
 import { ActiveSessionControls } from "@/app/(tenant)/[domain]/(authenticated)/ulangan/[sessionId]/attendance-dialog";
+import { DemoQuestionsDialog } from "@/app/(tenant)/[domain]/(authenticated)/ulangan/[sessionId]/demo-questions-dialog";
 import { activateSessionAction, removeQuestionAction } from "@/app/(tenant)/[domain]/(authenticated)/ulangan/actions";
 import { Button } from "@/components/ui/button";
 import { createAcademicYearService } from "@/lib/academic-year";
@@ -154,7 +155,11 @@ export default async function QuizSessionDetailPage({
 
       {raw.result ? (
         <p role="status" className="mx-6 mt-4 rounded-lg border border-slate-200 bg-white p-3 text-sm">
-          {raw.result === "saved" ? "Perubahan tersimpan." : `Operasi ditolak: ${raw.result}.`}
+          {raw.result === "saved"
+            ? "Perubahan tersimpan."
+            : raw.result === "demo-questions-added"
+              ? "Soal demo berhasil ditambahkan."
+              : `Operasi ditolak: ${raw.result}.`}
         </p>
       ) : null}
 
@@ -163,6 +168,9 @@ export default async function QuizSessionDetailPage({
           <h2 className="text-lg font-semibold">
             Daftar Soal ({sortedQuestions.length} soal, {totalPoints} poin)
           </h2>
+          {writable && session.status === "draft" ? (
+            <DemoQuestionsDialog domain={domain} sessionId={session.id} />
+          ) : null}
         </div>
 
         {sortedQuestions.length === 0 ? (

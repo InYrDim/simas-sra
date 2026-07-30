@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { createQuizSessionService, type QuizAttendanceStatus, type QuizQuestionInput, type QuizSessionMode } from "@/lib/quiz";
 import { quizSessionStore } from "@/lib/quiz-data";
+import { DEMO_QUIZ_QUESTIONS } from "@/lib/quiz-demo";
 import { enforceMasterDataAccess } from "@/lib/tenant-master-data-route-access";
 
 const sessionService = createQuizSessionService({ store: quizSessionStore });
@@ -103,6 +104,14 @@ export async function gradeSessionAction(domain: string, formData: FormData) {
   const sessionId = String(formData.get("sessionId") ?? "");
   const result = await sessionService.grade(principal, sessionId);
   finish(`/${domain}/ulangan/${sessionId}/penilaian`, result);
+}
+
+export async function addDemoQuestionsAction(domain: string, formData: FormData) {
+  const principal = await enforceMasterDataAccess(domain, "write");
+  const sessionId = String(formData.get("sessionId") ?? "");
+  const result = await sessionService.addQuestions(principal, sessionId, DEMO_QUIZ_QUESTIONS);
+  revalidatePath(`/${domain}/ulangan/${sessionId}`);
+  redirect(`/${domain}/ulangan/${sessionId}?result=${result.ok ? "demo-questions-added" : result.code ?? "error"}`);
 }
 
 export async function addQuestionAction(domain: string, formData: FormData) {
