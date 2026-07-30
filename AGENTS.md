@@ -2,6 +2,17 @@
 READ AT monorepo/AGENTS.md
 <!-- END:nextjs-agent-rules -->
 
+## UI/UX Guidelines
+
+### Loading States
+When creating a UI component that is waiting for or creating a process in the backend, always make sure to add a loader (loading indicator). This includes:
+- Form submissions
+- Data fetching
+- File uploads
+- Any async operation that takes noticeable time
+
+The loader should provide clear visual feedback to the user that the system is processing their request.
+
 ## Agent skills
 
 ### Custom skills

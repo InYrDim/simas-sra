@@ -1,6 +1,7 @@
 "use client";
 
-import { DatabaseZap } from "lucide-react";
+import { DatabaseZap, LoaderCircle } from "lucide-react";
+import { useFormStatus } from "react-dom";
 
 import { importDemoMasterDataAction } from "@/app/(tenant)/[domain]/(authenticated)/master/import/actions";
 import {
@@ -17,6 +18,20 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { DEMO_MASTER_DATA_TYPES } from "@/lib/demo-master-data";
+
+function DemoImportActions() {
+  const { pending } = useFormStatus();
+
+  return (
+    <AlertDialogFooter>
+      <AlertDialogCancel disabled={pending}>Batal</AlertDialogCancel>
+      <AlertDialogAction className="w-full" disabled={pending} type="submit">
+        {pending ? <LoaderCircle aria-hidden="true" className="animate-spin" /> : null}
+        {pending ? "Mengisi data demo…" : "Ya, isi data demo"}
+      </AlertDialogAction>
+    </AlertDialogFooter>
+  );
+}
 
 export function DemoDataImportDialog({ domain }: { domain: string }) {
   const action = importDemoMasterDataAction.bind(null, domain);
@@ -44,12 +59,9 @@ export function DemoDataImportDialog({ domain }: { domain: string }) {
           Data yang sudah ada tidak dihapus. Data demo dengan identitas yang sama akan diperbarui,
           bukan digandakan.
         </p>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Batal</AlertDialogCancel>
-          <form action={action}>
-            <AlertDialogAction className="w-full" type="submit">Ya, isi data demo</AlertDialogAction>
-          </form>
-        </AlertDialogFooter>
+        <form action={action}>
+          <DemoImportActions />
+        </form>
       </AlertDialogContent>
     </AlertDialog>
   );
