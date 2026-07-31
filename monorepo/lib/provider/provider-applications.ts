@@ -1,3 +1,5 @@
+import { SecurityCommandError } from "@/lib/authorization/security-command";
+
 export type ApplicationStatus = "pending" | "approved" | "rejected";
 
 export type ProviderDecisionPrincipal = Readonly<{
@@ -52,6 +54,7 @@ export type ApprovalProvision = Readonly<{
   ownerUserId: string;
   providerAdminId: string;
   tenant: Readonly<{ id: string; name: string; npsn: string; subdomain: string }>;
+  authorityId: string;
   outboxEventId: string;
   decidedAt: Date;
 }>;
@@ -63,7 +66,16 @@ export type ApplicationApprovalTransaction = Readonly<{
 }>;
 
 export type ApplicationApprovalStore = Readonly<{
-  transaction<T>(work: (tx: ApplicationApprovalTransaction) => Promise<T>): Promise<T>;
+  transaction<T extends ApproveSimasApplicationResult>(
+    input: Readonly<{
+      principal: ProviderDecisionPrincipal;
+      applicationId: string;
+      subdomain: string;
+      idempotencyKey: string;
+      correlationId: string;
+    }>,
+    work: (tx: ApplicationApprovalTransaction) => Promise<T>,
+  ): Promise<Readonly<{ existing: boolean; value: T }>>;
 }>;
 
 export class ApprovalConflictError extends Error {
@@ -144,7 +156,9 @@ export function createApproveSimasApplicationCommand({
     const subdomain = normalizedSubdomain(input.subdomain);
     const errors: { applicationId?: string; subdomain?: string } = {};
 
-    if (!applicationId) errors.applicationId = "Pengajuan SIMAS tidak valid.";
+    if (!applicationId || applicationId.length > 36 || !/^[A-Za-z0-9_-]+$/.test(applicationId)) {
+      errors.applicationId = "Pengajuan SIMAS tidak valid.";
+    }
     if (!subdomain) {
       errors.subdomain = "Subdomain wajib diisi.";
     } else if (subdomain.length > 63) {
@@ -159,10 +173,18 @@ export function createApproveSimasApplicationCommand({
     const { randomUUID } = await import("node:crypto");
     const nextId = generateId ?? randomUUID;
     const tenantId = nextId();
+    const authorityId = nextId();
     const outboxEventId = nextId();
+    const idempotencyKey = `approve_${applicationId.replaceAll("-", "_")}`;
 
     try {
-      return await store.transaction(async (tx) => {
+      const executed = await store.transaction({
+        principal,
+        applicationId,
+        subdomain,
+        idempotencyKey,
+        correlationId: tenantId,
+      }, async (tx) => {
         const application = await tx.lock(applicationId);
         if (!application) return { ok: false, code: "not-found" } as const;
         if (application.status === "approved" && application.approvedTenantId) {
@@ -196,6 +218,7 @@ export function createApproveSimasApplicationCommand({
             npsn: application.canonicalNpsn,
             subdomain,
           },
+          authorityId,
           outboxEventId,
           decidedAt: now(),
         });
@@ -205,9 +228,16 @@ export function createApproveSimasApplicationCommand({
           tenantId,
         } as const;
       });
+      if (executed.existing && executed.value.ok && executed.value.status === "approved") {
+        return { ...executed.value, status: "already-approved" };
+      }
+      return executed.value;
     } catch (error) {
       if (error instanceof ApprovalConflictError) {
         return { ok: false, code: "resource-conflict", field: error.field };
+      }
+      if (error instanceof SecurityCommandError && error.code === "idempotency-conflict") {
+        return { ok: false, code: "decision-conflict", status: "approved" };
       }
       throw error;
     }

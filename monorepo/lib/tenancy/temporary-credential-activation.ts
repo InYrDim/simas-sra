@@ -2,6 +2,7 @@ import { randomBytes } from "node:crypto";
 
 import { hashPassword, verifyPassword } from "better-auth/crypto";
 
+import { resolveSchoolAdminAuthority } from "@/lib/authorization/school-admin-authority";
 import type { ProviderPrincipal } from "@/lib/provider/provider-access";
 
 export type TenantPrincipal = Readonly<{
@@ -30,6 +31,7 @@ export type TemporaryCredentialActivationStore = Readonly<{
   recordFirstAuthentication(userId: string, authenticatedAt: Date): Promise<void>;
   getTenantPrincipal(userId: string): Promise<(TenantPrincipal & {
     passwordChangeRequired: boolean;
+    schoolAdminAuthorityStates: readonly string[];
   }) | null>;
   transaction<T>(work: (tx: ActivationTransaction) => Promise<T>): Promise<T>;
 }>;
@@ -65,7 +67,21 @@ export async function requireActivatedTenantPrincipal(
   store: TemporaryCredentialActivationStore,
 ): Promise<TenantPrincipal> {
   const principal = await store.getTenantPrincipal(userId);
-  if (!principal || principal.tenantId !== tenantId || principal.tenantRole !== "school-admin") {
+  const authority = principal ? resolveSchoolAdminAuthority({
+    userId: principal.userId,
+    tenantId: principal.tenantId,
+    legacyRole: principal.tenantRole,
+    tenantExists: principal.tenantId === tenantId,
+    providerAdmin: false,
+    applicant: false,
+    authorities: principal.schoolAdminAuthorityStates.map((authorityState, index) => ({
+      id: `authority-${index}`,
+      tenantId: principal.tenantId,
+      userId: principal.userId,
+      authorityState,
+    })),
+  }) : null;
+  if (!principal || principal.tenantId !== tenantId || !authority?.compatible) {
     throw new TenantActivationError("forbidden");
   }
   if (principal.passwordChangeRequired) {

@@ -4,7 +4,18 @@ import test from "node:test";
 import { resolveCentralDestination, resolveCentralIdentity, resolvePublicIntent, resolveRawPublicIntent, type CentralIdentitySnapshot } from "@/lib/platform/central-identity";
 
 const base: CentralIdentitySnapshot = { applicant: false, providerAdmin: false, tenantMembership: null, activation: null, promotedApplicant: false };
-const membership = { tenantId: "tenant-1", domain: "sman-1", role: "school-admin" };
+const membership = {
+  userId: "school-admin-1",
+  tenantId: "tenant-1",
+  domain: "sman-1",
+  role: "school-admin",
+  schoolAdminAuthorities: [{
+    id: "authority-1",
+    tenantId: "tenant-1",
+    userId: "school-admin-1",
+    authorityState: "active",
+  }],
+};
 
 test("identity resolver returns exactly one server-backed identity path", () => {
   assert.deepEqual(resolveCentralIdentity({ ...base, providerAdmin: true }), { kind: "provider-admin", passwordChangeRequired: false });
@@ -13,11 +24,15 @@ test("identity resolver returns exactly one server-backed identity path", () => 
   assert.deepEqual(resolveCentralIdentity({ ...base, tenantMembership: membership, promotedApplicant: true }), { kind: "tenant-member", tenantId: "tenant-1", domain: "sman-1", passwordChangeRequired: false, promotedApplicant: true });
 });
 
-test("zero paths, multiple paths, a missing Tenant, and a missing role are invalid", () => {
+test("zero paths, multiple paths, a missing Tenant, and missing authority are invalid", () => {
   assert.deepEqual(resolveCentralIdentity(base), { kind: "invalid", reason: "no-identity-path" });
   assert.deepEqual(resolveCentralIdentity({ ...base, applicant: true, providerAdmin: true }), { kind: "invalid", reason: "multiple-identity-paths" });
   assert.deepEqual(resolveCentralIdentity({ ...base, tenantMembership: { ...membership, domain: null } }), { kind: "invalid", reason: "tenant-missing" });
-  assert.deepEqual(resolveCentralIdentity({ ...base, tenantMembership: { ...membership, role: null } }), { kind: "invalid", reason: "tenant-role-missing" });
+  assert.deepEqual(resolveCentralIdentity({ ...base, tenantMembership: { ...membership, role: null, schoolAdminAuthorities: [] } }), { kind: "invalid", reason: "tenant-authority-missing" });
+  assert.deepEqual(resolveCentralIdentity({ ...base, tenantMembership: { ...membership, schoolAdminAuthorities: [
+    ...membership.schoolAdminAuthorities,
+    { ...membership.schoolAdminAuthorities[0], id: "authority-2" },
+  ] } }), { kind: "invalid", reason: "tenant-authority-ambiguous" });
 });
 
 test("destination policy handles every identity and required activation", () => {

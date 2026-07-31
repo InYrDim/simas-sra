@@ -3,7 +3,7 @@ import { TenantSidebar } from "@/components/dashboard/tenant-sidebar";
 import { TrialBanner } from "@/components/dashboard/trial-banner";
 import { MasterDataAccessBlocked } from "@/components/dashboard/master-data-access-blocked";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { auth } from "@/lib/platform/auth";
+
 import {
   getMasterDataGatedArea,
   getMissingUrgentMasterData,
@@ -13,9 +13,9 @@ import { getUrgentMasterDataPresence } from "@/lib/master-data/dashboard-master-
 import { getResolvedTenantFeatures } from "@/lib/features/tenant-feature-access-data";
 import { TENANT_PATHNAME_HEADER } from "@/lib/platform/proxy-routing";
 import { enforceTenantPageAccess } from "@/lib/tenancy/tenant-access";
-import { isTenantRole } from "@/types/TenantRole";
+
 import { headers } from "next/headers";
-import { notFound } from "next/navigation";
+
 
 export default async function DashboardLayout({ children, params }: {
   children: React.ReactNode;
@@ -24,9 +24,7 @@ export default async function DashboardLayout({ children, params }: {
   const { domain } = await params;
   const requestHeaders = await headers();
   const tenant = await enforceTenantPageAccess(domain);
-  const session = await auth.api.getSession({ headers: requestHeaders });
-  const role = session?.user.tenantRole;
-  if (!isTenantRole(role)) notFound();
+  const role = tenant.principal.tenantRole;
 
   const features = await getResolvedTenantFeatures(tenant.id);
   const pathname = requestHeaders.get(TENANT_PATHNAME_HEADER);

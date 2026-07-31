@@ -185,6 +185,28 @@ test("inactive, conflicting identity, and incomplete activation states grant no 
   }
 });
 
+test("School Admin compatibility is equivalent and dedicated revocation is visible on the next request", async () => {
+  const account = { ...activeAccount, legacyRole: "school-admin" };
+  const compatible = fixture({
+    account,
+    authority: { schoolAdminAuthorityStates: ["active"], assignments: [] },
+  });
+  const first = await createTenantAuthorizationEvaluator({ store: compatible.store }).evaluate(dashboardRequest);
+  assert.equal(first.kind, "authorized");
+  assert.equal(first.legacy.allowed, true);
+  assert.equal(first.rbac.allowed, true);
+
+  const revoked = fixture({
+    account,
+    authority: { schoolAdminAuthorityStates: ["disabled"], assignments: [] },
+    rollout: { ...legacyRollout, httpMode: "intersection" },
+  });
+  const nextRequest = await createTenantAuthorizationEvaluator({ store: revoked.store }).evaluate(dashboardRequest);
+  assert.equal(nextRequest.kind, "denied");
+  assert.equal(nextRequest.legacy.allowed, true);
+  assert.equal(nextRequest.rbac.allowed, false);
+});
+
 test("unknown and inactive grants are ignored rather than widening effective access", async () => {
   const { store } = fixture({
     authority: {

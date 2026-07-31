@@ -18,11 +18,16 @@ export async function getTenantPageAccess(domain: string, continuation?: string 
   const session = await auth.api.getSession({ headers: await headers() });
   const identity = session ? await getCentralIdentity(session.user.id) : null;
   const access = await resolveTenantPageAccess(tenantLoginStore, domain, identity, continuation);
-  if (access.kind !== "authorized" || !session) return access;
+  if (access.kind !== "authorized") return access;
+  if (!session) return { kind: "redirect", destination: "/access-error" } as const;
 
   try {
-    await requireActivatedTenantPrincipal(session.user.id, access.tenant.id, temporaryCredentialActivationStore);
-    return access;
+    const principal = await requireActivatedTenantPrincipal(
+      session.user.id,
+      access.tenant.id,
+      temporaryCredentialActivationStore,
+    );
+    return { ...access, principal };
   } catch (error) {
     if (!(error instanceof TenantActivationError)) throw error;
     if (error.code === "password-change-required") {
@@ -37,7 +42,7 @@ export async function enforceTenantPageAccess(domain: string) {
   const access = await getTenantPageAccess(domain, continuation);
   if (access.kind === "tenant-not-found") notFound();
   if (access.kind === "login-required" || access.kind === "redirect") redirect(access.destination);
-  return access.tenant;
+  return { ...access.tenant, principal: access.principal };
 }
 
 export async function requireTenantFeatureAccess(domain: string) {

@@ -15,6 +15,7 @@ function snapshot(overrides: Partial<MasterDataAccessSnapshot> = {}): MasterData
       userId: "admin-1",
       tenantId: "tenant-1",
       tenantRole: "school-admin",
+      schoolAdminAuthorityStates: ["active"],
     },
     requestedDomain: "sekolah",
     tenant: {
@@ -44,11 +45,11 @@ test("School Admin receives a canonical principal from the matching session and 
 
 test("access distinguishes role denial from tenant and domain non-disclosure", () => {
   assert.deepEqual(authorizeMasterDataAccess(snapshot({
-    session: { userId: "staff-1", tenantId: "tenant-1", tenantRole: "staff" },
+    session: { userId: "staff-1", tenantId: "tenant-1", tenantRole: "staff", schoolAdminAuthorityStates: [] },
   })), { kind: "forbidden", reason: "role" });
 
   assert.deepEqual(authorizeMasterDataAccess(snapshot({
-    session: { userId: "admin-2", tenantId: "tenant-2", tenantRole: "school-admin" },
+    session: { userId: "admin-2", tenantId: "tenant-2", tenantRole: "school-admin", schoolAdminAuthorityStates: ["active"] },
   })), { kind: "not-found" });
 
   assert.deepEqual(authorizeMasterDataAccess(snapshot({ requestedDomain: "lain" })), { kind: "not-found" });

@@ -1,7 +1,15 @@
+import { resolveSchoolAdminAuthority } from "@/lib/authorization/school-admin-authority";
+
 export type CentralIdentitySnapshot = {
   providerAdmin: boolean;
   applicant: boolean;
-  tenantMembership: { tenantId: string; domain: string | null; role: string | null } | null;
+  tenantMembership: {
+    userId: string;
+    tenantId: string;
+    domain: string | null;
+    role: string | null;
+    schoolAdminAuthorities: readonly { id: string; tenantId: string; userId: string; authorityState: string }[];
+  } | null;
   activation: { passwordChangeRequired: boolean } | null;
   promotedApplicant: boolean;
 };
@@ -10,7 +18,9 @@ export type CentralIdentity =
   | { kind: "provider-admin"; passwordChangeRequired?: boolean }
   | { kind: "applicant"; passwordChangeRequired?: boolean }
   | { kind: "tenant-member"; tenantId: string; domain: string; passwordChangeRequired: boolean; promotedApplicant: boolean }
-  | { kind: "invalid"; reason: "no-identity-path" | "multiple-identity-paths" | "tenant-missing" | "tenant-role-missing" };
+  | { kind: "invalid"; reason: "no-identity-path" | "multiple-identity-paths" | "tenant-missing" | "tenant-authority-missing" | "tenant-authority-ambiguous" };
+
+const recognizedNonAdminRoles = new Set(["pimpinan", "staff", "guru", "siswa", "guest"]);
 
 export function resolveCentralIdentity(snapshot: CentralIdentitySnapshot): CentralIdentity {
   const pathCount = Number(snapshot.providerAdmin) + Number(snapshot.applicant) + Number(snapshot.tenantMembership !== null);
@@ -19,12 +29,26 @@ export function resolveCentralIdentity(snapshot: CentralIdentitySnapshot): Centr
   const passwordChangeRequired = snapshot.activation?.passwordChangeRequired === true;
   if (snapshot.providerAdmin) return { kind: "provider-admin", passwordChangeRequired };
   if (snapshot.applicant) return { kind: "applicant", passwordChangeRequired };
-  if (!snapshot.tenantMembership?.domain) return { kind: "invalid", reason: "tenant-missing" };
-  if (!snapshot.tenantMembership.role) return { kind: "invalid", reason: "tenant-role-missing" };
+  const membership = snapshot.tenantMembership;
+  if (!membership?.domain) return { kind: "invalid", reason: "tenant-missing" };
+  const schoolAdmin = resolveSchoolAdminAuthority({
+    userId: membership.userId,
+    tenantId: membership.tenantId,
+    legacyRole: membership.role,
+    tenantExists: true,
+    providerAdmin: snapshot.providerAdmin,
+    applicant: snapshot.applicant,
+    authorities: membership.schoolAdminAuthorities,
+  });
+  if (schoolAdmin.ambiguous) return { kind: "invalid", reason: "tenant-authority-ambiguous" };
+  const recognizedNonAdminRole = membership.role !== null && recognizedNonAdminRoles.has(membership.role);
+  if (!recognizedNonAdminRole && !schoolAdmin.dedicatedActive) {
+    return { kind: "invalid", reason: "tenant-authority-missing" };
+  }
   return {
     kind: "tenant-member",
-    tenantId: snapshot.tenantMembership.tenantId,
-    domain: snapshot.tenantMembership.domain,
+    tenantId: membership.tenantId,
+    domain: membership.domain,
     passwordChangeRequired,
     promotedApplicant: snapshot.promotedApplicant,
   };

@@ -23,6 +23,7 @@ const mysqlTest = databaseUrl ? test : test.skip;
 const approvalSteps: readonly ApprovalTransactionStep[] = [
   "tenant-created",
   "user-promoted",
+  "authority-projected",
   "applicant-removed",
   "sessions-revoked",
   "application-finalized",
@@ -52,6 +53,7 @@ type PersistedApprovalState = Readonly<{
   sessions: readonly string[];
   bindings: readonly { id: string; userId: string; canonicalNpsn: string }[];
   activations: readonly string[];
+  authorities: readonly { tenantId: string; userId: string; state: string }[];
   application: {
     status: string;
     decidedAt: Date | null;
@@ -121,10 +123,16 @@ async function createFixture(options: Readonly<{
 
   if (options.usedDomain || options.existingNpsnConflict) {
     const conflictApplicationId = randomUUID();
+    const conflictBindingId = randomUUID();
+    const conflictNpsn = randomNpsn();
     conflictApplicationIds.push(conflictApplicationId);
     await connection.execute(
-      "INSERT INTO `simas_application` (`id`, `school_name`, `npsn`, `education_level`, `address`, `contact_name`, `contact_position`, `contact_email`, `contact_whatsapp`, `status`, `submitted_at`) VALUES (?, 'Existing Tenant Source', ?, 'SMA', 'Existing address', 'Existing contact', 'Operator', ?, '081111111111', 'pending', NOW(3))",
-      [conflictApplicationId, randomNpsn(), `${conflictApplicationId}@example.test`],
+      "INSERT INTO `applicant_school_binding` (`id`,`user_id`,`canonical_npsn`,`created_at`) VALUES (?,?,?,NOW(3))",
+      [conflictBindingId, providerUserId, conflictNpsn],
+    );
+    await connection.execute(
+      "INSERT INTO `simas_application` (`id`, `school_name`, `npsn`, `education_level`, `address`, `contact_name`, `contact_position`, `contact_email`, `contact_whatsapp`, `status`, `submitted_at`,`owner_user_id`,`binding_id`,`attempt_number`,`idempotency_key`,`payload_hash`) VALUES (?, 'Existing Tenant Source', ?, 'SMA', 'Existing address', 'Existing contact', 'Operator', ?, '081111111111', 'pending', NOW(3),?,?,1,?,REPEAT('b',64))",
+      [conflictApplicationId, conflictNpsn, `${conflictApplicationId}@example.test`, providerUserId, conflictBindingId, randomUUID()],
     );
     await connection.execute(
       "INSERT INTO `tenant` (`id`, `name`, `domain`, `npsn`, `source_application_id`, `approved_at`, `created_at`, `updated_at`) VALUES (?, 'Existing Tenant', ?, ?, ?, NOW(3), NOW(3), NOW(3))",
@@ -187,6 +195,10 @@ async function readState(fixture: ApprovalFixture): Promise<PersistedApprovalSta
     "SELECT `user_id` FROM `temporary_credential_activation` WHERE `user_id` = ? ORDER BY `user_id`",
     [ownerUserId],
   );
+  const [authorities] = await connection.execute<mysql.RowDataPacket[]>(
+    "SELECT `tenant_id`, `user_id`, `authority_state` FROM `school_admin_authority` WHERE `user_id` = ? ORDER BY `id`",
+    [ownerUserId],
+  );
   const [applications] = await connection.execute<mysql.RowDataPacket[]>(
     "SELECT `status`, `decided_at`, `decided_by_provider_admin_id`, `approved_tenant_id`, `rejection_reason` FROM `simas_application` WHERE `id` = ?",
     [applicationId],
@@ -208,6 +220,7 @@ async function readState(fixture: ApprovalFixture): Promise<PersistedApprovalSta
     sessions: sessions.map((row) => row.id),
     bindings: bindings.map((row) => ({ id: row.id, userId: row.user_id, canonicalNpsn: row.canonical_npsn })),
     activations: activations.map((row) => row.user_id),
+    authorities: authorities.map((row) => ({ tenantId: row.tenant_id, userId: row.user_id, state: row.authority_state })),
     application: {
       status: application.status,
       decidedAt: application.decided_at,
@@ -233,6 +246,7 @@ function assertApprovedIdentityState(state: PersistedApprovalState, fixture: App
     { id: fixture.bindingId, userId: fixture.ownerUserId, canonicalNpsn: fixture.canonicalNpsn },
   ]);
   assert.deepEqual(state.activations, []);
+  assert.deepEqual(state.authorities, [{ tenantId: approvedTenant.id, userId: fixture.ownerUserId, state: "active" }]);
   assert.equal(state.application.status, "approved");
   assert.equal(state.application.decidedByProviderAdminId, fixture.providerUserId);
   assert.equal(state.application.approvedTenantId, approvedTenant.id);
@@ -251,6 +265,7 @@ function assertPendingIdentityState(state: PersistedApprovalState, fixture: Appr
     sessions: [...fixture.sessionIds].sort(),
     bindings: [{ id: fixture.bindingId, userId: fixture.ownerUserId, canonicalNpsn: fixture.canonicalNpsn }],
     activations: [],
+    authorities: [],
     application: {
       status: "pending",
       decidedAt: null,
@@ -268,6 +283,7 @@ async function cleanupFixture(fixture: ApprovalFixture): Promise<void> {
   try {
     await connection.execute("SET FOREIGN_KEY_CHECKS = 0");
     await connection.execute("DELETE FROM `transactional_outbox` WHERE `aggregate_id` = ?", [applicationId]);
+    await connection.execute("DELETE FROM `school_admin_authority` WHERE `user_id` = ?", [ownerUserId]);
     await connection.execute("DELETE FROM `tenant` WHERE `source_application_id` = ?", [applicationId]);
     for (const conflictApplicationId of conflictApplicationIds) {
       await connection.execute("DELETE FROM `tenant` WHERE `source_application_id` = ?", [conflictApplicationId]);
@@ -279,6 +295,7 @@ async function cleanupFixture(fixture: ApprovalFixture): Promise<void> {
     await connection.execute("DELETE FROM `session` WHERE `user_id` = ?", [ownerUserId]);
     await connection.execute("DELETE FROM `account` WHERE `user_id` = ?", [ownerUserId]);
     await connection.execute("DELETE FROM `applicant` WHERE `user_id` = ?", [ownerUserId]);
+    await connection.execute("DELETE FROM `applicant_school_binding` WHERE `user_id` = ?", [providerUserId]);
     await connection.execute("DELETE FROM `provider_admin` WHERE `user_id` = ?", [providerUserId]);
     await connection.execute("DELETE FROM `user` WHERE `id` IN (?, ?)", [ownerUserId, providerUserId]);
     await connection.execute("SET FOREIGN_KEY_CHECKS = 1");
@@ -321,6 +338,7 @@ mysqlTest("MySQL atomically promotes the existing applicant and makes identical 
       { id: fixture.bindingId, userId: fixture.ownerUserId, canonicalNpsn: fixture.canonicalNpsn },
     ]);
     assert.deepEqual(state.activations, []);
+    assert.deepEqual(state.authorities, [{ tenantId, userId: fixture.ownerUserId, state: "active" }]);
     assert.deepEqual(state.outbox, [
       { eventType: "simas.application.approved", aggregateId: fixture.applicationId },
     ]);

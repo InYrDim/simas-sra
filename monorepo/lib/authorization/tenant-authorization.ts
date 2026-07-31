@@ -7,6 +7,7 @@ import {
   type OperationEntitlement,
   type TenantOperationDefinition,
 } from "@/lib/authorization/tenant-rbac-contract";
+import { resolveSchoolAdminAuthority } from "@/lib/authorization/school-admin-authority";
 import { isTenantFeatureEnabled, type TenantFeatureKey } from "@/lib/features/tenant-feature-policy";
 
 export const TENANT_AUTHORIZATION_RESOLVER_VERSION = "tenant-authorization@1";
@@ -283,9 +284,25 @@ function hasPermissions(
   return required.every((key) => effective.has(key));
 }
 
-function activeAuthority(authority: TenantAuthorizationAuthority) {
-  const activeSchoolAdminRows = authority.schoolAdminAuthorityStates.filter((state) => state === "active");
-  const schoolAdmin = activeSchoolAdminRows.length === 1 && authority.schoolAdminAuthorityStates.length === 1;
+function activeAuthority(
+  authority: TenantAuthorizationAuthority,
+  account: TenantAuthorizationAccount,
+  tenant: TenantAuthorizationTenant,
+) {
+  const schoolAdmin = resolveSchoolAdminAuthority({
+    userId: account.userId,
+    tenantId: account.tenantId,
+    legacyRole: account.legacyRole,
+    tenantExists: account.tenantId === tenant.id,
+    providerAdmin: account.providerAdmin,
+    applicant: account.applicant,
+    authorities: authority.schoolAdminAuthorityStates.map((authorityState, index) => ({
+      id: `authority-${index}`,
+      tenantId: tenant.id,
+      userId: account.userId,
+      authorityState,
+    })),
+  }).dedicatedActive;
   const roleIds = new Set<string>();
   const permissions = new Set<string>();
 
@@ -445,7 +462,11 @@ export function createTenantAuthorizationEvaluator(dependencies: TenantAuthoriza
       if (!legacyDenial && account && tenant && account.tenantId !== tenant.id) {
         rbacDenial = legacyDenial = denial(request.operationId, "tenant-mismatch", "tenant-membership");
       }
-      if (!legacyDenial && account && (account.providerAdmin || account.applicant || !account.legacyRole || !tenantRoles.has(account.legacyRole))) {
+      if (!legacyDenial && account && (
+        account.providerAdmin
+        || account.applicant
+        || (account.legacyRole !== null && !tenantRoles.has(account.legacyRole))
+      )) {
         rbacDenial = legacyDenial = denial(request.operationId, "identity-kind-rejected", "identity-kind");
       }
       if (!legacyDenial && account && !account.activationComplete) {
@@ -487,7 +508,7 @@ export function createTenantAuthorizationEvaluator(dependencies: TenantAuthoriza
         rollout = await loadRollout(tenant.id);
         let effective: ReturnType<typeof activeAuthority> | null = null;
         try {
-          effective = activeAuthority(await loadAuthority(account.userId, tenant.id));
+          effective = activeAuthority(await loadAuthority(account.userId, tenant.id), account, tenant);
         } catch {
           rbacDenial = denial(request.operationId, "store-unavailable", "persistence");
         }

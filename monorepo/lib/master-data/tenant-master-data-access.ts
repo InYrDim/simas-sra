@@ -1,3 +1,4 @@
+import { resolveSchoolAdminAuthority } from "@/lib/authorization/school-admin-authority";
 import type { TenantRole } from "@/types/TenantRole";
 
 export type MasterDataOperation = "read" | "write" | "download-template" | "validate-import" | "execute-import";
@@ -16,7 +17,12 @@ export type MasterDataPrincipal = Readonly<{
 }>;
 
 export type MasterDataAccessSnapshot = Readonly<{
-  session: Readonly<{ userId: string; tenantId: string | null; tenantRole: TenantRole | null }>;
+  session: Readonly<{
+    userId: string;
+    tenantId: string | null;
+    tenantRole: TenantRole | null;
+    schoolAdminAuthorityStates: readonly string[];
+  }>;
   requestedDomain: string;
   tenant: Readonly<{
     id: string;
@@ -56,9 +62,21 @@ export function authorizeMasterDataAccess(snapshot: MasterDataAccessSnapshot): M
     snapshot.session.tenantId !== tenant.id
   ) return { kind: "not-found" };
 
-  if (snapshot.session.tenantRole !== "school-admin") {
-    return { kind: "forbidden", reason: "role" };
-  }
+  const authority = resolveSchoolAdminAuthority({
+    userId: snapshot.session.userId,
+    tenantId: snapshot.session.tenantId,
+    legacyRole: snapshot.session.tenantRole,
+    tenantExists: true,
+    providerAdmin: false,
+    applicant: false,
+    authorities: snapshot.session.schoolAdminAuthorityStates.map((authorityState, index) => ({
+      id: `authority-${index}`,
+      tenantId: tenant.id,
+      userId: snapshot.session.userId,
+      authorityState,
+    })),
+  });
+  if (!authority.compatible) return { kind: "forbidden", reason: "role" };
 
   const capabilities = capabilitiesFor(snapshot);
   if (!capabilities) return { kind: "not-found" };

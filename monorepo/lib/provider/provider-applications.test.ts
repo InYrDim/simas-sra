@@ -178,9 +178,9 @@ function approvalStore(
   const events: string[] = [];
   const provisions: unknown[] = [];
   const store: ApplicationApprovalStore = {
-    async transaction(work) {
+    async transaction(_command, work) {
       events.push("transaction");
-      return work({
+      return { existing: false, value: await work({
         async lock(applicationId) {
           events.push(`lock:${applicationId}`);
           return application;
@@ -193,7 +193,7 @@ function approvalStore(
           events.push("provision");
           provisions.push(values);
         },
-      });
+      }) };
     },
   };
   return { events, provisions, store };
@@ -216,7 +216,7 @@ test("a pending application atomically provisions a Tenant and promotes its exis
   const approve = createApproveSimasApplicationCommand({
     authorize: async () => principal,
     generateId: (() => {
-      const ids = ["tenant-1", "outbox-1"];
+      const ids = ["tenant-1", "authority-1", "outbox-1"];
       return () => ids.shift()!;
     })(),
     now: () => new Date("2026-07-18T12:00:00.000Z"),
@@ -242,6 +242,7 @@ test("a pending application atomically provisions a Tenant and promotes its exis
       npsn: "20200001",
       subdomain: "sman-1-bandung",
     },
+    authorityId: "authority-1",
     outboxEventId: "outbox-1",
     decidedAt: new Date("2026-07-18T12:00:00.000Z"),
   }]);

@@ -1,7 +1,7 @@
 import { eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { applicant, providerAdmin, simasApplication, temporaryCredentialActivation, tenant, user } from "@/db/schema";
+import { applicant, providerAdmin, schoolAdminAuthority, simasApplication, temporaryCredentialActivation, tenant, user } from "@/db/schema";
 import { resolveCentralIdentity, type CentralIdentity } from "@/lib/platform/central-identity";
 
 export async function getCentralIdentity(userId: string): Promise<CentralIdentity> {
@@ -26,10 +26,25 @@ export async function getCentralIdentity(userId: string): Promise<CentralIdentit
     .limit(1);
 
   if (!row) return { kind: "invalid", reason: "no-identity-path" };
+  const authorities = await db
+    .select({
+      id: schoolAdminAuthority.id,
+      tenantId: schoolAdminAuthority.tenantId,
+      userId: schoolAdminAuthority.userId,
+      authorityState: schoolAdminAuthority.authorityState,
+    })
+    .from(schoolAdminAuthority)
+    .where(eq(schoolAdminAuthority.userId, userId));
   const identity = resolveCentralIdentity({
     providerAdmin: row.providerAdminUserId !== null,
     applicant: row.applicantUserId !== null,
-    tenantMembership: row.tenantId ? { tenantId: row.tenantId, domain: row.tenantDomain, role: row.tenantRole } : null,
+    tenantMembership: row.tenantId ? {
+      userId: row.userId,
+      tenantId: row.tenantId,
+      domain: row.tenantDomain,
+      role: row.tenantRole,
+      schoolAdminAuthorities: authorities,
+    } : null,
     activation: row.passwordChangeRequired === null ? null : { passwordChangeRequired: row.passwordChangeRequired },
     promotedApplicant: row.promotedOwnerUserId === row.userId,
   });

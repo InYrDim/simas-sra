@@ -4,12 +4,12 @@ import { MasterDataWarningBanner } from "@/components/dashboard/master-data-warn
 import { db } from "@/db";
 import { tenant } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { headers } from "next/headers";
+
 import { notFound } from "next/navigation";
 
 import { OnboardingForm } from "@/app/(tenant)/[domain]/(authenticated)/dashboard/onboarding-form";
 import { PocTrialAction } from "@/components/dashboard/poc-trial-action";
-import { auth } from "@/lib/platform/auth";
+
 
 export default async function DashboardPage({
   params,
@@ -19,10 +19,11 @@ export default async function DashboardPage({
   const { domain } = await params;
   console.log("DashboardPage domain raw:", domain, "typeof:", typeof domain, "length:", domain.length);
   
-  const [tenantDataArray, session] = await Promise.all([
-    db.select().from(tenant).where(eq(tenant.domain, domain)).limit(1),
-    auth.api.getSession({ headers: await headers() }),
-  ]);
+  const tenantDataArray = await db
+    .select()
+    .from(tenant)
+    .where(eq(tenant.domain, domain))
+    .limit(1);
   const tenantData = tenantDataArray[0];
 
   if (!tenantData) {
@@ -31,8 +32,7 @@ export default async function DashboardPage({
 
   const currentYear = new Date().getFullYear();
   const defaultSchoolYear = `${currentYear}/${currentYear + 1}`;
-  const needsAdminOnboarding =
-    tenantData.onboardingCompletedAt === null && session?.user.tenantRole === "school-admin";
+  const needsAdminOnboarding = tenantData.onboardingCompletedAt === null;
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -43,9 +43,7 @@ export default async function DashboardPage({
       
       <SessionInfo />
 
-      {session?.user.tenantRole === "school-admin" ? (
-        <MasterDataWarningBanner tenantId={tenantData.id} domain={domain} />
-      ) : null}
+      <MasterDataWarningBanner tenantId={tenantData.id} domain={domain} />
 
       {needsAdminOnboarding ? (
         <OnboardingForm domain={domain} defaultSchoolYear={defaultSchoolYear} />

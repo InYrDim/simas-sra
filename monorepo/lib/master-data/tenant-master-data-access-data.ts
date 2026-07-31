@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 
 import { db } from "@/db";
-import { tenant, user } from "@/db/schema";
+import { schoolAdminAuthority, tenant, user } from "@/db/schema";
 import { auth } from "@/lib/platform/auth";
 import {
   authorizeMasterDataAccess,
@@ -21,7 +21,7 @@ export async function getMasterDataAccess(
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return { kind: "not-found" };
 
-  const [[membership], [requestedTenant]] = await Promise.all([
+  const [[membership], [requestedTenant], authorities] = await Promise.all([
     db
       .select({ userId: user.id, tenantId: user.tenantId, tenantRole: user.tenantRole })
       .from(user)
@@ -38,12 +38,19 @@ export async function getMasterDataAccess(
       .from(tenant)
       .where(eq(tenant.domain, requestedDomain))
       .limit(1),
+    db
+      .select({ state: schoolAdminAuthority.authorityState })
+      .from(schoolAdminAuthority)
+      .where(eq(schoolAdminAuthority.userId, session.user.id)),
   ]);
 
   if (!membership) return { kind: "not-found" };
 
   return authorizeMasterDataAccess({
-    session: membership,
+    session: {
+      ...membership,
+      schoolAdminAuthorityStates: authorities.map((authority) => authority.state),
+    },
     requestedDomain,
     tenant: requestedTenant
       ? {

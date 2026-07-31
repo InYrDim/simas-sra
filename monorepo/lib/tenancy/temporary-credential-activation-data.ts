@@ -3,7 +3,7 @@ import "server-only";
 import { and, eq, isNull, ne } from "drizzle-orm";
 
 import { db } from "@/db";
-import { account, session, temporaryCredentialActivation, user } from "@/db/schema";
+import { account, schoolAdminAuthority, session, temporaryCredentialActivation, user } from "@/db/schema";
 import type { TemporaryCredentialActivationStore } from "@/lib/tenancy/temporary-credential-activation";
 
 export const temporaryCredentialActivationStore: TemporaryCredentialActivationStore = {
@@ -37,11 +37,19 @@ export const temporaryCredentialActivationStore: TemporaryCredentialActivationSt
       .limit(1);
 
     if (!principal || !principal.tenantId || principal.tenantRole !== "school-admin") return null;
+    const authorities = await db
+      .select({ state: schoolAdminAuthority.authorityState })
+      .from(schoolAdminAuthority)
+      .where(and(
+        eq(schoolAdminAuthority.userId, principal.userId),
+        eq(schoolAdminAuthority.tenantId, principal.tenantId),
+      ));
     return {
       userId: principal.userId,
       tenantId: principal.tenantId,
       tenantRole: "school-admin" as const,
       passwordChangeRequired: principal.passwordChangeRequired ?? false,
+      schoolAdminAuthorityStates: authorities.map((authority) => authority.state),
     };
   },
 

@@ -19,12 +19,15 @@ import {
   account,
   applicant,
   applicantSchoolBinding,
+  schoolAdminAuthority,
   session,
   simasApplication,
   tenant,
   transactionalOutbox,
   user,
 } from "@/db/schema";
+import { createSecurityCommandService, SecurityCommandError } from "@/lib/authorization/security-command";
+import { securityCommandStore, type MySqlSecurityCommandTransaction } from "@/lib/authorization/security-command-store";
 import { outboxEventIdentity } from "@/lib/platform/outbox-event-identity";
 import {
   ApprovalConflictError,
@@ -178,6 +181,7 @@ function duplicateApprovalField(error: unknown): ApprovalConflictField | null {
 export type ApprovalTransactionStep =
   | "tenant-created"
   | "user-promoted"
+  | "authority-projected"
   | "applicant-removed"
   | "sessions-revoked"
   | "application-finalized"
@@ -187,11 +191,25 @@ export function createApplicationApprovalStore(options: Readonly<{
   afterStep?: (step: ApprovalTransactionStep) => void | Promise<void>;
 }> = {}): ApplicationApprovalStore {
   const afterStep = options.afterStep ?? (() => undefined);
+  const execute = createSecurityCommandService<MySqlSecurityCommandTransaction>({
+    store: securityCommandStore,
+    reportSecuritySignal(signal) {
+      console.warn({ event: signal.type, commandName: signal.commandName, contextKind: signal.context.kind });
+    },
+  });
   return {
-  async transaction(work) {
+  async transaction(command, work) {
     try {
-      return await db.transaction(async (tx) =>
-        work({
+      const executed = await execute({
+        principal: { kind: "authenticated-user", userId: command.principal.userId },
+        idempotencyKey: command.idempotencyKey,
+        commandName: "provider.application-approve",
+        payload: { applicationId: command.applicationId, subdomain: command.subdomain },
+        correlationId: command.correlationId,
+        authorizeAndMutate: async ({ actor, transaction }) => {
+          if (actor.kind !== "provider-admin") throw new SecurityCommandError("context-denied");
+          const tx = transaction.database;
+          const value = await work({
           async lock(applicationId) {
             const [scope] = await tx
               .select({ bindingId: simasApplication.bindingId })
@@ -308,6 +326,19 @@ export function createApplicationApprovalStore(options: Readonly<{
             if (promoted[0].affectedRows !== 1) throw new ApprovalConflictError("concurrent");
             await afterStep("user-promoted");
 
+            await tx.insert(schoolAdminAuthority).values({
+              id: values.authorityId,
+              tenantId: values.tenant.id,
+              userId: values.ownerUserId,
+              authorityState: "active",
+              version: 1,
+              grantedAt: values.decidedAt,
+              disabledAt: null,
+              createdAt: values.decidedAt,
+              updatedAt: values.decidedAt,
+            });
+            await afterStep("authority-projected");
+
             const removedApplicant = await tx.delete(applicant)
               .where(eq(applicant.userId, values.ownerUserId));
             if (removedApplicant[0].affectedRows !== 1) throw new ApprovalConflictError("concurrent");
@@ -357,8 +388,23 @@ export function createApplicationApprovalStore(options: Readonly<{
             });
             await afterStep("outbox-written");
           },
-        }),
-      );
+          });
+          return {
+            result: value,
+            auditEvents: [{
+              purpose: "application-approved-school-admin-granted",
+              order: "summary",
+              eventType: "school_admin.authority_granted",
+              metadata: {
+                applicationId: command.applicationId,
+                tenantId: value.ok ? value.tenantId ?? null : null,
+                outcome: value.ok ? value.status : value.code,
+              },
+            }],
+          };
+        },
+      });
+      return { existing: executed.existing, value: executed.result };
     } catch (error) {
       const field = duplicateApprovalField(error);
       if (field) throw new ApprovalConflictError(field);

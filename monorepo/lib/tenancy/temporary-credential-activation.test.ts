@@ -27,6 +27,7 @@ function activationStore(state: {
         tenantId: "tenant-1",
         tenantRole: "school-admin",
         passwordChangeRequired: state.passwordChangeRequired,
+        schoolAdminAuthorityStates: ["active"],
       };
     },
     async transaction(work) {
@@ -90,6 +91,7 @@ test("tenant authorization does not require a password change without a temporar
         tenantId: "tenant-promoted",
         tenantRole: "school-admin",
         passwordChangeRequired: false,
+        schoolAdminAuthorityStates: ["active"],
       };
     },
     async transaction() {
@@ -102,6 +104,26 @@ test("tenant authorization does not require a password change without a temporar
     { userId: "school-admin-promoted", tenantId: "tenant-promoted", tenantRole: "school-admin" },
   );
   assert.deepEqual(events, ["principal:school-admin-promoted"]);
+});
+
+test("temporary credentials never substitute for dedicated School Admin authority", async () => {
+  const missingAuthority = activationStore({ firstAuthenticatedAt: new Date(), passwordChangeRequired: false });
+  const store: TemporaryCredentialActivationStore = {
+    ...missingAuthority.store,
+    async getTenantPrincipal(userId) {
+      return {
+        userId,
+        tenantId: "tenant-1",
+        tenantRole: "school-admin",
+        passwordChangeRequired: false,
+        schoolAdminAuthorityStates: [],
+      };
+    },
+  };
+  await assert.rejects(
+    () => requireActivatedTenantPrincipal("school-admin-1", "tenant-1", store),
+    (error: unknown) => (error as { code?: string }).code === "forbidden",
+  );
 });
 
 test("tenant authorization blocks features until the temporary credential is replaced", async () => {

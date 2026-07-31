@@ -1,5 +1,27 @@
 import { projectTenantUsageStage, type TenantUsageStage } from "@/lib/tenancy/tenant-onboarding";
 
+export type ProviderSchoolAdminRosterEntry = Readonly<{
+  authorityId: string;
+  authorityState: string;
+  legacyRole: string | null;
+  accountLifecycle?: string | null;
+  schoolAdminUserId: string;
+}>;
+
+export function projectProviderSchoolAdminRoster<T extends ProviderSchoolAdminRosterEntry>(rows: readonly T[]) {
+  const active = rows.filter((row) =>
+    row.authorityState === "active"
+    && row.legacyRole === "school-admin"
+    && (row.accountLifecycle === undefined || row.accountLifecycle === null || row.accountLifecycle === "active"));
+  return {
+    schoolAdmins: [...rows],
+    activeSchoolAdmins: active,
+    activeSchoolAdminCount: active.length,
+    coverage: active.length > 0 ? "managed" as const : "reconciliation-required" as const,
+  };
+}
+
+
 export const TENANT_USAGE_STAGE_LABELS: Record<TenantUsageStage, string> = {
   "waiting-for-onboarding": "Menunggu onboarding",
   "in-trial": "Dalam trial",
