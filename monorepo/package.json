@@ -25,6 +25,8 @@
     "db:reconcile:master-data": "tsx scripts/reconcile-master-data.ts",
     "db:seed:master-data": "tsx scripts/seed-master-data.ts",
     "db:studio": "drizzle-kit studio",
+    "rbac:coverage": "tsx scripts/check-tenant-rbac-coverage.ts",
+    "test:rbac:mysql": "tsx scripts/run-tenant-rbac-mysql-test.ts",
     "provider-admin:provision": "tsx scripts/provision-provider-admin.ts",
     "provider-admin:deprovision": "tsx scripts/deprovision-provider-admin.ts",
     "worker:people-import-validation": "tsx scripts/run-people-import-validation.ts",

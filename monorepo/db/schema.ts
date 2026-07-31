@@ -1,5 +1,6 @@
 import { defineRelations, sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   check,
   decimal,
@@ -718,6 +719,436 @@ export const transactionalOutbox = mysqlTable(
       table.occurredAt,
     ),
     check("transactional_outbox_attempts_check", sql`${table.attempts} >= 0`),
+  ],
+);
+
+export const tenantRole = mysqlTable(
+  "tenant_role",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    name: varchar("name", { length: 150 }).notNull(),
+    normalizedName: varchar("normalized_name", { length: 150 }).notNull(),
+    lifecycle: mysqlEnum("lifecycle", ["draft", "active", "archived"]).default("draft").notNull(),
+    origin: mysqlEnum("origin", ["scratch", "template", "copy", "legacy-migration"]).notNull(),
+    templateKey: varchar("template_key", { length: 100 }),
+    templateVersion: varchar("template_version", { length: 64 }),
+    copiedFromRoleId: varchar("copied_from_role_id", { length: 36 }),
+    legacyRole: mysqlEnum("legacy_role", ["pimpinan", "staff", "guru", "siswa", "guest"]),
+    migrationRunId: varchar("migration_run_id", { length: 36 }),
+    migrationVersion: varchar("migration_version", { length: 64 }),
+    migrationVerification: mysqlEnum("migration_verification", ["pending", "verified", "mismatch"]),
+    version: int("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("tenant_role_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("tenant_role_tenant_name_unique").on(table.tenantId, table.normalizedName),
+    foreignKey({ columns: [table.tenantId, table.copiedFromRoleId], foreignColumns: [table.tenantId, table.id], name: "tenant_role_tenant_copy_fkey" }),
+    index("tenant_role_tenant_lifecycle_idx").on(table.tenantId, table.lifecycle, table.normalizedName),
+    check("tenant_role_name_check", sql`CHAR_LENGTH(TRIM(${table.name})) > 0 AND CHAR_LENGTH(TRIM(${table.normalizedName})) > 0`),
+    check("tenant_role_version_check", sql`${table.version} > 0`),
+    check("tenant_role_provenance_check", sql`(
+      (${table.origin} = 'scratch' AND ${table.templateKey} IS NULL AND ${table.templateVersion} IS NULL AND ${table.copiedFromRoleId} IS NULL AND ${table.legacyRole} IS NULL AND ${table.migrationRunId} IS NULL AND ${table.migrationVersion} IS NULL AND ${table.migrationVerification} IS NULL)
+      OR (${table.origin} = 'template' AND ${table.templateKey} IS NOT NULL AND ${table.templateVersion} IS NOT NULL AND ${table.copiedFromRoleId} IS NULL AND ${table.legacyRole} IS NULL AND ${table.migrationRunId} IS NULL AND ${table.migrationVersion} IS NULL AND ${table.migrationVerification} IS NULL)
+      OR (${table.origin} = 'copy' AND ${table.templateKey} IS NULL AND ${table.templateVersion} IS NULL AND ${table.copiedFromRoleId} IS NOT NULL AND ${table.legacyRole} IS NULL AND ${table.migrationRunId} IS NULL AND ${table.migrationVersion} IS NULL AND ${table.migrationVerification} IS NULL)
+      OR (${table.origin} = 'legacy-migration' AND ${table.templateKey} IS NULL AND ${table.templateVersion} IS NULL AND ${table.copiedFromRoleId} IS NULL AND ${table.legacyRole} IS NOT NULL AND ${table.migrationRunId} IS NOT NULL AND ${table.migrationVersion} IS NOT NULL AND ${table.migrationVerification} IS NOT NULL)
+    )`),
+  ],
+);
+
+export const tenantRolePermission = mysqlTable(
+  "tenant_role_permission",
+  {
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    roleId: varchar("role_id", { length: 36 }).notNull(),
+    permissionKey: varchar("permission_key", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("tenant_role_permission_unique").on(table.tenantId, table.roleId, table.permissionKey),
+    foreignKey({ columns: [table.tenantId, table.roleId], foreignColumns: [tenantRole.tenantId, tenantRole.id], name: "tenant_role_permission_role_fkey" }),
+    index("tenant_role_permission_key_idx").on(table.permissionKey, table.tenantId),
+    check("tenant_role_permission_key_check", sql`${table.permissionKey} COLLATE utf8mb4_bin REGEXP '^[a-z0-9]+(-[a-z0-9]+)*\\.[a-z0-9]+(-[a-z0-9]+)*\\.[a-z0-9]+(-[a-z0-9]+)*$'`),
+  ],
+);
+
+export const tenantAccountSecurity = mysqlTable(
+  "tenant_account_security",
+  {
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    userId: varchar("user_id", { length: 36 }).notNull(),
+    lifecycle: mysqlEnum("lifecycle", ["pending-activation", "active", "inactive"]).notNull(),
+    version: int("version").default(1).notNull(),
+    assignmentVersion: int("assignment_version").default(1).notNull(),
+    activatedAt: timestamp("activated_at", { fsp: 3 }),
+    deactivatedAt: timestamp("deactivated_at", { fsp: 3 }),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("tenant_account_security_user_unique").on(table.userId),
+    unique("tenant_account_security_tenant_user_unique").on(table.tenantId, table.userId),
+    foreignKey({ columns: [table.tenantId, table.userId], foreignColumns: [user.tenantId, user.id], name: "tenant_account_security_user_fkey" }),
+    index("tenant_account_security_state_idx").on(table.tenantId, table.lifecycle, table.userId),
+    check("tenant_account_security_version_check", sql`${table.version} > 0 AND ${table.assignmentVersion} > 0`),
+    check("tenant_account_security_lifecycle_check", sql`(
+      (${table.lifecycle} = 'pending-activation' AND ${table.activatedAt} IS NULL AND ${table.deactivatedAt} IS NULL)
+      OR (${table.lifecycle} = 'active' AND ${table.activatedAt} IS NOT NULL AND ${table.deactivatedAt} IS NULL)
+      OR (${table.lifecycle} = 'inactive' AND ${table.deactivatedAt} IS NOT NULL)
+    )`),
+  ],
+);
+
+export const tenantRoleAssignment = mysqlTable(
+  "tenant_role_assignment",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    userId: varchar("user_id", { length: 36 }).notNull(),
+    roleId: varchar("role_id", { length: 36 }).notNull(),
+    state: mysqlEnum("state", ["active", "suspended"]).default("active").notNull(),
+    version: int("version").default(1).notNull(),
+    assignedAt: timestamp("assigned_at", { fsp: 3 }).notNull(),
+    suspendedAt: timestamp("suspended_at", { fsp: 3 }),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("tenant_role_assignment_tenant_id_unique").on(table.tenantId, table.id),
+    unique("tenant_role_assignment_user_role_unique").on(table.tenantId, table.userId, table.roleId),
+    foreignKey({ columns: [table.tenantId, table.userId], foreignColumns: [user.tenantId, user.id], name: "tenant_role_assignment_user_fkey" }),
+    foreignKey({ columns: [table.tenantId, table.roleId], foreignColumns: [tenantRole.tenantId, tenantRole.id], name: "tenant_role_assignment_role_fkey" }),
+    index("tenant_role_assignment_user_state_idx").on(table.tenantId, table.userId, table.state),
+    index("tenant_role_assignment_role_state_idx").on(table.tenantId, table.roleId, table.state),
+    check("tenant_role_assignment_version_check", sql`${table.version} > 0`),
+    check("tenant_role_assignment_state_check", sql`(${table.state} = 'active' AND ${table.suspendedAt} IS NULL) OR (${table.state} = 'suspended' AND ${table.suspendedAt} IS NOT NULL)`),
+  ],
+);
+
+export const tenantAccountLifecycleCase = mysqlTable(
+  "tenant_account_lifecycle_case",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    userId: varchar("user_id", { length: 36 }).notNull(),
+    kind: mysqlEnum("kind", ["activation", "recovery"]).notNull(),
+    state: mysqlEnum("state", ["pending", "completed", "expired", "cancelled", "revoked"]).notNull(),
+    deliveryChannel: mysqlEnum("delivery_channel", ["email", "temporary-credential"]).notNull(),
+    secretDigest: varchar("secret_digest", { length: 128 }),
+    expiresAt: timestamp("expires_at", { fsp: 3 }),
+    consumedAt: timestamp("consumed_at", { fsp: 3 }),
+    deliveryAttempts: int("delivery_attempts").default(0).notNull(),
+    pendingSlot: boolean("pending_slot").generatedAlwaysAs(
+      sql`CASE WHEN state = 'pending' THEN true ELSE NULL END`,
+    ),
+    version: int("version").default(1).notNull(),
+    idempotencyKey: varchar("idempotency_key", { length: 128 }).notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("tenant_account_case_tenant_id_unique").on(table.tenantId, table.id),
+    unique("tenant_account_case_idempotency_unique").on(table.tenantId, table.idempotencyKey),
+    unique("tenant_account_case_pending_unique").on(
+      table.tenantId,
+      table.userId,
+      table.kind,
+      table.pendingSlot,
+    ),
+    foreignKey({ columns: [table.tenantId, table.userId], foreignColumns: [user.tenantId, user.id], name: "tenant_account_case_user_fkey" }),
+    index("tenant_account_case_user_state_idx").on(table.tenantId, table.userId, table.kind, table.state),
+    check("tenant_account_case_version_check", sql`${table.version} > 0 AND ${table.deliveryAttempts} >= 0`),
+    check("tenant_account_case_material_check", sql`(${table.state} <> 'pending') OR (${table.secretDigest} IS NOT NULL AND ${table.expiresAt} IS NOT NULL AND ${table.consumedAt} IS NULL)`),
+    check("tenant_account_case_consumed_check", sql`(${table.state} <> 'completed') OR ${table.consumedAt} IS NOT NULL`),
+  ],
+);
+
+export const schoolAdminAuthority = mysqlTable(
+  "school_admin_authority",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    userId: varchar("user_id", { length: 36 }).notNull(),
+    authorityState: mysqlEnum("authority_state", ["none", "active", "disabled"]).default("none").notNull(),
+    version: int("version").default(1).notNull(),
+    grantedAt: timestamp("granted_at", { fsp: 3 }),
+    disabledAt: timestamp("disabled_at", { fsp: 3 }),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("school_admin_authority_tenant_id_unique").on(table.tenantId, table.id),
+    unique("school_admin_authority_tenant_user_unique").on(table.tenantId, table.userId),
+    foreignKey({ columns: [table.tenantId, table.userId], foreignColumns: [user.tenantId, user.id], name: "school_admin_authority_user_fkey" }),
+    index("school_admin_authority_roster_idx").on(table.tenantId, table.authorityState, table.userId),
+    check("school_admin_authority_version_check", sql`${table.version} > 0`),
+    check("school_admin_authority_state_check", sql`(
+      (${table.authorityState} = 'none' AND ${table.grantedAt} IS NULL AND ${table.disabledAt} IS NULL)
+      OR (${table.authorityState} = 'active' AND ${table.grantedAt} IS NOT NULL AND ${table.disabledAt} IS NULL)
+      OR (${table.authorityState} = 'disabled' AND ${table.grantedAt} IS NOT NULL AND ${table.disabledAt} IS NOT NULL)
+    )`),
+  ],
+);
+
+export const schoolAdminProof = mysqlTable(
+  "school_admin_proof",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    authorityId: varchar("authority_id", { length: 36 }).notNull(),
+    caseId: varchar("case_id", { length: 36 }).notNull(),
+    kind: mysqlEnum("kind", ["nomination", "recovery"]).notNull(),
+    proofState: mysqlEnum("proof_state", ["pending", "completed", "expired", "cancelled"]).default("pending").notNull(),
+    secretDigest: varchar("secret_digest", { length: 128 }),
+    expiresAt: timestamp("expires_at", { fsp: 3 }),
+    completedAt: timestamp("completed_at", { fsp: 3 }),
+    pendingSlot: boolean("pending_slot").generatedAlwaysAs(
+      sql`CASE WHEN proof_state = 'pending' THEN true ELSE NULL END`,
+    ),
+    version: int("version").default(1).notNull(),
+    idempotencyKey: varchar("idempotency_key", { length: 128 }).notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("school_admin_proof_tenant_id_unique").on(table.tenantId, table.id),
+    unique("school_admin_proof_case_unique").on(table.tenantId, table.caseId),
+    unique("school_admin_proof_idempotency_unique").on(table.tenantId, table.idempotencyKey),
+    unique("school_admin_proof_pending_unique").on(
+      table.tenantId,
+      table.authorityId,
+      table.kind,
+      table.pendingSlot,
+    ),
+    foreignKey({ columns: [table.tenantId, table.authorityId], foreignColumns: [schoolAdminAuthority.tenantId, schoolAdminAuthority.id], name: "school_admin_proof_authority_fkey" }),
+    index("school_admin_proof_authority_state_idx").on(table.tenantId, table.authorityId, table.proofState),
+    check("school_admin_proof_version_check", sql`${table.version} > 0`),
+    check("school_admin_proof_pending_check", sql`(${table.proofState} <> 'pending') OR (${table.secretDigest} IS NOT NULL AND ${table.expiresAt} IS NOT NULL AND ${table.completedAt} IS NULL)`),
+    check("school_admin_proof_completed_check", sql`(${table.proofState} <> 'completed') OR ${table.completedAt} IS NOT NULL`),
+  ],
+);
+
+export const securityCommand = mysqlTable(
+  "security_command",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    securityContextKind: mysqlEnum("security_context_kind", ["tenant", "provider"]).notNull(),
+    contextId: varchar("context_id", { length: 36 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).references(() => tenant.id),
+    providerContextId: varchar("provider_context_id", { length: 36 }),
+    idempotencyKey: varchar("idempotency_key", { length: 128 }).notNull(),
+    commandName: varchar("command_name", { length: 128 }).notNull(),
+    fingerprint: varchar("fingerprint", { length: 64 }).notNull(),
+    status: mysqlEnum("status", ["pending", "completed", "failed"]).default("pending").notNull(),
+    result: json("result"),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+    completedAt: timestamp("completed_at", { fsp: 3 }),
+  },
+  (table) => [
+    unique("security_command_context_id_unique").on(table.securityContextKind, table.contextId, table.id),
+    unique("security_command_idempotency_unique").on(table.securityContextKind, table.contextId, table.idempotencyKey),
+    index("security_command_status_idx").on(table.status, table.createdAt),
+    check("security_command_context_check", sql`(
+      (${table.securityContextKind} = 'tenant' AND ${table.tenantId} = ${table.contextId} AND ${table.providerContextId} IS NULL)
+      OR (${table.securityContextKind} = 'provider' AND ${table.tenantId} IS NULL AND ${table.providerContextId} = ${table.contextId})
+    )`),
+    check("security_command_fingerprint_check", sql`${table.fingerprint} REGEXP '^[a-f0-9]{64}$'`),
+    check("security_command_completion_check", sql`(${table.status} = 'pending' AND ${table.completedAt} IS NULL) OR (${table.status} <> 'pending' AND ${table.completedAt} IS NOT NULL)`),
+  ],
+);
+
+export const securityOutbox = mysqlTable(
+  "security_outbox",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    securityContextKind: mysqlEnum("security_context_kind", ["tenant", "provider"]).notNull(),
+    contextId: varchar("context_id", { length: 36 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).references(() => tenant.id),
+    providerContextId: varchar("provider_context_id", { length: 36 }),
+    commandId: varchar("command_id", { length: 36 }).notNull(),
+    eventKey: varchar("event_key", { length: 160 }).notNull(),
+    eventType: varchar("event_type", { length: 128 }).notNull(),
+    payload: json("payload").notNull(),
+    occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull(),
+    availableAt: timestamp("available_at", { fsp: 3 }).notNull(),
+    publishedAt: timestamp("published_at", { fsp: 3 }),
+    attempts: int("attempts").default(0).notNull(),
+    lastError: text("last_error"),
+  },
+  (table) => [
+    unique("security_outbox_event_unique").on(table.securityContextKind, table.contextId, table.eventKey),
+    foreignKey({ columns: [table.securityContextKind, table.contextId, table.commandId], foreignColumns: [securityCommand.securityContextKind, securityCommand.contextId, securityCommand.id], name: "security_outbox_command_fkey" }),
+    index("security_outbox_pending_idx").on(table.publishedAt, table.availableAt),
+    check("security_outbox_attempts_check", sql`${table.attempts} >= 0`),
+    check("security_outbox_context_check", sql`(
+      (${table.securityContextKind} = 'tenant' AND ${table.tenantId} = ${table.contextId} AND ${table.providerContextId} IS NULL)
+      OR (${table.securityContextKind} = 'provider' AND ${table.tenantId} IS NULL AND ${table.providerContextId} = ${table.contextId})
+    )`),
+  ],
+);
+
+export const tenantRbacRollout = mysqlTable(
+  "tenant_rbac_rollout",
+  {
+    tenantId: varchar("tenant_id", { length: 36 }).primaryKey().references(() => tenant.id),
+    httpMode: mysqlEnum("http_mode", ["legacy", "intersection", "rbac", "rbac-emergency"]).default("legacy").notNull(),
+    workerMode: mysqlEnum("worker_mode", ["legacy", "intersection", "rbac", "rbac-emergency"]).default("legacy").notNull(),
+    epoch: bigint("epoch", { mode: "bigint", unsigned: true }).default(sql`1`).notNull(),
+    resolverVersion: varchar("resolver_version", { length: 64 }).notNull(),
+    registryVersion: varchar("registry_version", { length: 64 }).notNull(),
+    operationMapVersion: varchar("operation_map_version", { length: 64 }).notNull(),
+    overlayHash: varchar("overlay_hash", { length: 64 }),
+    multiRoleAcceptedAt: timestamp("multi_role_accepted_at", { fsp: 3 }),
+    version: int("version").default(1).notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    index("tenant_rbac_rollout_modes_idx").on(table.httpMode, table.workerMode, table.epoch),
+    check("tenant_rbac_rollout_version_check", sql`${table.version} > 0 AND ${table.epoch} > 0`),
+    check("tenant_rbac_rollout_emergency_check", sql`(
+      (${table.httpMode} = 'rbac-emergency' AND ${table.workerMode} = 'rbac-emergency' AND ${table.overlayHash} IS NOT NULL)
+      OR (${table.httpMode} <> 'rbac-emergency' AND ${table.workerMode} <> 'rbac-emergency' AND ${table.overlayHash} IS NULL)
+    )`),
+    check("tenant_rbac_rollout_rollback_check", sql`${table.multiRoleAcceptedAt} IS NULL OR (${table.httpMode} IN ('rbac', 'rbac-emergency') AND ${table.workerMode} IN ('rbac', 'rbac-emergency'))`),
+  ],
+);
+
+export const securityMigrationCheckpoint = mysqlTable(
+  "security_migration_checkpoint",
+  {
+    migrationKey: varchar("migration_key", { length: 128 }).notNull(),
+    shardKey: varchar("shard_key", { length: 128 }).notNull(),
+    state: mysqlEnum("state", ["pending", "running", "completed", "blocked"]).default("pending").notNull(),
+    cursor: varchar("cursor", { length: 255 }),
+    sourceWatermark: varchar("source_watermark", { length: 255 }),
+    registryVersion: varchar("registry_version", { length: 64 }).notNull(),
+    operationMapVersion: varchar("operation_map_version", { length: 64 }).notNull(),
+    examinedCount: int("examined_count").default(0).notNull(),
+    migratedCount: int("migrated_count").default(0).notNull(),
+    findingCount: int("finding_count").default(0).notNull(),
+    version: int("version").default(1).notNull(),
+    startedAt: timestamp("started_at", { fsp: 3 }),
+    completedAt: timestamp("completed_at", { fsp: 3 }),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("security_migration_checkpoint_unique").on(table.migrationKey, table.shardKey),
+    index("security_migration_checkpoint_state_idx").on(table.migrationKey, table.state, table.shardKey),
+    check("security_migration_checkpoint_counts_check", sql`${table.examinedCount} >= 0 AND ${table.migratedCount} >= 0 AND ${table.findingCount} >= 0 AND ${table.version} > 0`),
+    check("security_migration_checkpoint_state_check", sql`(
+      (${table.state} = 'pending' AND ${table.startedAt} IS NULL AND ${table.completedAt} IS NULL)
+      OR (${table.state} IN ('running', 'blocked') AND ${table.startedAt} IS NOT NULL AND ${table.completedAt} IS NULL)
+      OR (${table.state} = 'completed' AND ${table.startedAt} IS NOT NULL AND ${table.completedAt} IS NOT NULL)
+    )`),
+  ],
+);
+
+export const securityReconciliationFinding = mysqlTable(
+  "security_reconciliation_finding",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    migrationKey: varchar("migration_key", { length: 128 }).notNull(),
+    scopeKey: varchar("scope_key", { length: 128 }).notNull(),
+    findingKey: varchar("finding_key", { length: 160 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).references(() => tenant.id),
+    userId: varchar("user_id", { length: 36 }),
+    reasonCode: varchar("reason_code", { length: 100 }).notNull(),
+    severity: mysqlEnum("severity", ["warning", "blocking"]).notNull(),
+    state: mysqlEnum("state", ["open", "resolved", "accepted"]).default("open").notNull(),
+    safeDetails: json("safe_details").notNull(),
+    detectedAt: timestamp("detected_at", { fsp: 3 }).notNull(),
+    resolvedAt: timestamp("resolved_at", { fsp: 3 }),
+  },
+  (table) => [
+    unique("security_reconciliation_finding_unique").on(table.migrationKey, table.scopeKey, table.findingKey),
+    foreignKey({ columns: [table.tenantId, table.userId], foreignColumns: [user.tenantId, user.id], name: "security_reconciliation_user_fkey" }),
+    index("security_reconciliation_state_idx").on(table.state, table.severity, table.detectedAt),
+    index("security_reconciliation_tenant_idx").on(table.tenantId, table.state, table.reasonCode),
+    check("security_reconciliation_scope_check", sql`${table.tenantId} IS NULL OR ${table.scopeKey} = ${table.tenantId}`),
+    check("security_reconciliation_user_scope_check", sql`${table.userId} IS NULL OR ${table.tenantId} IS NOT NULL`),
+    check("security_reconciliation_resolution_check", sql`(${table.state} = 'open' AND ${table.resolvedAt} IS NULL) OR (${table.state} <> 'open' AND ${table.resolvedAt} IS NOT NULL)`),
+  ],
+);
+
+export const securityAuditHead = mysqlTable(
+  "security_audit_head",
+  {
+    securityContextKind: mysqlEnum("security_context_kind", ["tenant", "provider"]).notNull(),
+    contextId: varchar("context_id", { length: 36 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).references(() => tenant.id),
+    providerContextId: varchar("provider_context_id", { length: 36 }),
+    nextSequence: bigint("next_sequence", { mode: "bigint", unsigned: true }).default(sql`1`).notNull(),
+    headHash: varchar("head_hash", { length: 64 }).notNull(),
+    version: int("version").default(1).notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("security_audit_head_partition_unique").on(table.securityContextKind, table.contextId),
+    check("security_audit_head_context_check", sql`(
+      (${table.securityContextKind} = 'tenant' AND ${table.tenantId} = ${table.contextId} AND ${table.providerContextId} IS NULL)
+      OR (${table.securityContextKind} = 'provider' AND ${table.tenantId} IS NULL AND ${table.providerContextId} = ${table.contextId})
+    )`),
+    check("security_audit_head_sequence_check", sql`${table.nextSequence} > 0 AND ${table.version} > 0`),
+    check("security_audit_head_hash_check", sql`${table.headHash} REGEXP '^[a-f0-9]{64}$'`),
+  ],
+);
+
+export const securityAuditEvent = mysqlTable(
+  "security_audit_event",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    securityContextKind: mysqlEnum("security_context_kind", ["tenant", "provider"]).notNull(),
+    contextId: varchar("context_id", { length: 36 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }).references(() => tenant.id),
+    providerContextId: varchar("provider_context_id", { length: 36 }),
+    sequence: bigint("sequence", { mode: "bigint", unsigned: true }).notNull(),
+    eventKey: varchar("event_key", { length: 160 }).notNull(),
+    schemaVersion: int("schema_version").notNull(),
+    eventType: varchar("event_type", { length: 128 }).notNull(),
+    outcome: mysqlEnum("outcome", ["succeeded", "annotated"]).notNull(),
+    actorKind: mysqlEnum("actor_kind", ["tenant-user", "provider-admin", "system", "support-recovery"]).notNull(),
+    actorTenantUserId: varchar("actor_tenant_user_id", { length: 36 }),
+    actorProviderUserId: varchar("actor_provider_user_id", { length: 36 }),
+    actorService: varchar("actor_service", { length: 128 }),
+    commandId: varchar("command_id", { length: 36 }).notNull(),
+    targetUserId: varchar("target_user_id", { length: 36 }),
+    targetRoleId: varchar("target_role_id", { length: 36 }),
+    targetAssignmentId: varchar("target_assignment_id", { length: 36 }),
+    targetSchoolAdminAuthorityId: varchar("target_school_admin_authority_id", { length: 36 }),
+    targetSchoolAdminProofId: varchar("target_school_admin_proof_id", { length: 36 }),
+    correlationId: varchar("correlation_id", { length: 64 }).notNull(),
+    requestId: varchar("request_id", { length: 64 }),
+    reason: varchar("reason", { length: 1000 }),
+    metadata: json("metadata").notNull(),
+    canonicalPayloadDigest: varchar("canonical_payload_digest", { length: 64 }).notNull(),
+    previousHash: varchar("previous_hash", { length: 64 }).notNull(),
+    eventHash: varchar("event_hash", { length: 64 }).notNull(),
+    occurredAt: timestamp("occurred_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("security_audit_event_sequence_unique").on(table.securityContextKind, table.contextId, table.sequence),
+    unique("security_audit_event_key_unique").on(table.securityContextKind, table.contextId, table.eventKey),
+    foreignKey({ columns: [table.securityContextKind, table.contextId, table.commandId], foreignColumns: [securityCommand.securityContextKind, securityCommand.contextId, securityCommand.id], name: "security_audit_event_command_fkey" }),
+    foreignKey({ columns: [table.tenantId, table.actorTenantUserId], foreignColumns: [user.tenantId, user.id], name: "security_audit_event_tenant_actor_fkey" }),
+    foreignKey({ columns: [table.actorProviderUserId], foreignColumns: [providerAdmin.userId], name: "security_audit_event_provider_actor_fkey" }),
+    foreignKey({ columns: [table.tenantId, table.targetUserId], foreignColumns: [user.tenantId, user.id], name: "security_audit_event_target_user_fkey" }),
+    foreignKey({ columns: [table.tenantId, table.targetRoleId], foreignColumns: [tenantRole.tenantId, tenantRole.id], name: "security_audit_event_target_role_fkey" }),
+    foreignKey({ columns: [table.tenantId, table.targetAssignmentId], foreignColumns: [tenantRoleAssignment.tenantId, tenantRoleAssignment.id], name: "security_audit_event_target_assignment_fkey" }),
+    foreignKey({ columns: [table.tenantId, table.targetSchoolAdminAuthorityId], foreignColumns: [schoolAdminAuthority.tenantId, schoolAdminAuthority.id], name: "security_audit_event_target_authority_fkey" }),
+    foreignKey({ columns: [table.tenantId, table.targetSchoolAdminProofId], foreignColumns: [schoolAdminProof.tenantId, schoolAdminProof.id], name: "security_audit_event_target_proof_fkey" }),
+    index("security_audit_event_type_idx").on(table.securityContextKind, table.contextId, table.eventType, table.occurredAt),
+    index("security_audit_event_target_user_idx").on(table.tenantId, table.targetUserId, table.occurredAt),
+    check("security_audit_event_context_check", sql`(
+      (${table.securityContextKind} = 'tenant' AND ${table.tenantId} = ${table.contextId} AND ${table.providerContextId} IS NULL)
+      OR (${table.securityContextKind} = 'provider' AND ${table.tenantId} IS NULL AND ${table.providerContextId} = ${table.contextId} AND ${table.targetUserId} IS NULL AND ${table.targetRoleId} IS NULL AND ${table.targetAssignmentId} IS NULL AND ${table.targetSchoolAdminAuthorityId} IS NULL AND ${table.targetSchoolAdminProofId} IS NULL)
+    )`),
+    check("security_audit_event_actor_check", sql`(
+      (${table.actorKind} = 'tenant-user' AND ${table.actorTenantUserId} IS NOT NULL AND ${table.actorProviderUserId} IS NULL AND ${table.actorService} IS NULL)
+      OR (${table.actorKind} IN ('provider-admin', 'support-recovery') AND ${table.actorTenantUserId} IS NULL AND ${table.actorProviderUserId} IS NOT NULL AND ${table.actorService} IS NULL)
+      OR (${table.actorKind} = 'system' AND ${table.actorTenantUserId} IS NULL AND ${table.actorProviderUserId} IS NULL AND ${table.actorService} IS NOT NULL)
+    )`),
+    check("security_audit_event_hash_check", sql`${table.sequence} > 0 AND ${table.schemaVersion} > 0 AND ${table.canonicalPayloadDigest} REGEXP '^[a-f0-9]{64}$' AND ${table.previousHash} REGEXP '^[a-f0-9]{64}$' AND ${table.eventHash} REGEXP '^[a-f0-9]{64}$'`),
   ],
 );
 
