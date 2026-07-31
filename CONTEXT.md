@@ -52,6 +52,18 @@ _Avoid_: role autentikasi Staf, Profil Guru, Akun Pengguna
 Identitas autentikasi yang dapat ditautkan secara opsional ke satu Warga Sekolah dalam Tenant yang sama; kewenangannya berasal dari role akun, bukan profil orang.
 _Avoid_: Warga Sekolah, Profil Siswa, Profil Guru, Profil Staf
 
+**Role Tenant**:
+Kumpulan kewenangan bagi Akun Pengguna dalam tepat satu Tenant, dikelola oleh School Admin dan tidak berlaku bagi Provider Admin.
+_Avoid_: profil orang, jabatan sekolah, role Provider
+
+**Permission Tenant**:
+Kemampuan bisnis stabil yang disediakan SIMAS dan dapat dihimpun dalam Role Tenant; identitasnya tidak mengikuti nama halaman, route, atau menu.
+_Avoid_: feature entitlement, nama role, aturan cakupan data
+
+**Template Role Tenant**:
+Resep bawaan SIMAS untuk membentuk Role Tenant baru tanpa memberikan akses atau memperbarui role yang sudah dibuat secara otomatis.
+_Avoid_: Role Tenant aktif, role sistem, assignment pengguna
+
 **Arsip Master Data**:
 Keadaan nonaktif suatu catatan Master Data yang mempertahankan identitas dan riwayatnya agar referensi dari fitur sekolah lain tetap utuh.
 _Avoid_: hapus permanen, Penghapusan Tenant
