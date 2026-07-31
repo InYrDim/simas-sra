@@ -4,7 +4,7 @@
 
 **Blocked by:** 17 — Add the transactional security-command foundation; 19 — Project School Admin into dedicated authority.
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] The Provider roster shows active, pending-proof, expired/cancelled-proof, and disabled School Admin entries without omitting unmanaged or legacy-inconsistent Tenants.
 - [ ] Nomination and account-control proof grant zero authority; authority is granted only by a separate reauthenticated Provider command after valid proof.

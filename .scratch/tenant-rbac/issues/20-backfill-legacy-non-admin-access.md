@@ -4,7 +4,7 @@
 
 **Blocked by:** 18 — Introduce the centralized evaluator in shadow mode; 19 — Project School Admin into dedicated authority.
 
-**Status:** ready-for-agent
+**Status:** claimed
 
 - [ ] Each recognized legacy non-admin role is mapped to the exact frozen permissions approved by the operation contract, and every other permission is denied.
 - [ ] Null, unknown, malformed, conflicting, or cross-Tenant states create findings and no grant; profile names and Template Role Tenant are never used to infer authority.

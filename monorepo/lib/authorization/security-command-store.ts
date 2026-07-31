@@ -122,7 +122,9 @@ function retryableTransactionError(error: unknown): boolean {
     return true;
   }
   const details = errorDetails(error);
-  return details.includes("security_command_idempotency_unique") || details.includes("Deadlock found");
+  return details.includes("security_command_idempotency_unique")
+    || details.includes("tenant_role_tenant_name_unique")
+    || details.includes("Deadlock found");
 }
 
 function valuesForContext(context: SecurityContext): Readonly<{
