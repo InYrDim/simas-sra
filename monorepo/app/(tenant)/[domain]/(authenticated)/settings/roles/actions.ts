@@ -66,8 +66,26 @@ export async function getRoles(domain: string): Promise<Role[]> {
 }
 
 export async function getRole(domain: string, id: string): Promise<Role | null> {
-  const roles = await getRoles(domain);
-  return roles.find(r => r.id === id) || null;
+  const principal = await enforceRoleAccess(domain, 'tenant.roles.list');
+  
+  return db.transaction(async (tx) => {
+    const repo = createTenantRoleLifecycleDataRepository(tx);
+    const r = await repo.getRole(principal.tenantId, id);
+    if (!r) return null;
+    
+    const userCount = await repo.countActiveAssignments(principal.tenantId, r.id);
+    return {
+      id: r.id,
+      name: r.name,
+      description: '',
+      status: r.lifecycle,
+      userCount,
+      permissions: [...r.permissions],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      version: r.version,
+    };
+  });
 }
 
 export async function createRole(domain: string, data: Partial<Role>): Promise<{ success: boolean; role?: Role; error?: string }> {

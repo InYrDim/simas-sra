@@ -82,6 +82,8 @@ export interface TenantRoleLifecycleRepository {
   insertPermissions(tenantId: string, roleId: string, permissions: readonly string[], createdAt: Date): Promise<void>;
   deletePermissions(tenantId: string, roleId: string, permissions: readonly string[]): Promise<void>;
   countActiveAssignments(tenantId: string, roleId: string): Promise<number>;
+  isSchoolAdmin(tenantId: string, userId: string): Promise<boolean>;
+  getRole(tenantId: string, roleId: string): Promise<LifecycleRoleRow | null>;
 }
 
 export type TenantRoleLifecycleExecutor<TTransaction extends object> = <TResult extends JsonValue>(input: Readonly<{
@@ -266,6 +268,36 @@ function computeRisk(keys: readonly string[]): string {
   return "low";
 }
 
+async function authorizeAdminMutation(
+  actor: SecurityActor,
+  transaction: SecurityCommandStoreTransaction & any,
+  dependencies: Readonly<{ repository: (transaction: any) => TenantRoleLifecycleRepository }>,
+  input: { tenantId: string; roleId?: string; expectedVersion?: number; normalizedName?: string; }
+) {
+  if (actor.kind !== "tenant-user" && actor.kind !== "provider-admin") throw new SecurityCommandError("context-denied");
+  const repo = dependencies.repository(transaction);
+  if (!(await repo.lockTenant(input.tenantId))) throw new SecurityCommandError("context-denied");
+  
+  if (actor.kind === "tenant-user" && !(await repo.isSchoolAdmin(input.tenantId, actor.userId))) {
+    throw new SecurityCommandError("context-denied");
+  }
+
+  let role = undefined;
+  if (input.roleId) {
+    const roles = await repo.listRoles(input.tenantId);
+    role = roles.find(r => r.id === input.roleId);
+    if (!role) throw new SecurityCommandError("invalid-command");
+    if (input.expectedVersion !== undefined && role.version !== input.expectedVersion) {
+      throw new SecurityCommandError("stale-version");
+    }
+    if (input.normalizedName && roles.some(r => r.id !== input.roleId && r.normalizedName === input.normalizedName)) {
+      throw new SecurityCommandError("invalid-command");
+    }
+  }
+
+  return { repo, role };
+}
+
 export function createTenantRoleLifecycleService<TTransaction extends object>(dependencies: Readonly<{
   execute: TenantRoleLifecycleExecutor<TTransaction>;
   repository: (transaction: SecurityCommandStoreTransaction & TTransaction) => TenantRoleLifecycleRepository;
@@ -291,9 +323,7 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
         correlationId: input.correlationId,
         deriveContext: async () => tenantContext(input.tenantId),
         authorizeAndMutate: async ({ actor, transaction }) => {
-          if (actor.kind !== "tenant-user" && actor.kind !== "provider-admin") throw new SecurityCommandError("context-denied");
-          const repo = dependencies.repository(transaction);
-          if (!(await repo.lockTenant(input.tenantId))) throw new SecurityCommandError("context-denied");
+          const { repo } = await authorizeAdminMutation(actor, transaction, dependencies, { tenantId: input.tenantId });
 
           const roles = await repo.listRoles(input.tenantId);
           if (roles.some(r => r.normalizedName === normalizedName)) {
@@ -355,18 +385,12 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
         correlationId: input.correlationId,
         deriveContext: async () => tenantContext(input.tenantId),
         authorizeAndMutate: async ({ actor, transaction }) => {
-          if (actor.kind !== "tenant-user" && actor.kind !== "provider-admin") throw new SecurityCommandError("context-denied");
-          const repo = dependencies.repository(transaction);
-          if (!(await repo.lockTenant(input.tenantId))) throw new SecurityCommandError("context-denied");
-
-          const roles = await repo.listRoles(input.tenantId);
-          const role = roles.find(r => r.id === input.roleId);
-          if (!role) throw new SecurityCommandError("invalid-command");
-          if (role.version !== input.expectedVersion) throw new SecurityCommandError("stale-version");
-
-          if (roles.some(r => r.id !== input.roleId && r.normalizedName === normalizedName)) {
-            throw new SecurityCommandError("invalid-command");
-          }
+          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, { 
+            tenantId: input.tenantId, 
+            roleId: input.roleId, 
+            expectedVersion: input.expectedVersion, 
+            normalizedName 
+          });
 
           const updated = await repo.updateRole({
             id: input.roleId,
@@ -408,14 +432,11 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
         correlationId: input.correlationId,
         deriveContext: async () => tenantContext(input.tenantId),
         authorizeAndMutate: async ({ actor, transaction }) => {
-          if (actor.kind !== "tenant-user" && actor.kind !== "provider-admin") throw new SecurityCommandError("context-denied");
-          const repo = dependencies.repository(transaction);
-          if (!(await repo.lockTenant(input.tenantId))) throw new SecurityCommandError("context-denied");
-
-          const roles = await repo.listRoles(input.tenantId);
-          const role = roles.find(r => r.id === input.roleId);
-          if (!role) throw new SecurityCommandError("invalid-command");
-          if (role.version !== input.expectedVersion) throw new SecurityCommandError("stale-version");
+          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, { 
+            tenantId: input.tenantId, 
+            roleId: input.roleId, 
+            expectedVersion: input.expectedVersion 
+          });
 
           const currentSet = new Set(role.permissions);
           for (const rm of input.removedPermissions) currentSet.delete(rm);
@@ -474,14 +495,11 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
         correlationId: input.correlationId,
         deriveContext: async () => tenantContext(input.tenantId),
         authorizeAndMutate: async ({ actor, transaction }) => {
-          if (actor.kind !== "tenant-user" && actor.kind !== "provider-admin") throw new SecurityCommandError("context-denied");
-          const repo = dependencies.repository(transaction);
-          if (!(await repo.lockTenant(input.tenantId))) throw new SecurityCommandError("context-denied");
-
-          const roles = await repo.listRoles(input.tenantId);
-          const role = roles.find(r => r.id === input.roleId);
-          if (!role) throw new SecurityCommandError("invalid-command");
-          if (role.version !== input.expectedVersion) throw new SecurityCommandError("stale-version");
+          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, { 
+            tenantId: input.tenantId, 
+            roleId: input.roleId, 
+            expectedVersion: input.expectedVersion 
+          });
           if (role.lifecycle === "active") throw new SecurityCommandError("invalid-command");
 
           const updated = await repo.updateRole({
@@ -523,14 +541,11 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
         correlationId: input.correlationId,
         deriveContext: async () => tenantContext(input.tenantId),
         authorizeAndMutate: async ({ actor, transaction }) => {
-          if (actor.kind !== "tenant-user" && actor.kind !== "provider-admin") throw new SecurityCommandError("context-denied");
-          const repo = dependencies.repository(transaction);
-          if (!(await repo.lockTenant(input.tenantId))) throw new SecurityCommandError("context-denied");
-
-          const roles = await repo.listRoles(input.tenantId);
-          const role = roles.find(r => r.id === input.roleId);
-          if (!role) throw new SecurityCommandError("invalid-command");
-          if (role.version !== input.expectedVersion) throw new SecurityCommandError("stale-version");
+          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, { 
+            tenantId: input.tenantId, 
+            roleId: input.roleId, 
+            expectedVersion: input.expectedVersion 
+          });
           if (role.lifecycle !== "active") throw new SecurityCommandError("invalid-command");
 
           const activeAssignments = await repo.countActiveAssignments(input.tenantId, input.roleId);
@@ -575,14 +590,11 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
         correlationId: input.correlationId,
         deriveContext: async () => tenantContext(input.tenantId),
         authorizeAndMutate: async ({ actor, transaction }) => {
-          if (actor.kind !== "tenant-user" && actor.kind !== "provider-admin") throw new SecurityCommandError("context-denied");
-          const repo = dependencies.repository(transaction);
-          if (!(await repo.lockTenant(input.tenantId))) throw new SecurityCommandError("context-denied");
-
-          const roles = await repo.listRoles(input.tenantId);
-          const role = roles.find(r => r.id === input.roleId);
-          if (!role) throw new SecurityCommandError("invalid-command");
-          if (role.version !== input.expectedVersion) throw new SecurityCommandError("stale-version");
+          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, { 
+            tenantId: input.tenantId, 
+            roleId: input.roleId, 
+            expectedVersion: input.expectedVersion 
+          });
           if (role.lifecycle === "archived") throw new SecurityCommandError("invalid-command");
 
           const activeAssignments = await repo.countActiveAssignments(input.tenantId, input.roleId);
@@ -627,14 +639,11 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
         correlationId: input.correlationId,
         deriveContext: async () => tenantContext(input.tenantId),
         authorizeAndMutate: async ({ actor, transaction }) => {
-          if (actor.kind !== "tenant-user" && actor.kind !== "provider-admin") throw new SecurityCommandError("context-denied");
-          const repo = dependencies.repository(transaction);
-          if (!(await repo.lockTenant(input.tenantId))) throw new SecurityCommandError("context-denied");
-
-          const roles = await repo.listRoles(input.tenantId);
-          const role = roles.find(r => r.id === input.roleId);
-          if (!role) throw new SecurityCommandError("invalid-command");
-          if (role.version !== input.expectedVersion) throw new SecurityCommandError("stale-version");
+          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, { 
+            tenantId: input.tenantId, 
+            roleId: input.roleId, 
+            expectedVersion: input.expectedVersion 
+          });
           if (role.lifecycle !== "archived") throw new SecurityCommandError("invalid-command");
 
           const updated = await repo.updateRole({

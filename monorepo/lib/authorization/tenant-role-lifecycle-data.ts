@@ -5,6 +5,8 @@ import {
   tenantRolePermission,
   tenantRoleAssignment,
   tenant,
+  user,
+  schoolAdminAuthority,
 } from "@/db/schema";
 import {
   createTenantRoleLifecycleService,
@@ -92,6 +94,46 @@ export function createTenantRoleLifecycleDataRepository(
       }));
     },
 
+    async getRole(tenantId, roleId) {
+      assertIdentifier(tenantId);
+      assertIdentifier(roleId);
+      const [row] = await database
+        .select()
+        .from(tenantRole)
+        .where(and(
+          eq(tenantRole.tenantId, tenantId),
+          eq(tenantRole.id, roleId)
+        ))
+        .limit(1)
+        .for("update");
+      
+      if (!row) return null;
+      
+      const permissions = await database
+        .select({ permissionKey: tenantRolePermission.permissionKey })
+        .from(tenantRolePermission)
+        .where(and(
+          eq(tenantRolePermission.tenantId, tenantId),
+          eq(tenantRolePermission.roleId, roleId)
+        ))
+        .for("update");
+
+      return {
+        id: row.id,
+        tenantId: row.tenantId,
+        name: row.name,
+        normalizedName: row.normalizedName,
+        lifecycle: row.lifecycle,
+        origin: row.origin,
+        templateKey: row.templateKey,
+        templateVersion: row.templateVersion,
+        copiedFromRoleId: row.copiedFromRoleId,
+        legacyRole: row.legacyRole,
+        version: row.version,
+        permissions: permissions.map(p => p.permissionKey),
+      };
+    },
+
     async insertRole(row) {
       assertIdentifier(row.id);
       assertIdentifier(row.tenantId);
@@ -166,6 +208,32 @@ export function createTenantRoleLifecycleDataRepository(
         ))
         .for("share");
       return res?.count ?? 0;
+    },
+
+    async isSchoolAdmin(tenantId, userId) {
+      assertIdentifier(tenantId);
+      assertIdentifier(userId);
+      const [account] = await database
+        .select({ legacyRole: user.tenantRole })
+        .from(user)
+        .where(eq(user.id, userId))
+        .limit(1)
+        .for("share");
+        
+      if (account?.legacyRole === "school-admin") return true;
+
+      const [authority] = await database
+        .select({ id: schoolAdminAuthority.id })
+        .from(schoolAdminAuthority)
+        .where(and(
+          eq(schoolAdminAuthority.tenantId, tenantId),
+          eq(schoolAdminAuthority.userId, userId),
+          eq(schoolAdminAuthority.authorityState, "active")
+        ))
+        .limit(1)
+        .for("share");
+
+      return authority !== undefined;
     },
   };
 }
