@@ -274,16 +274,21 @@ export function createTenantRoleAssignmentService<TTransaction extends object>(d
           if (!target || target.tenantId !== input.tenantId || target.schoolAdmin) {
             throw new SecurityCommandError("context-denied");
           }
-          if (target.lifecycle !== "active" && roleIds.length > 0) {
-            throw new SecurityCommandError("invalid-command");
-          }
           if (target.assignmentVersion !== input.expectedAssignmentVersion) {
             throw new SecurityCommandError("stale-version");
           }
 
+          const existingAssignments = await repository.listAssignments(input.tenantId, input.targetUserId);
+          const currentRoleIds = new Set(
+            existingAssignments
+              .filter((assignment) => assignment.state === "active")
+              .map((assignment) => assignment.roleId),
+          );
+          if (target.lifecycle !== "active" && roleIds.some((roleId) => !currentRoleIds.has(roleId))) {
+            throw new SecurityCommandError("invalid-command");
+          }
           const allRoles = await repository.listActiveRoles(input.tenantId);
           const selectedRoles = validateSelectedRoles(input.tenantId, roleIds, allRoles);
-          const existingAssignments = await repository.listAssignments(input.tenantId, input.targetUserId);
           const replacement = await repository.replaceActiveAssignments({
             tenantId: input.tenantId,
             userId: input.targetUserId,

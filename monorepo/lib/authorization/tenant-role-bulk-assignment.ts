@@ -65,6 +65,7 @@ type PreparedTarget = Readonly<{
   account: AssignmentAccountRow;
   existingAssignments: readonly AssignmentRow[];
   outcome: BulkRoleOutcome;
+  failure: "stale-version" | "ineligible" | null;
 }>;
 
 function assertIdentifier(value: string): void {
@@ -161,15 +162,20 @@ async function prepare(
     const computedRoleIds = nextRoles(currentRoleIds, roleIds, input.operation);
     let outcome: BulkRoleOutcomeKind = computedRoleIds.length === 0 ? "zero-role" : "changed";
     let invalidReason: string | null = null;
+    let failure: PreparedTarget["failure"] = null;
     if (
       !account
       || account.tenantId !== input.tenantId
       || account.schoolAdmin
-      || account.lifecycle !== "active"
-      || account.assignmentVersion !== target.expectedAssignmentVersion
+      || (account.lifecycle !== "active" && input.operation === "add")
     ) {
       outcome = "invalid";
-      invalidReason = "Target tidak lagi memenuhi syarat atau versinya sudah berubah.";
+      failure = "ineligible";
+      invalidReason = "Target tidak lagi memenuhi syarat.";
+    } else if (account.assignmentVersion !== target.expectedAssignmentVersion) {
+      outcome = "invalid";
+      failure = "stale-version";
+      invalidReason = "Versi assignment target sudah berubah.";
     } else if (
       computedRoleIds.length === currentRoleIds.length
       && computedRoleIds.every((roleId, index) => roleId === currentRoleIds[index])
@@ -194,6 +200,7 @@ async function prepare(
         nextRoleIds: computedRoleIds,
         reason: invalidReason,
       },
+      failure,
     });
   }
   return { roles, targets: prepared };
@@ -246,6 +253,9 @@ export function createTenantRoleBulkAssignmentService<TTransaction extends objec
           const repository = dependencies.repository(transaction);
           if (!await repository.lockTenant(input.tenantId)) throw new SecurityCommandError("context-denied");
           const prepared = await prepare(repository, input);
+          if (prepared.targets.some((target) => target.failure === "stale-version")) {
+            throw new SecurityCommandError("stale-version");
+          }
           if (prepared.targets.some((target) => target.outcome.outcome === "invalid")) {
             throw new SecurityCommandError("invalid-command");
           }

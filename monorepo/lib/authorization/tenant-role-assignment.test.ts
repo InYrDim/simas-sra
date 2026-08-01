@@ -153,4 +153,14 @@ test("direct calls reject foreign opaque targets, inactive grants, and stale ver
   target = account({ assignmentVersion: 4 });
   await assert.rejects(replace(), (error) => error instanceof SecurityCommandError && error.code === "stale-version");
   assert.equal(mutations, 0);
+
+  target = account({ lifecycle: "inactive" });
+  const revoked = await replace({
+    roleIds: [],
+    reason: "Menonaktifkan sisa akses akun",
+    confirmZeroAccess: true,
+    idempotencyKey: "inactive-revoke",
+  });
+  assert.equal(revoked.zeroAccess, true);
+  assert.equal(mutations, 1);
 });

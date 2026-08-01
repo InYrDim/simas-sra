@@ -26,6 +26,10 @@ async function fixturePasswordHash() {
 async function cleanup(connection: Connection) {
   await connection.execute("SET FOREIGN_KEY_CHECKS=0");
   try {
+    await connection.query("DELETE FROM tenant_role_assignment WHERE tenant_id IN (?)", [tenantIds]);
+    await connection.query("DELETE FROM tenant_role_permission WHERE tenant_id IN (?)", [tenantIds]);
+    await connection.query("DELETE FROM tenant_role WHERE tenant_id IN (?)", [tenantIds]);
+    await connection.query("DELETE FROM tenant_account_security WHERE tenant_id IN (?)", [tenantIds]);
     await connection.query("DELETE FROM session WHERE user_id IN (?)", [userIds]);
     await connection.query("DELETE FROM account WHERE user_id IN (?)", [userIds]);
     await connection.query("DELETE FROM applicant WHERE user_id IN (?)", [userIds]);

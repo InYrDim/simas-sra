@@ -42,7 +42,7 @@ test("bulk role changes preview every outcome and reject an invalid target befor
     lockTenant: async () => true,
     isSchoolAdmin: async () => true,
     getAccount: async (_tenantId, userId) => userId === SECOND_USER_ID
-      ? account(userId, "inactive", 8)
+      ? account(userId, "active", 9)
       : account(userId, "active", 3),
     listActiveRoles: async () => roles,
     listAssignments: async (_tenantId, userId) => userId === USER_ID
@@ -94,6 +94,6 @@ test("bulk role changes preview every outcome and reject an invalid target befor
     reason: "Penyesuaian tugas massal",
     idempotencyKey: "bulk-user-roles-1",
     correlationId: "00000000-0000-4000-8000-000000000050",
-  }));
+  }), (error) => error instanceof Error && "code" in error && error.code === "stale-version");
   assert.deepEqual(mutations, []);
 });

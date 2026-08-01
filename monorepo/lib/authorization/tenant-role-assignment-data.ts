@@ -81,6 +81,7 @@ export function createTenantRoleAssignmentDataRepository(
           eq(schoolAdminAuthority.tenantId, tenantId),
           eq(schoolAdminAuthority.userId, userId),
           eq(schoolAdminAuthority.authorityState, "active"),
+          eq(schoolAdminAuthority.authorityState, "active"),
         ))
         .limit(1)
         .for("share");
@@ -350,6 +351,7 @@ export async function listEligibleAssignmentAccounts(input: Readonly<{
       .where(and(
         eq(schoolAdminAuthority.tenantId, input.tenantId),
         inArray(schoolAdminAuthority.userId, userIds),
+        eq(schoolAdminAuthority.authorityState, "active"),
       )),
     db.select({ userId: tenantRoleAssignment.userId, roleId: tenantRoleAssignment.roleId })
       .from(tenantRoleAssignment)

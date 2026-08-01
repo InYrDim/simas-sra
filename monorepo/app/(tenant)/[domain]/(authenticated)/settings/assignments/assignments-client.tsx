@@ -201,14 +201,18 @@ export function AssignmentsClient({ domain, initialRoles, initialAccounts }: Pro
               {accounts.map((item) => (
                 <div key={item.userId} className="flex items-start gap-3 rounded-xl border p-3">
                   <Checkbox checked={selectedUserIds.includes(item.userId)} onCheckedChange={() => setSelectedUserIds((current) => toggle(current, item.userId))} aria-label={`Pilih ${item.name} untuk bulk`} />
-                  <button className="min-w-0 flex-1 text-left" onClick={() => openAccount(item.userId)} type="button">
+                  <Button
+                    variant="ghost"
+                    className="h-auto min-w-0 flex-1 justify-start rounded-xl p-0 text-left whitespace-normal"
+                    onClick={() => openAccount(item.userId)}
+                  >
                     <span className="block truncate font-medium">{item.name}</span>
                     <span className="block truncate text-xs text-muted-foreground">{item.email}</span>
                     <span className="mt-2 flex flex-wrap gap-1">
                       <Badge variant="outline">{lifecycleLabels[item.lifecycle]}</Badge>
                       <Badge variant="secondary">{item.activeRoleIds.length} role</Badge>
                     </span>
-                  </button>
+                  </Button>
                 </div>
               ))}
               {accounts.length === 0 && <p className="py-10 text-center text-sm text-muted-foreground">Tidak ada pengguna yang cocok.</p>}
@@ -230,7 +234,11 @@ export function AssignmentsClient({ domain, initialRoles, initialAccounts }: Pro
                   <legend className="mb-2 font-medium">Role aktif</legend>
                   {initialRoles.map((role) => (
                     <label key={role.id} className="flex items-start gap-3 rounded-xl border p-3">
-                      <Checkbox checked={roleIds.includes(role.id)} onCheckedChange={() => setRoleIds((current) => toggle(current, role.id))} disabled={account.lifecycle !== 'active'} />
+                      <Checkbox
+                        checked={roleIds.includes(role.id)}
+                        onCheckedChange={() => setRoleIds((current) => toggle(current, role.id))}
+                        disabled={account.lifecycle !== 'active' && !roleIds.includes(role.id)}
+                      />
                       <span><span className="block font-medium">{role.name}</span><span className="text-xs text-muted-foreground">{role.permissions.length} permission</span></span>
                     </label>
                   ))}
@@ -241,7 +249,7 @@ export function AssignmentsClient({ domain, initialRoles, initialAccounts }: Pro
                 )}
                 <Textarea value={reason} onChange={(event) => setReason(event.target.value)} placeholder={zeroAccess ? 'Alasan wajib untuk menghapus seluruh akses' : 'Alasan perubahan (opsional)'} aria-label="Alasan perubahan" />
                 {zeroAccess && <label className="flex items-center gap-2 text-sm"><Checkbox checked={confirmZero} onCheckedChange={(checked) => setConfirmZero(checked)} /> Saya memahami pengguna akan memiliki nol role.</label>}
-                <Button onClick={saveAccount} disabled={isSaving || account.lifecycle !== 'active' || (zeroAccess && (!confirmZero || !reason.trim()))}>
+                <Button onClick={saveAccount} disabled={isSaving || (zeroAccess && (!confirmZero || !reason.trim()))}>
                   {isSaving && <Spinner />} Simpan assignment
                 </Button>
 

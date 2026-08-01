@@ -106,6 +106,7 @@ export async function getAssignmentAccountAccess(
     .where(and(
       eq(schoolAdminAuthority.tenantId, tenantId),
       eq(schoolAdminAuthority.userId, userId),
+      eq(schoolAdminAuthority.authorityState, "active"),
     ))
     .limit(1);
   if (authority) return null;
