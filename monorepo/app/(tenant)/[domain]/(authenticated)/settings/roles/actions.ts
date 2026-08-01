@@ -36,19 +36,22 @@ async function enforceRoleAccess(domain: string, operationId: string) {
     }
     forbidden();
   }
-  return decision.principal;
+  return {
+    tenantId: decision.principal.tenantId,
+    principal: { kind: 'authenticated-user' as const, userId: decision.principal.userId },
+  };
 }
 
 export async function getRoles(domain: string): Promise<Role[]> {
-  const principal = await enforceRoleAccess(domain, 'tenant.roles.list');
+  const { tenantId } = await enforceRoleAccess(domain, 'tenant.roles.list');
   
   return db.transaction(async (tx) => {
-    const repo = createTenantRoleLifecycleDataRepository(tx);
-    const roles = await repo.listRoles(principal.tenantId);
+    const repo = createTenantRoleLifecycleDataRepository({ database: tx });
+    const roles = await repo.listRoles(tenantId);
     
     const results = [];
     for (const r of roles) {
-      const userCount = await repo.countActiveAssignments(principal.tenantId, r.id);
+      const userCount = await repo.countActiveAssignments(tenantId, r.id);
       results.push({
         id: r.id,
         name: r.name,
@@ -66,14 +69,14 @@ export async function getRoles(domain: string): Promise<Role[]> {
 }
 
 export async function getRole(domain: string, id: string): Promise<Role | null> {
-  const principal = await enforceRoleAccess(domain, 'tenant.roles.list');
+  const { tenantId } = await enforceRoleAccess(domain, 'tenant.roles.list');
   
   return db.transaction(async (tx) => {
-    const repo = createTenantRoleLifecycleDataRepository(tx);
-    const r = await repo.getRole(principal.tenantId, id);
+    const repo = createTenantRoleLifecycleDataRepository({ database: tx });
+    const r = await repo.getRole(tenantId, id);
     if (!r) return null;
     
-    const userCount = await repo.countActiveAssignments(principal.tenantId, r.id);
+    const userCount = await repo.countActiveAssignments(tenantId, r.id);
     return {
       id: r.id,
       name: r.name,
@@ -90,12 +93,12 @@ export async function getRole(domain: string, id: string): Promise<Role | null> 
 
 export async function createRole(domain: string, data: Partial<Role>): Promise<{ success: boolean; role?: Role; error?: string }> {
   try {
-    const principal = await enforceRoleAccess(domain, 'tenant.roles.create');
+    const { tenantId, principal } = await enforceRoleAccess(domain, 'tenant.roles.create');
     const service = createTenantRoleLifecycleDataService();
     
     const res = await service.createRole({
       principal,
-      tenantId: principal.tenantId,
+      tenantId,
       name: data.name || '',
       origin: 'scratch',
       permissions: data.permissions || [],
@@ -106,21 +109,21 @@ export async function createRole(domain: string, data: Partial<Role>): Promise<{
     
     revalidatePath(`/${domain}/settings/roles`);
     return { success: true, role: { ...data, id: res.roleId, version: 1 } as Role };
-  } catch (error: any) {
-    return { success: false, error: error.message || 'Failed to create role' };
+  } catch {
+    return { success: false, error: 'Failed to create role' };
   }
 }
 
 export async function updateRole(domain: string, id: string, expectedVersion: number, data: Partial<Role>): Promise<{ success: boolean; error?: string }> {
   try {
-    const principal = await enforceRoleAccess(domain, 'tenant.roles.rename');
+    const { tenantId, principal } = await enforceRoleAccess(domain, 'tenant.roles.rename');
     const service = createTenantRoleLifecycleDataService();
     const correlationId = randomUUID();
     
     if (data.name) {
       await service.renameRole({
         principal,
-        tenantId: principal.tenantId,
+        tenantId,
         roleId: id,
         expectedVersion,
         newName: data.name,
@@ -146,7 +149,7 @@ export async function updateRole(domain: string, id: string, expectedVersion: nu
         await enforceRoleAccess(domain, 'tenant.roles.change-permissions');
         await service.editPermissions({
           principal,
-          tenantId: principal.tenantId,
+          tenantId,
           roleId: id,
           expectedVersion,
           addedPermissions,
@@ -160,8 +163,8 @@ export async function updateRole(domain: string, id: string, expectedVersion: nu
     
     revalidatePath(`/${domain}/settings/roles`);
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message || 'Failed to update role' };
+  } catch {
+    return { success: false, error: 'Failed to update role' };
   }
 }
 
@@ -170,12 +173,12 @@ export async function changeRoleStatus(domain: string, id: string, expectedVersi
     const service = createTenantRoleLifecycleDataService();
     const correlationId = randomUUID();
     
-    let principal;
+    let access;
     if (status === 'active') {
-      principal = await enforceRoleAccess(domain, 'tenant.roles.activate');
+      access = await enforceRoleAccess(domain, 'tenant.roles.activate');
       await service.activateRole({
-        principal,
-        tenantId: principal.tenantId,
+        principal: access.principal,
+        tenantId: access.tenantId,
         roleId: id,
         expectedVersion,
         reason: 'Status changed to active via UI',
@@ -183,10 +186,10 @@ export async function changeRoleStatus(domain: string, id: string, expectedVersi
         correlationId,
       });
     } else if (status === 'draft') {
-      principal = await enforceRoleAccess(domain, 'tenant.roles.draft');
+      access = await enforceRoleAccess(domain, 'tenant.roles.draft');
       await service.draftRole({
-        principal,
-        tenantId: principal.tenantId,
+        principal: access.principal,
+        tenantId: access.tenantId,
         roleId: id,
         expectedVersion,
         reason: 'Status changed to draft via UI',
@@ -194,10 +197,10 @@ export async function changeRoleStatus(domain: string, id: string, expectedVersi
         correlationId,
       });
     } else if (status === 'archived') {
-      principal = await enforceRoleAccess(domain, 'tenant.roles.archive');
+      access = await enforceRoleAccess(domain, 'tenant.roles.archive');
       await service.archiveRole({
-        principal,
-        tenantId: principal.tenantId,
+        principal: access.principal,
+        tenantId: access.tenantId,
         roleId: id,
         expectedVersion,
         reason: 'Status changed to archived via UI',
@@ -208,7 +211,7 @@ export async function changeRoleStatus(domain: string, id: string, expectedVersi
     
     revalidatePath(`/${domain}/settings/roles`);
     return { success: true };
-  } catch (error: any) {
-    return { success: false, error: error.message || 'Failed to change role status' };
+  } catch {
+    return { success: false, error: 'Failed to change role status' };
   }
 }

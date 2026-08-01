@@ -21,7 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Plus, Eye, Pencil, Archive, Play, Trash, Loader2 } from 'lucide-react';
+import { MoreHorizontal, Plus, Eye, Pencil, Archive, Play, Loader2 } from 'lucide-react';
 import { RoleDialog } from './role-dialog';
 import { toast } from 'sonner';
 
@@ -33,16 +33,11 @@ export function RolesClient({ initialRoles }: RolesClientProps) {
   const router = useRouter();
   const params = useParams();
   const domain = params.domain as string;
-  const [roles, setRoles] = React.useState<Role[]>(initialRoles);
+  const roles = initialRoles;
   const [isDialogOpen, setIsDialogOpen] = React.useState(false);
   const [editingRole, setEditingRole] = React.useState<Role | null>(null);
   const [viewingRole, setViewingRole] = React.useState<Role | null>(null);
   const [isLoading, setIsLoading] = React.useState<string | null>(null); // role id
-
-  // Update roles from props when revalidated
-  React.useEffect(() => {
-    setRoles(initialRoles);
-  }, [initialRoles]);
 
   const handleStatusChange = async (role: Role, status: Role['status']) => {
     setIsLoading(role.id);
@@ -54,7 +49,7 @@ export function RolesClient({ initialRoles }: RolesClientProps) {
       } else {
         toast.error(res.error || 'Failed to update status');
       }
-    } catch (err) {
+    } catch {
       toast.error('An error occurred');
     } finally {
       setIsLoading(null);
@@ -127,15 +122,13 @@ export function RolesClient({ initialRoles }: RolesClientProps) {
                   <TableCell className="text-right">{role.userCount}</TableCell>
                   <TableCell>
                     <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0" disabled={isLoading === role.id}>
+                      <DropdownMenuTrigger render={<Button variant="ghost" className="h-8 w-8 p-0" disabled={isLoading === role.id} />}>
                           <span className="sr-only">Open menu</span>
                           {isLoading === role.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
                             <MoreHorizontal className="h-4 w-4" />
                           )}
-                        </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
@@ -181,6 +174,7 @@ export function RolesClient({ initialRoles }: RolesClientProps) {
       </div>
 
       <RoleDialog
+        key={`${isDialogOpen ? 'open' : 'closed'}-${editingRole?.id ?? viewingRole?.id ?? 'new'}`}
         isOpen={isDialogOpen}
         setIsOpen={setIsDialogOpen}
         editingRole={editingRole}

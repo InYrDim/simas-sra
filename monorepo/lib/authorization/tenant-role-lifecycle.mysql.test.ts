@@ -134,7 +134,7 @@ mysqlTest("Tenant Role Lifecycle end-to-end", async (t) => {
         idempotencyKey: randomUUID(),
         correlationId: randomUUID(),
       }),
-      (err: any) => err.code === "invalid-command"
+      (error: unknown) => error instanceof SecurityCommandError && error.code === "invalid-command"
     );
 
     // remove the assignment

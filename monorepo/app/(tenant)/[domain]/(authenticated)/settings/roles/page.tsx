@@ -1,3 +1,7 @@
+import Link from 'next/link';
+
+import { Button } from '@/components/ui/button';
+
 import { getRoles } from './actions';
 import { RolesClient } from './roles-client';
 
@@ -18,6 +22,9 @@ export default async function RolesPage(props: { params: Promise<{ domain: strin
             Manage roles and their permissions for your school.
           </p>
         </div>
+        <Button variant="outline" render={<Link href={`/${domain}/settings/assignments`} />}>
+          Kelola assignment
+        </Button>
       </div>
       
       <RolesClient initialRoles={roles} />

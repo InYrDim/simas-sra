@@ -11,7 +11,7 @@ import {
   type SecurityPrincipal,
 } from "@/lib/authorization/security-command";
 import type { SecurityCommandStoreTransaction } from "@/lib/authorization/security-command-store";
-import { permissionRegistry, type PermissionDefinition } from "@/lib/authorization/tenant-rbac-contract";
+import { permissionRegistry } from "@/lib/authorization/tenant-rbac-contract";
 
 export const TENANT_ROLE_EVENT_TYPES = {
   CREATED: "tenant_role.created",
@@ -268,10 +268,12 @@ function computeRisk(keys: readonly string[]): string {
   return "low";
 }
 
-async function authorizeAdminMutation(
+async function authorizeAdminMutation<TTransaction extends object>(
   actor: SecurityActor,
-  transaction: SecurityCommandStoreTransaction & any,
-  dependencies: Readonly<{ repository: (transaction: any) => TenantRoleLifecycleRepository }>,
+  transaction: SecurityCommandStoreTransaction & TTransaction,
+  dependencies: Readonly<{
+    repository: (transaction: SecurityCommandStoreTransaction & TTransaction) => TenantRoleLifecycleRepository;
+  }>,
   input: { tenantId: string; roleId?: string; expectedVersion?: number; normalizedName?: string; }
 ) {
   if (actor.kind !== "tenant-user" && actor.kind !== "provider-admin") throw new SecurityCommandError("context-denied");
@@ -411,7 +413,7 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
               eventType: TENANT_ROLE_EVENT_TYPES.RENAMED,
               targets: { roleId: input.roleId },
               reason,
-              metadata: { nameBefore: role.name, nameAfter: newName },
+              metadata: { nameBefore: role!.name, nameAfter: newName },
             }],
           };
         },
@@ -438,7 +440,7 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
             expectedVersion: input.expectedVersion 
           });
 
-          const currentSet = new Set(role.permissions);
+          const currentSet = new Set(role!.permissions);
           for (const rm of input.removedPermissions) currentSet.delete(rm);
           for (const add of input.addedPermissions) currentSet.add(add);
           
@@ -472,7 +474,7 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
               metadata: {
                 addedPermissions: input.addedPermissions,
                 removedPermissions: input.removedPermissions,
-                riskLevelBefore: computeRisk(role.permissions),
+                riskLevelBefore: computeRisk(role!.permissions),
                 riskLevelAfter: computeRisk(newPermissions),
               },
             }],
@@ -500,7 +502,7 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
             roleId: input.roleId, 
             expectedVersion: input.expectedVersion 
           });
-          if (role.lifecycle === "active") throw new SecurityCommandError("invalid-command");
+          if (role!.lifecycle === "active") throw new SecurityCommandError("invalid-command");
 
           const updated = await repo.updateRole({
             id: input.roleId,
@@ -520,7 +522,7 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
               eventType: TENANT_ROLE_EVENT_TYPES.ACTIVATED,
               targets: { roleId: input.roleId },
               reason,
-              metadata: { lifecycleBefore: role.lifecycle, lifecycleAfter: "active" },
+              metadata: { lifecycleBefore: role!.lifecycle, lifecycleAfter: "active" },
             }],
           };
         },
@@ -546,7 +548,7 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
             roleId: input.roleId, 
             expectedVersion: input.expectedVersion 
           });
-          if (role.lifecycle !== "active") throw new SecurityCommandError("invalid-command");
+          if (role!.lifecycle !== "active") throw new SecurityCommandError("invalid-command");
 
           const activeAssignments = await repo.countActiveAssignments(input.tenantId, input.roleId);
           if (activeAssignments > 0) throw new SecurityCommandError("invalid-command");
@@ -569,7 +571,7 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
               eventType: TENANT_ROLE_EVENT_TYPES.DRAFTED,
               targets: { roleId: input.roleId },
               reason,
-              metadata: { lifecycleBefore: role.lifecycle, lifecycleAfter: "draft" },
+              metadata: { lifecycleBefore: role!.lifecycle, lifecycleAfter: "draft" },
             }],
           };
         },
@@ -595,7 +597,7 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
             roleId: input.roleId, 
             expectedVersion: input.expectedVersion 
           });
-          if (role.lifecycle === "archived") throw new SecurityCommandError("invalid-command");
+          if (role!.lifecycle === "archived") throw new SecurityCommandError("invalid-command");
 
           const activeAssignments = await repo.countActiveAssignments(input.tenantId, input.roleId);
           if (activeAssignments > 0) throw new SecurityCommandError("invalid-command");
@@ -618,7 +620,7 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
               eventType: TENANT_ROLE_EVENT_TYPES.ARCHIVED,
               targets: { roleId: input.roleId },
               reason,
-              metadata: { lifecycleBefore: role.lifecycle, lifecycleAfter: "archived" },
+              metadata: { lifecycleBefore: role!.lifecycle, lifecycleAfter: "archived" },
             }],
           };
         },
@@ -644,7 +646,7 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
             roleId: input.roleId, 
             expectedVersion: input.expectedVersion 
           });
-          if (role.lifecycle !== "archived") throw new SecurityCommandError("invalid-command");
+          if (role!.lifecycle !== "archived") throw new SecurityCommandError("invalid-command");
 
           const updated = await repo.updateRole({
             id: input.roleId,
@@ -664,7 +666,7 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
               eventType: TENANT_ROLE_EVENT_TYPES.RESTORED,
               targets: { roleId: input.roleId },
               reason,
-              metadata: { lifecycleBefore: role.lifecycle, lifecycleAfter: "draft" },
+              metadata: { lifecycleBefore: role!.lifecycle, lifecycleAfter: "draft" },
             }],
           };
         },

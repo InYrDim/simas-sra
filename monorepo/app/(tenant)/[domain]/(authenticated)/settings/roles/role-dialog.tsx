@@ -47,24 +47,12 @@ export function RoleDialog({
   const isViewOnly = !!viewingRole;
   const role = viewingRole || editingRole;
   
-  const [name, setName] = React.useState('');
-  const [description, setDescription] = React.useState('');
-  const [permissions, setPermissions] = React.useState<string[]>([]);
+  const [name, setName] = React.useState(role?.name ?? '');
+  const [description, setDescription] = React.useState(role?.description ?? '');
+  const [permissions, setPermissions] = React.useState<string[]>(
+    role?.permissions.includes('*') ? AVAILABLE_PERMISSIONS.map((permission) => permission.id) : role?.permissions ?? [],
+  );
   const [isLoading, setIsLoading] = React.useState(false);
-
-  React.useEffect(() => {
-    if (isOpen) {
-      if (role) {
-        setName(role.name);
-        setDescription(role.description);
-        setPermissions(role.permissions.includes('*') ? AVAILABLE_PERMISSIONS.map(p => p.id) : role.permissions);
-      } else {
-        setName('');
-        setDescription('');
-        setPermissions([]);
-      }
-    }
-  }, [isOpen, role]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -94,7 +82,7 @@ export function RoleDialog({
       } else {
         toast.error(res.error || 'Something went wrong');
       }
-    } catch (error) {
+    } catch {
       toast.error('An error occurred');
     } finally {
       setIsLoading(false);

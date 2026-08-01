@@ -25,8 +25,8 @@ const legacyMinimum = [
 ];
 
 test("the approved registry and operation map form a valid executable contract", () => {
-  assert.equal(PERMISSION_REGISTRY_VERSION, "tenant-permissions@1");
-  assert.equal(OPERATION_MAP_VERSION, "tenant-operations@1");
+  assert.equal(PERMISSION_REGISTRY_VERSION, "tenant-permissions@2");
+  assert.equal(OPERATION_MAP_VERSION, "tenant-operations@2");
   assert.equal(permissionRegistry.length, 148);
   assert.match(permissionRegistryDigest, /^[a-f0-9]{64}$/);
   assert.match(tenantOperationMapDigest, /^[a-f0-9]{64}$/);
@@ -45,18 +45,18 @@ test("every permission exposes stable Indonesian catalog metadata", () => {
   }
 });
 
-test("reserved target operations are represented but remain unknown to runtime grants", () => {
+test("role and assignment administration permissions are active but remain non-assignable", () => {
   assert.equal(resolveActivePermission("tenant.dashboard.view")?.key, "tenant.dashboard.view");
-  assert.equal(resolveActivePermission("tenant.roles.change-permissions"), null);
+  assert.equal(resolveActivePermission("tenant.roles.change-permissions")?.key, "tenant.roles.change-permissions");
   assert.equal(resolveActivePermission("unknown.resource.view"), null);
 
-  const reserved = permissionRegistry.find((entry) => entry.key === "tenant.roles.change-permissions");
-  assert.equal(reserved?.lifecycle, "reserved");
-  assert.equal(reserved?.assignment, "school-admin-only");
+  const privileged = permissionRegistry.find((entry) => entry.key === "tenant.roles.change-permissions");
+  assert.equal(privileged?.lifecycle, "active");
+  assert.equal(privileged?.assignment, "school-admin-only");
 
   assert.deepEqual(validateCustomRolePermissions(["tenant.roles.change-permissions"]), {
     ok: false,
-    issues: [{ code: "permission-not-active", key: "tenant.roles.change-permissions" }],
+    issues: [{ code: "permission-not-assignable", key: "tenant.roles.change-permissions" }],
   });
   assert.deepEqual(validateCustomRolePermissions(["unknown.resource.view"]), {
     ok: false,

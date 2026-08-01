@@ -123,6 +123,22 @@ export default async function globalSetup() {
     await connection.execute("UPDATE user SET tenant_id=?,tenant_role='school-admin' WHERE id=?", [e2e.alpha.tenantId, e2e.alpha.adminId]);
     await connection.execute("UPDATE user SET tenant_id=?,tenant_role='staff' WHERE id=?", [e2e.alpha.tenantId, e2e.alpha.staffId]);
     await connection.execute("UPDATE user SET tenant_id=?,tenant_role='school-admin' WHERE id=?", [e2e.beta.tenantId, e2e.beta.adminId]);
+    await connection.execute(
+      "INSERT INTO tenant_account_security (tenant_id,user_id,lifecycle,version,assignment_version,activated_at,created_at,updated_at) VALUES (?,?,'active',1,1,NOW(3),NOW(3),NOW(3))",
+      [e2e.alpha.tenantId, e2e.alpha.staffId],
+    );
+    await connection.execute(
+      "INSERT INTO tenant_role (id,tenant_id,name,normalized_name,lifecycle,origin,version,created_at,updated_at) VALUES ('e2e00000-0000-4000-8000-000000000081',?,'Staf Operasional','staf operasional','active','scratch',1,NOW(3),NOW(3)),('e2e00000-0000-4000-8000-000000000082',?,'Pembaca Dashboard','pembaca dashboard','active','scratch',1,NOW(3),NOW(3))",
+      [e2e.alpha.tenantId, e2e.alpha.tenantId],
+    );
+    await connection.execute(
+      "INSERT INTO tenant_role_permission (tenant_id,role_id,permission_key,created_at) VALUES (?,'e2e00000-0000-4000-8000-000000000081','tenant.dashboard.view',NOW(3)),(?,'e2e00000-0000-4000-8000-000000000082','tenant.dashboard.view',NOW(3))",
+      [e2e.alpha.tenantId, e2e.alpha.tenantId],
+    );
+    await connection.execute(
+      "INSERT INTO tenant_role_assignment (id,tenant_id,user_id,role_id,state,version,assigned_at,updated_at) VALUES ('e2e00000-0000-4000-8000-000000000091',?,?,'e2e00000-0000-4000-8000-000000000081','active',1,NOW(3),NOW(3)),('e2e00000-0000-4000-8000-000000000092',?,?,'e2e00000-0000-4000-8000-000000000082','active',1,NOW(3),NOW(3))",
+      [e2e.alpha.tenantId, e2e.alpha.staffId, e2e.alpha.tenantId, e2e.alpha.staffId],
+    );
   } catch (error) {
     await cleanup(connection);
     await connection.end();
