@@ -1,6 +1,17 @@
-<!-- BEGIN:nextjs-agent-rules -->
-READ AT monorepo/AGENTS.md
-<!-- END:nextjs-agent-rules -->
+### Project Structure
+
+- Project live at `./monorepo` folder,  see `monorepo/AGENTS.md`
+- read at `./monorepo/package.json` about framework, test, engine
+
+#### Security & Tenant Isolation
+
+- use skill `code-security` when need to trace security issue.
+
+#### Code Style
+
+- Next.js 16 / React 19 conventions (Server/Client Components, async APIs,
+caching, Tailwind v4). See `monorepo/AGENTS.md`
+
 
 ## UI/UX Guidelines
 
