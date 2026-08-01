@@ -33,6 +33,7 @@
     "test:rbac:mysql": "tsx scripts/run-tenant-rbac-mysql-test.ts",
     "test:security-command:mysql": "tsx scripts/run-security-command-mysql-test.ts",
     "test:school-admin-authority:mysql": "tsx scripts/run-school-admin-authority-mysql-test.ts",
+    "test:school-admin-lifecycle:mysql": "tsx scripts/run-school-admin-lifecycle-mysql-test.ts",
     "provider-admin:provision": "tsx scripts/provision-provider-admin.ts",
     "provider-admin:deprovision": "tsx scripts/deprovision-provider-admin.ts",
     "worker:people-import-validation": "tsx scripts/run-people-import-validation.ts",
