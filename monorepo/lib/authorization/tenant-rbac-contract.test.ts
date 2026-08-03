@@ -65,6 +65,51 @@ test("role and assignment administration permissions are active but remain non-a
   });
 });
 
+test("academic operations use exact operation permissions and independent write gates", () => {
+  const expected = {
+    "academic-years.load": ["academic-years.years.view"],
+    "academic-years.create": ["academic-years.years.create"],
+    "academic-years.manage-lifecycle": ["academic-years.years.manage-lifecycle"],
+    "academic-years.archive": ["academic-years.years.archive", "academic-years.years.restore"],
+    "subjects.load": ["subjects.subjects.view"],
+    "subjects.create": ["subjects.subjects.create"],
+    "subjects.update": ["subjects.subjects.update"],
+    "subjects.archive-or-restore": ["subjects.subjects.archive", "subjects.subjects.restore"],
+    "class-groups.load": [
+      "class-groups.groups.view",
+      "people.people.view",
+      "students.students.view",
+      "teachers.teachers.view",
+    ],
+    "class-groups.create": ["class-groups.groups.create"],
+    "class-groups.update": ["class-groups.groups.update"],
+    "class-groups.lifecycle": [
+      "class-groups.groups.manage-lifecycle",
+      "class-groups.groups.archive",
+      "class-groups.groups.restore",
+    ],
+    "class-groups.memberships.assign": ["class-groups.memberships.assign"],
+    "class-groups.relationships.manage": [
+      "class-groups.memberships.transfer",
+      "class-groups.homerooms.assign",
+    ],
+  } as const;
+
+  for (const [id, permissions] of Object.entries(expected)) {
+    const operation = tenantOperationMap.find((candidate) => candidate.id === id);
+    assert.ok(operation, id);
+    assert.deepEqual(operation.requiredPermissions, permissions, id);
+    assert.ok(operation.entryPoints.length > 0, id);
+    assert.equal(operation.legacyAuthority.includes("broad-master-data"), true, id);
+    assert.equal(operation.requiredPermissions.some((key) => new Set<string>(["master-data.read", "master-data.write"]).has(key)), false, id);
+    if (id.endsWith(".load")) {
+      assert.equal(operation.operationalGate, "read", id);
+    } else {
+      assert.equal(operation.operationalGate, "write", id);
+    }
+  }
+});
+
 test("custom roles reject privileged keys and incomplete dependency selections", () => {
   assert.deepEqual(validateCustomRolePermissions(["tenant.onboarding.complete"]), {
     ok: false,

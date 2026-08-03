@@ -145,13 +145,13 @@ export function StudentMembershipDialog({
             </Table>
           </div>
           <p className="text-sm text-muted-foreground">
-            {selectedIds.length} siswa dipilih
+            {state.status === "preview" ? state.message : `${selectedIds.length} siswa dipilih`}
           </p>
           <EffectiveDateField />
 
           <DialogFooter>
-            <Button type="submit" disabled={selectedIds.length === 0 || pending}>
-                          {pending ? "Menambahkan…" : `Tambahkan ${selectedIds.length || ""} siswa`}
+            <Button type="submit" disabled={(selectedIds.length === 0 && state.status !== "preview") || pending}>
+              {pending ? "Memproses…" : state.status === "preview" ? "Konfirmasi dan simpan" : `Tinjau ${selectedIds.length || ""} siswa`}
             </Button>
           </DialogFooter>
         </form>

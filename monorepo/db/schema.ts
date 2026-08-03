@@ -550,6 +550,33 @@ export const user = mysqlTable("user", {
     .notNull(),
 }, (table) => [unique("user_tenant_id_id_unique").on(table.tenantId, table.id)]);
 
+export const academicOperationPreview = mysqlTable(
+  "academic_operation_preview",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    actorUserId: varchar("actor_user_id", { length: 36 }).notNull(),
+    operationId: varchar("operation_id", { length: 128 }).notNull(),
+    tokenDigest: varchar("token_digest", { length: 64 }).notNull(),
+    intentDigest: varchar("intent_digest", { length: 64 }).notNull(),
+    normalizedIntent: json("normalized_intent").notNull(),
+    state: mysqlEnum("state", ["pending", "committed", "invalidated", "expired", "cancelled"]).default("pending").notNull(),
+    expiresAt: timestamp("expires_at", { fsp: 3 }).notNull(),
+    idempotencyKey: varchar("idempotency_key", { length: 128 }),
+    outcome: json("outcome"),
+    version: int("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+    committedAt: timestamp("committed_at", { fsp: 3 }),
+    invalidatedAt: timestamp("invalidated_at", { fsp: 3 }),
+  },
+  (table) => [
+    unique("academic_preview_token_digest_unique").on(table.tokenDigest),
+    unique("academic_preview_actor_idempotency_unique").on(table.tenantId, table.actorUserId, table.idempotencyKey),
+    foreignKey({ columns: [table.tenantId, table.actorUserId], foreignColumns: [user.tenantId, user.id], name: "academic_preview_tenant_actor_fkey" }),
+    index("academic_preview_tenant_state_expiry_idx").on(table.tenantId, table.state, table.expiresAt),
+  ],
+);
+
 export const providerAdmin = mysqlTable("provider_admin", {
   userId: varchar("user_id", { length: 36 })
     .primaryKey()
