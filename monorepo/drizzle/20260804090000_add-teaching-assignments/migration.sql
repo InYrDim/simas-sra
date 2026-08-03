@@ -1,4 +1,5 @@
 ALTER TABLE `class_group` ADD UNIQUE KEY `class_group_tenant_id_year_id_unique` (`tenant_id`,`id`,`academic_year_id`);
+--> statement-breakpoint
 
 CREATE TABLE `teaching_assignment` (
   `id` varchar(36) NOT NULL,
@@ -25,12 +26,14 @@ CREATE TABLE `teaching_assignment` (
   CONSTRAINT `teaching_assignment_actor_fkey` FOREIGN KEY (`tenant_id`,`created_by_user_id`) REFERENCES `user` (`tenant_id`,`id`),
   CONSTRAINT `teaching_assignment_version_check` CHECK (`version` > 0),
   CONSTRAINT `teaching_assignment_range_check` CHECK (`ends_on` IS NULL OR `ends_on` > `starts_on`)
-);
+ );
+--> statement-breakpoint
 
 CREATE TABLE `teaching_assignment_event` (
   `id` varchar(36) NOT NULL,
   `tenant_id` varchar(36) NOT NULL,
   `teaching_assignment_id` varchar(36) NOT NULL,
+  `replacement_assignment_id` varchar(36) DEFAULT NULL,
   `actor_user_id` varchar(36) NOT NULL,
   `operation` enum('created','planned-updated','activated','ended','cancelled','replaced') NOT NULL,
   `from_version` int NOT NULL,
@@ -41,15 +44,28 @@ CREATE TABLE `teaching_assignment_event` (
   PRIMARY KEY (`id`),
   KEY `teaching_assignment_event_scope_idx` (`tenant_id`,`teaching_assignment_id`,`occurred_at`),
   CONSTRAINT `teaching_assignment_event_assignment_fkey` FOREIGN KEY (`tenant_id`,`teaching_assignment_id`) REFERENCES `teaching_assignment` (`tenant_id`,`id`),
+  CONSTRAINT `teaching_assignment_event_replacement_fkey` FOREIGN KEY (`tenant_id`,`replacement_assignment_id`) REFERENCES `teaching_assignment` (`tenant_id`,`id`),
   CONSTRAINT `teaching_assignment_event_actor_fkey` FOREIGN KEY (`tenant_id`,`actor_user_id`) REFERENCES `user` (`tenant_id`,`id`),
   CONSTRAINT `teaching_assignment_event_version_check` CHECK (`from_version` >= 0 AND `to_version` = `from_version` + 1)
-);
+ );
+--> statement-breakpoint
 
 CREATE TRIGGER `teaching_assignment_no_delete` BEFORE DELETE ON `teaching_assignment`
 FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Teaching assignments are append-only';
+--> statement-breakpoint
 
 CREATE TRIGGER `teaching_assignment_event_no_update` BEFORE UPDATE ON `teaching_assignment_event`
 FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Teaching assignment events are immutable';
+--> statement-breakpoint
 
 CREATE TRIGGER `teaching_assignment_event_no_delete` BEFORE DELETE ON `teaching_assignment_event`
 FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Teaching assignment events are append-only';
+--> statement-breakpoint
+
+CREATE TRIGGER `teaching_assignment_immutable_history` BEFORE UPDATE ON `teaching_assignment`
+FOR EACH ROW
+BEGIN
+  IF OLD.created_by_user_id <> NEW.created_by_user_id OR OLD.status <> 'planned' AND (OLD.teacher_profile_id <> NEW.teacher_profile_id OR OLD.subject_id <> NEW.subject_id OR OLD.class_group_id <> NEW.class_group_id OR OLD.academic_year_id <> NEW.academic_year_id OR OLD.starts_on <> NEW.starts_on) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Effective teaching assignment history is immutable';
+  END IF;
+END;
