@@ -36,9 +36,11 @@ export type TeachingAssignmentAudit = Readonly<{
   effectiveOn: string;
   reason: string;
   occurredAt: Date;
+  replacementAssignmentId?: string;
 }>;
 
 export interface TeachingAssignmentStore {
+  actor(tenantId: string, userId: string): Promise<boolean>;
   list(tenantId: string): Promise<readonly TeachingAssignment[]>;
   endpoints(tenantId: string, input: Pick<TeachingAssignment, "teacherProfileId" | "subjectId" | "classGroupId" | "academicYearId">): Promise<TeachingAssignmentEndpoint>;
   transaction<T>(tenantId: string, work: (tx: TeachingAssignmentTransaction) => Promise<T>): Promise<T>;
@@ -50,6 +52,7 @@ export interface TeachingAssignmentTransaction {
   insert(value: TeachingAssignment): Promise<void>;
   update(value: TeachingAssignment, expectedVersion: number): Promise<boolean>;
   audit(value: TeachingAssignmentAudit): Promise<void>;
+  lockScope(tuple: Pick<TeachingAssignment, "teacherProfileId" | "subjectId" | "classGroupId" | "academicYearId">): Promise<void>;
 }
 
 type Failure = "invalid-input" | "not-found" | "invalid-endpoint" | "invalid-lifecycle" | "overlap" | "conflict" | "read-only";
@@ -93,6 +96,7 @@ export function createTeachingAssignmentService(dependencies: { store: TeachingA
       const status = input.status ?? "planned", cleanReason = reason(input.reason), timestamp = now();
       if (!cleanReason || !date(input.startsOn) || input.endsOn !== null && !date(input.endsOn)) return failure("invalid-input");
       if (status === "active") return failure("invalid-lifecycle");
+      if (!await dependencies.store.actor(input.tenantId, input.createdByUserId)) return failure("invalid-input");
       return dependencies.store.transaction(input.tenantId, async (tx) => {
         const valid = await validate(tx, { ...input, status }); if (!valid.ok) return valid;
         const value: TeachingAssignment = { ...input, id: id(), status, reason: cleanReason, version: 1, createdAt: timestamp, updatedAt: timestamp };
@@ -109,10 +113,39 @@ export function createTeachingAssignmentService(dependencies: { store: TeachingA
     async cancel(tenantId: string, assignmentId: string, actorUserId: string, expectedVersion: number, why: string) {
       return lifecycle(tenantId, assignmentId, actorUserId, expectedVersion, now().toISOString().slice(0, 10), why, "cancel");
     },
+    async updatePlanned(tenantId: string, assignmentId: string, actorUserId: string, expectedVersion: number, patch: Pick<TeachingAssignment, "teacherProfileId" | "subjectId" | "classGroupId" | "academicYearId" | "startsOn" | "endsOn">, why: string) {
+      const cleanReason = reason(why); if (!cleanReason || expectedVersion < 1) return failure("invalid-input");
+      if (!await dependencies.store.actor(tenantId, actorUserId)) return failure("invalid-input");
+      return dependencies.store.transaction(tenantId, async (tx) => {
+        const current = (await tx.list()).find((row) => row.id === assignmentId && row.tenantId === tenantId); if (!current) return failure("not-found"); if (current.version !== expectedVersion) return failure("conflict"); if (current.status !== "planned") return failure("invalid-lifecycle");
+        await tx.lockScope(patch);
+        const candidate = { ...current, teacherProfileId: patch.teacherProfileId, subjectId: patch.subjectId, classGroupId: patch.classGroupId, academicYearId: patch.academicYearId, startsOn: patch.startsOn, endsOn: patch.endsOn, updatedAt: now(), version: current.version + 1 };
+        const valid = await validate(tx, candidate, current.id); if (!valid.ok) return valid;
+        if (!await tx.update(candidate, expectedVersion)) return failure("conflict");
+        await tx.audit({ id: id(), tenantId, teachingAssignmentId: assignmentId, actorUserId, operation: "planned-updated", fromVersion: expectedVersion, toVersion: candidate.version, effectiveOn: candidate.startsOn, reason: cleanReason, occurredAt: candidate.updatedAt });
+        return { ok: true as const, record: candidate };
+      });
+    },
+    async replace(tenantId: string, assignmentId: string, actorUserId: string, expectedVersion: number, replacement: Omit<TeachingAssignment, "id" | "tenantId" | "version" | "createdAt" | "updatedAt" | "status" | "endsOn" | "reason" | "createdByUserId"> & { startsOn: string }, why: string) {
+      const cleanReason = reason(why); if (!cleanReason || expectedVersion < 1) return failure("invalid-input");
+      if (!await dependencies.store.actor(tenantId, actorUserId)) return failure("invalid-input");
+      return dependencies.store.transaction(tenantId, async (tx) => {
+        const current = (await tx.list()).find((row) => row.id === assignmentId && row.tenantId === tenantId); if (!current) return failure("not-found"); if (current.version !== expectedVersion || current.status !== "active") return failure(current.version !== expectedVersion ? "conflict" : "invalid-lifecycle");
+        await tx.lockScope(replacement);
+        if (replacement.startsOn < current.startsOn) return failure("invalid-input");
+        const closed = { ...current, status: "ended" as const, endsOn: replacement.startsOn, version: current.version + 1, updatedAt: now() };
+        const next = { ...replacement, tenantId, createdByUserId: actorUserId, reason: cleanReason, id: id(), status: "active" as const, endsOn: null, version: 1, createdAt: closed.updatedAt, updatedAt: closed.updatedAt };
+        const currentValid = await validate(tx, closed, current.id); const nextValid = await validate(tx, next, current.id); if (!currentValid.ok) return currentValid; if (!nextValid.ok) return nextValid;
+        if (!await tx.update(closed, expectedVersion)) return failure("conflict"); await tx.insert(next);
+        await tx.audit({ id: id(), tenantId, teachingAssignmentId: assignmentId, actorUserId, operation: "replaced", fromVersion: expectedVersion, toVersion: closed.version, effectiveOn: replacement.startsOn, reason: cleanReason, occurredAt: closed.updatedAt, replacementAssignmentId: next.id });
+        return { ok: true as const, previous: closed, record: next };
+      });
+    },
   };
 
   async function lifecycle(tenantId: string, assignmentId: string, actorUserId: string, expectedVersion: number, effectiveOn: string, why: string, command: "activate" | "end" | "cancel") {
     const cleanReason = reason(why); if (!cleanReason || !date(effectiveOn) || expectedVersion < 1) return failure("invalid-input");
+    if (!await dependencies.store.actor(tenantId, actorUserId)) return failure("invalid-input");
     return dependencies.store.transaction(tenantId, async (tx) => {
       const current = (await tx.list()).find((row) => row.id === assignmentId && row.tenantId === tenantId); if (!current) return failure("not-found"); if (current.version !== expectedVersion) return failure("conflict");
       if (command === "activate" && current.status !== "planned" || command === "end" && current.status !== "active" || command === "cancel" && current.status !== "planned") return failure("invalid-lifecycle");

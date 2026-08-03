@@ -13,6 +13,7 @@ function fixture() {
     academicYear: { id: "year-1", tenantId: "tenant-1", startDate: "2026-01-01", endDate: "2026-12-31", lifecycle: "active", archived: false },
   };
   const store: TeachingAssignmentStore = {
+    async actor(_tenantId, userId) { return userId === "admin-1"; },
     async list(tenantId) { return rows.filter((row) => row.tenantId === tenantId); },
     async endpoints() { return endpoints; },
     async transaction(tenantId, work) {
@@ -22,6 +23,7 @@ function fixture() {
         async insert(value) { rows.push(value); },
         async update(value, expectedVersion) { const index = rows.findIndex((row) => row.id === value.id && row.tenantId === tenantId && row.version === expectedVersion); if (index < 0) return false; rows[index] = value; return true; },
         async audit(value) { audits.push(value); },
+        async lockScope() {},
       });
     },
   };
@@ -65,4 +67,15 @@ test("ending closes the half-open interval and is terminal", async () => {
   const ended = await f.service.end("tenant-1", created.record.id, "admin-1", 2, "2026-06-01", "Selesai"); assert.equal(ended.ok, true, JSON.stringify(ended)); if (!ended.ok) return;
   assert.equal(ended.record.endsOn, "2026-06-01"); assert.equal(isTeachingAssignmentEffective(ended.record, "2026-05-31"), false); assert.equal(isTeachingAssignmentEffective(ended.record, "2026-06-01"), false);
   assert.deepEqual(await f.service.activate("tenant-1", created.record.id, "admin-1", 3, "2026-06-01", "Buka lagi"), { ok: false, code: "invalid-lifecycle" });
+});
+
+test("planned assignments can be edited with a version and replacement is atomic", async () => {
+  const f = fixture(); const created = await f.service.create(input); assert.equal(created.ok, true); if (!created.ok) return;
+  const edited = await f.service.updatePlanned("tenant-1", created.record.id, "admin-1", 1, { ...input, startsOn: "2026-03-01" }, "Koreksi tanggal");
+  assert.equal(edited.ok, true); if (!edited.ok) return; assert.equal(edited.record.startsOn, "2026-03-01"); assert.equal(edited.record.version, 2);
+  const activated = await f.service.activate("tenant-1", created.record.id, "admin-1", 2, "2026-03-01", "Aktif"); assert.equal(activated.ok, true); if (!activated.ok) return;
+  const replacement = await f.service.replace("tenant-1", created.record.id, "admin-1", 3, { teacherProfileId: input.teacherProfileId, subjectId: input.subjectId, classGroupId: input.classGroupId, academicYearId: input.academicYearId, startsOn: "2026-06-01" }, "Penggantian");
+  assert.equal(replacement.ok, true, JSON.stringify(replacement)); if (!replacement.ok) return;
+  assert.equal(replacement.previous.endsOn, "2026-06-01"); assert.equal(replacement.record.status, "active"); assert.equal(replacement.record.version, 1);
+  assert.equal(f.audits.some((event) => (event as { operation?: string }).operation === "replaced"), true);
 });
