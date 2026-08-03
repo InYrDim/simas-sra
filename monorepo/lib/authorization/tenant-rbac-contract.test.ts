@@ -26,7 +26,7 @@ const legacyMinimum = [
 
 test("the approved registry and operation map form a valid executable contract", () => {
   assert.equal(PERMISSION_REGISTRY_VERSION, "tenant-permissions@2");
-  assert.equal(OPERATION_MAP_VERSION, "tenant-operations@2");
+  assert.equal(OPERATION_MAP_VERSION, "tenant-operations@3");
   assert.equal(permissionRegistry.length, 152);
   assert.match(permissionRegistryDigest, /^[a-f0-9]{64}$/);
   assert.match(tenantOperationMapDigest, /^[a-f0-9]{64}$/);
@@ -63,6 +63,36 @@ test("role and assignment administration permissions are active but remain non-a
     ok: false,
     issues: [{ code: "unknown-permission", key: "unknown.resource.view" }],
   });
+});
+
+test("dashboard, directory, settings, and school profile use exact operations and projections", () => {
+  const dashboard = tenantOperationMap.find((operation) => operation.id === "tenant.dashboard.load");
+  assert.deepEqual(dashboard?.requiredPermissions, ["tenant.dashboard.view"]);
+
+  const directory = tenantOperationMap.find((operation) => operation.id === "tenant.users.load");
+  assert.deepEqual(directory?.requiredPermissions, [
+    "tenant.users.view",
+    "tenant.users.view-contact",
+    "tenant.users.view-sensitive",
+  ]);
+  assert.equal(directory?.permissionMode, "conditional");
+  assert.deepEqual(directory?.supplementalPermissions, [
+    "tenant.users.view-contact",
+    "tenant.users.view-sensitive",
+  ]);
+  assert.deepEqual(directory?.legacyAuthority, ["tenantRole"]);
+
+  const accountLifecycle = tenantOperationMap.find((operation) => operation.id === "tenant.accounts.view");
+  assert.equal(accountLifecycle?.entryPoints.some((entry) => entry.includes("/users/page.tsx")), false);
+  assert.deepEqual(accountLifecycle?.requiredPermissions, ["tenant.accounts.view"]);
+
+  const settings = tenantOperationMap.find((operation) => operation.id === "tenant-settings.landing-page.load");
+  assert.deepEqual(settings?.requiredPermissions, ["tenant-settings.landing-page.view"]);
+  assert.equal(settings?.entitlement, "none");
+
+  const profile = tenantOperationMap.find((operation) => operation.id === "school-profile.load");
+  assert.equal(profile?.permissionMode, "conditional");
+  assert.deepEqual(profile?.supplementalPermissions, ["school-profile.profile.view-sensitive"]);
 });
 
 test("academic operations use exact operation permissions and independent write gates", () => {

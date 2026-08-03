@@ -2,16 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { tenantMenuItems } from "@/components/tenant-nav-menu/config";
-import { tenantNavigationHref } from "@/components/tenant-nav-menu";
+import { isNavigationItemAuthorized, tenantNavigationHref } from "@/components/tenant-nav-menu";
 
 const masterData = tenantMenuItems.find((item) => item.title === "Master Data");
 
-test("Master Data and every child menu are visible only to School Admin", () => {
+test("Master Data and every child menu use effective permissions", () => {
   assert.ok(masterData);
-  assert.deepEqual(masterData.roles, ["school-admin"]);
   assert.ok(masterData.items?.length);
   for (const item of masterData.items ?? []) {
-    assert.deepEqual(item.roles, ["school-admin"], item.title);
+    assert.ok(item.requiredPermissions?.length, item.title);
   }
 });
 
@@ -19,39 +18,29 @@ test("Administrasi separates Overview, Import, and Master Data", () => {
   const administration = tenantMenuItems.filter((item) => item.group === "Administrasi");
 
   assert.deepEqual(
-    administration.map(({ title, url, roles }) => ({ title, url, roles })),
+    administration.map(({ title, url }) => ({ title, url })),
     [
-      { title: "Overview", url: "/master", roles: ["school-admin"] },
-      { title: "Import", url: "/master/import", roles: ["school-admin"] },
-      { title: "Master Data", url: undefined, roles: ["school-admin"] },
+      { title: "Overview", url: "/master" },
+      { title: "Import", url: "/master/import" },
+      { title: "Master Data", url: undefined },
     ],
   );
   assert.ok(administration.every((item) => item.feature === "masterDataRead"));
 });
 
-test("Sistem & Keamanan exposes Backup & Restore only to School Admin", () => {
+test("placeholder navigation does not invent a permission", () => {
   const management = tenantMenuItems.find((item) => item.title === "Manajemen");
   const backupRestore = management?.items?.find((item) => item.title === "Backup & Restore");
 
   assert.deepEqual(backupRestore, {
     title: "Backup & Restore",
     url: "/settings/backup-restore",
-    roles: ["school-admin"],
   });
 });
 
-test("Sistem & Keamanan exposes WhatsApp Bot integration only to School Admin", () => {
+test("placeholder integration is not presented as an authorized capability", () => {
   const integration = tenantMenuItems.find((item) => item.title === "Integrasi");
-
-  assert.equal(integration?.group, "Sistem & Keamanan");
-  assert.deepEqual(integration?.roles, ["school-admin"]);
-  assert.deepEqual(integration?.items, [
-    {
-      title: "WhatsApp Bot",
-      url: "/integrasi/whatsapp-bot",
-      roles: ["school-admin"],
-    },
-  ]);
+  assert.equal(integration, undefined);
 });
 
 test("Tenant navigation prefixes every route with the current domain", () => {
@@ -62,4 +51,12 @@ test("Tenant navigation prefixes every route with the current domain", () => {
   for (const item of tenantMenuItems.flatMap((entry) => entry.items ?? [entry])) {
     assert.match(tenantNavigationHref("sekolah-a", item.url), /^\/sekolah-a\//, item.title);
   }
+});
+
+test("navigation consumes effective permission state and zero-role users see no business items", () => {
+  assert.equal(isNavigationItemAuthorized({ requiredPermissions: ["tenant.dashboard.view"] }, new Set()), false);
+  assert.equal(isNavigationItemAuthorized({ requiredPermissions: ["tenant.dashboard.view"] }, new Set(["tenant.dashboard.view"])), true);
+  assert.equal(isNavigationItemAuthorized({}, new Set()), false);
+  assert.equal(isNavigationItemAuthorized({}, new Set(["tenant.users.view"])), true);
+  assert.equal(isNavigationItemAuthorized({ requiredPermissions: ["a", "b"], permissionMode: "any" }, new Set(["b"])), true);
 });

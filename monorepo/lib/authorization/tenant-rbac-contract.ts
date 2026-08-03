@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 export const PERMISSION_REGISTRY_VERSION = "tenant-permissions@2";
-export const OPERATION_MAP_VERSION = "tenant-operations@2";
+export const OPERATION_MAP_VERSION = "tenant-operations@3";
 
 export const LEGACY_NON_ADMIN_ROLES = ["pimpinan", "staff", "guru", "siswa", "guest"] as const;
 
@@ -321,7 +321,8 @@ const seeds: OperationSeed[] = [
   { id: "tenant.dashboard.load", entryPoints: [p("dashboard")], permissions: ["tenant.dashboard.view"], legacy: ["tenantRole"] },
   { id: "tenant.onboarding.complete", entryPoints: [a("dashboard/actions.ts", "completeOnboardingAction")], permissions: ["tenant.onboarding.complete"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
 
-  { id: "tenant.accounts.view", entryPoints: [p("users"), a("users/actions.ts", "getLifecycleWorkspaceAction")], permissions: ["tenant.accounts.view", "tenant.users.view", "tenant.users.view-contact", "tenant.users.view-sensitive"], supplemental: ["tenant.users.view-contact", "tenant.users.view-sensitive"], context: "school-admin-only", legacy: ["legacy-school-admin"] },
+  { id: "tenant.users.load", entryPoints: [p("users")], permissions: ["tenant.users.view", "tenant.users.view-contact", "tenant.users.view-sensitive"], mode: "conditional", supplemental: ["tenant.users.view-contact", "tenant.users.view-sensitive"], legacy: ["tenantRole"] },
+  { id: "tenant.accounts.view", entryPoints: [a("users/actions.ts", "getLifecycleWorkspaceAction")], permissions: ["tenant.accounts.view"], context: "school-admin-only", legacy: ["legacy-school-admin"] },
   { id: "tenant.accounts.create", entryPoints: [a("users/actions.ts", "createTenantAccountAction")], permissions: ["tenant.accounts.create"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
   { id: "tenant.accounts.issue-activation", entryPoints: [a("users/actions.ts", "issueTenantActivationAction")], permissions: ["tenant.accounts.issue-activation"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
   { id: "tenant.accounts.activate", entryPoints: [a("users/actions.ts", "activateTenantAccountAction")], permissions: ["tenant.accounts.activate"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
@@ -337,10 +338,10 @@ const seeds: OperationSeed[] = [
   { id: "tenant.assignments.replace", entryPoints: [a("settings/assignments/actions.ts", "replaceRoleSetAction")], permissions: ["tenant.assignments.replace"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
   { id: "tenant.assignments.bulk", entryPoints: [a("settings/assignments/actions.ts", "previewBulkRoleChangeAction"), a("settings/assignments/actions.ts", "commitBulkRoleChangeAction")], permissions: ["tenant.assignments.bulk"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
   { id: "tenant.effective-access.view", entryPoints: [a("settings/assignments/actions.ts", "getEffectiveAccessAction")], permissions: ["tenant.effective-access.view"], context: "school-admin-only", legacy: ["legacy-school-admin"] },
-  { id: "tenant-settings.landing-page.load", entryPoints: [p("settings")], permissions: ["tenant-settings.landing-page.view"], entitlement: "MD", legacy: ["broad-master-data", "capability-aggregate"] },
-  { id: "tenant-settings.landing-page.update", entryPoints: [a("settings/actions.ts", "updateLandingPageAction")], permissions: ["tenant-settings.landing-page.update"], gate: "write", entitlement: "MD", legacy: ["broad-master-data"] },
+  { id: "tenant-settings.landing-page.load", entryPoints: [p("settings")], permissions: ["tenant-settings.landing-page.view"], legacy: ["broad-master-data", "capability-aggregate"] },
+  { id: "tenant-settings.landing-page.update", entryPoints: [a("settings/actions.ts", "updateLandingPageAction")], permissions: ["tenant-settings.landing-page.update"], gate: "write", legacy: ["broad-master-data"] },
 
-  { id: "school-profile.load", entryPoints: [profilePage], permissions: ["school-profile.profile.view", "school-profile.profile.view-sensitive"], supplemental: ["school-profile.profile.view-sensitive"], entitlement: "MD", legacy: ["broad-master-data", "capability-aggregate"] },
+  { id: "school-profile.load", entryPoints: [profilePage], permissions: ["school-profile.profile.view", "school-profile.profile.view-sensitive"], mode: "conditional", supplemental: ["school-profile.profile.view-sensitive"], entitlement: "MD", legacy: ["broad-master-data", "capability-aggregate"] },
   { id: "school-profile.update", entryPoints: [a("master/profil/actions.ts", "updateSchoolProfileAction")], permissions: ["school-profile.profile.update"], gate: "write", entitlement: "MD", legacy: ["broad-master-data"] },
   { id: "school-profile.headmaster.assign", entryPoints: [a("master/profil/actions.ts", "assignHeadmasterAction")], permissions: ["school-profile.headmaster.assign"], gate: "write", entitlement: "MD", risk: "critical", legacy: ["broad-master-data"] },
   { id: "school-profile.logo.upload", entryPoints: [a("master/profil/history-actions.ts", "uploadSchoolLogoAction")], permissions: ["school-profile.logo.upload"], gate: "write", entitlement: "MD", risk: "sensitive", legacy: ["broad-master-data"] },

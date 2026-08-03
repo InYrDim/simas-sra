@@ -24,6 +24,9 @@ When creating a UI component that is waiting for or creating a process in the ba
 
 The loader should provide clear visual feedback to the user that the system is processing their request.
 
+### Clarifying Reconfirmations
+When the user reconfirms an ambiguous point, briefly define the relevant domain terms and explain the concrete alternatives before asking another question. Keep the explanation to the minimum needed to prevent another misunderstanding; do not add speculative process or policy.
+
 ## Agent skills
 
 ### Custom skills

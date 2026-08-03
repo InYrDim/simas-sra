@@ -6,7 +6,8 @@ import {
   MAX_TENANT_LANDING_PAGE_HTML_LENGTH,
 } from "@/lib/tenancy/tenant-landing-page";
 import { updateTenantLandingPage } from "@/lib/tenancy/tenant-landing-page-data";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
+import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
 
 export type LandingPageActionState =
   | { status: "idle" }
@@ -18,7 +19,9 @@ export async function updateLandingPageAction(
   _previousState: LandingPageActionState,
   formData: FormData,
 ): Promise<LandingPageActionState> {
-  const principal = await enforceMasterDataAccess(domain, "write");
+  const evaluator = await createHttpTenantAuthorizationEvaluator();
+  const decision = await evaluator.evaluate({ surface: "api", domain, operationId: "tenant-settings.landing-page.update" });
+  const principal = enforceAuthorizedTenantOperation(decision, { domain, operationId: "tenant-settings.landing-page.update" });
   const html = String(formData.get("html") ?? "");
   if (html.length > MAX_TENANT_LANDING_PAGE_HTML_LENGTH) {
     return {

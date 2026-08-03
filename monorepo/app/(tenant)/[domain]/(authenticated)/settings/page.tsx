@@ -4,18 +4,20 @@ import { LandingPageForm } from "@/app/(tenant)/[domain]/(authenticated)/setting
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { getTenantLandingPageSettings } from "@/lib/tenancy/tenant-landing-page-data";
-import { findPublicPpdbSession } from "@/lib/admissions/ppdb-session-data";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
+import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
 
 export default async function TenantSettingsPage({ params }: { params: Promise<{ domain: string }> }) {
   const { domain } = await params;
-  const principal = await enforceMasterDataAccess(domain, "read");
-  const [settings, ppdbSession] = await Promise.all([
+  const evaluator = await createHttpTenantAuthorizationEvaluator();
+  const view = await evaluator.evaluate({ surface: "page", domain, operationId: "tenant-settings.landing-page.load" });
+  const principal = enforceAuthorizedTenantOperation(view, { domain, operationId: "tenant-settings.landing-page.load" });
+  const [settings, update] = await Promise.all([
     getTenantLandingPageSettings(principal.tenantId),
-    findPublicPpdbSession(principal.tenantId),
+    evaluator.evaluate({ surface: "page", domain, operationId: "tenant-settings.landing-page.update" }),
   ]);
   const loginUrl = "/login";
-  const ppdbUrl = ppdbSession ? `/ppdb/${ppdbSession.id}/daftar` : "/";
+  const ppdbUrl = "/ppdb";
 
   return (
     <main className="mx-auto w-full max-w-5xl space-y-6">
@@ -54,7 +56,7 @@ export default async function TenantSettingsPage({ params }: { params: Promise<{
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {principal.capabilities.write ? (
+          {update.kind === "authorized" ? (
             <LandingPageForm domain={domain} initialHtml={settings?.html ?? ""} />
           ) : (
             <p className="text-sm text-muted-foreground">Tenant sedang hanya-baca; landing page tidak dapat diubah.</p>

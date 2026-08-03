@@ -3,15 +3,13 @@ import { DatabaseBackup, RotateCcw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 export default async function BackupRestorePage({
   params,
 }: {
   params: Promise<{ domain: string }>;
 }) {
-  const { domain } = await params;
-  await enforceMasterDataAccess(domain, "read");
+  await params;
 
   return (
     <main className="mx-auto w-full max-w-5xl space-y-6">

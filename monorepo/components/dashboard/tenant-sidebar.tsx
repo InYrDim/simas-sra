@@ -15,15 +15,14 @@ import { tenantMenuItems } from "@/components/tenant-nav-menu/config"
 import { authClient } from "@/lib/platform/auth-client"
 
 import type { TenantFeatureSelection } from "@/lib/features/tenant-feature-policy"
-import { type TenantRole } from "@/types/TenantRole"
 
 export function TenantSidebar({
-  role,
+  permissions,
   domain,
   tenantName,
   features,
 }: {
-  role: TenantRole;
+  permissions: readonly string[];
   domain: string;
   tenantName?: string;
   features: TenantFeatureSelection;
@@ -63,7 +62,7 @@ export function TenantSidebar({
       </SidebarHeader>
 
       <SidebarContent>
-        <TenantNavMenu items={tenantMenuItems} role={role} domain={domain} features={features} />
+        <TenantNavMenu items={tenantMenuItems} permissions={permissions} domain={domain} features={features} />
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border p-4">

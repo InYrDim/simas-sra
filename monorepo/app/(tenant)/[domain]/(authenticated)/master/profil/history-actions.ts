@@ -6,7 +6,7 @@ import { createAddSchoolAccreditationCommand, createCorrectSchoolAccreditationCo
 import { createUploadSchoolLogoCommand } from "@/lib/master-data/school-profile-assets";
 import { schoolAccreditationStore, schoolAssetStore } from "@/lib/master-data/school-profile-history-data";
 import { createProtectedFileStorage, schoolAssetRetentionDays } from "@/lib/platform/protected-file-storage";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { enforceTenantMasterDataOperation } from "@/lib/authorization/tenant-operation-route-access";
 
 export type ProfileHistoryActionState =
   | { status: "idle" }
@@ -25,7 +25,7 @@ function accreditationInput(formData: FormData) {
 }
 
 export async function uploadSchoolLogoAction(domain: string, _previous: ProfileHistoryActionState, formData: FormData): Promise<ProfileHistoryActionState> {
-  const principal = await enforceMasterDataAccess(domain, "write");
+  const principal = await enforceTenantMasterDataOperation(domain, "school-profile.logo.upload");
   const file = formData.get("logo");
   if (!(file instanceof File) || file.size === 0) return { status: "invalid", message: "Pilih file logo untuk diunggah." };
   const storageRoot = process.env.PROTECTED_STORAGE_ROOT;
@@ -43,7 +43,7 @@ export async function uploadSchoolLogoAction(domain: string, _previous: ProfileH
 }
 
 export async function addSchoolAccreditationAction(domain: string, _previous: ProfileHistoryActionState, formData: FormData): Promise<ProfileHistoryActionState> {
-  const principal = await enforceMasterDataAccess(domain, "write");
+  const principal = await enforceTenantMasterDataOperation(domain, "school-profile.accreditations.create");
   try {
     const result = await createAddSchoolAccreditationCommand({ store: schoolAccreditationStore })(principal, accreditationInput(formData));
     if (!result.ok) return result.code === "overlap" ? { status: "invalid", message: "Periode akreditasi tumpang tindih dengan riwayat aktif." } : { status: "invalid", message: "Periksa kembali data akreditasi.", errors: result.errors };
@@ -56,7 +56,7 @@ export async function addSchoolAccreditationAction(domain: string, _previous: Pr
 }
 
 export async function correctSchoolAccreditationAction(domain: string, recordId: string, _previous: ProfileHistoryActionState, formData: FormData): Promise<ProfileHistoryActionState> {
-  const principal = await enforceMasterDataAccess(domain, "write");
+  const principal = await enforceTenantMasterDataOperation(domain, "school-profile.accreditations.correct");
   try {
     const result = await createCorrectSchoolAccreditationCommand({ store: schoolAccreditationStore })(principal, recordId, { ...accreditationInput(formData), correctionReason: String(formData.get("correctionReason") ?? "") });
     if (!result.ok) {

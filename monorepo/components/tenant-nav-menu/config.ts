@@ -1,4 +1,4 @@
-import { Home, Database, Calendar, ClipboardCheck, FileCheck, LayoutDashboard, Library, Mail, Plug, Settings, Upload, UserPlus } from "lucide-react"
+import { Home, Database, Calendar, ClipboardCheck, FileCheck, LayoutDashboard, Library, Mail, Settings, Upload, UserPlus } from "lucide-react"
 import { type TenantNavItem } from "@/types/components/TenantNavItem"
 
 export const tenantMenuItems: TenantNavItem[] = [
@@ -6,63 +6,58 @@ export const tenantMenuItems: TenantNavItem[] = [
     title: "Dasbor",
     icon: Home,
     url: "/dashboard",
-    roles: ["*"]
+    requiredPermissions: ["tenant.dashboard.view"]
   },
   {
     title: "Absensi",
     icon: ClipboardCheck,
     url: "/absensi",
-    roles: ["*"]
   },
   {
     title: "E-Library",
     icon: Library,
     url: "/e-library",
-    roles: ["*"]
   },
   {
     title: "Persuratan",
     icon: Mail,
     url: "/persuratan",
-    roles: ["*"]
   },
   {
     title: "PPDB",
     icon: UserPlus,
-    roles: ["*"],
     group: "Pendaftaran",
     feature: "ppdbRead",
     items: [
-      { title: "Review Pendaftar", url: "/ppdb", roles: ["school-admin"] },
-      { title: "Sesi & Form", url: "/ppdb/settings", roles: ["school-admin"] },
-      { title: "Riwayat PPDB", url: "/ppdb/riwayat", roles: ["school-admin"] }
+      { title: "Review Pendaftar", url: "/ppdb", requiredPermissions: ["ppdb.submissions.view"] },
+      { title: "Sesi & Form", url: "/ppdb/settings", requiredPermissions: ["ppdb.sessions.view"] },
+      { title: "Riwayat PPDB", url: "/ppdb/riwayat", requiredPermissions: ["ppdb.sessions.view"] }
     ]
   },
   {
     title: "Ulangan",
     icon: FileCheck,
-    roles: ["*"],
     group: "Akademik",
     feature: "ulanganRead",
     items: [
-      { title: "Sesi Ulangan", url: "/ulangan", roles: ["*"] },
-      { title: "Riwayat", url: "/ulangan/riwayat", roles: ["*"] }
+      { title: "Sesi Ulangan", url: "/ulangan", requiredPermissions: ["quizzes.sessions.view"] },
+      { title: "Riwayat", url: "/ulangan/riwayat", requiredPermissions: ["quizzes.sessions.view"] }
     ]
   },
   {
     title: "Penjadwalan",
     icon: Calendar,
-    roles: ["*"],
     items: [
-      { title: "Jadwal Mengajar", url: "/jadwal/mengajar", roles: ["*"] },
-      { title: "Events", url: "/jadwal/events", roles: ["*"] }
+      { title: "Jadwal Mengajar", url: "/jadwal/mengajar" },
+      { title: "Events", url: "/jadwal/events" }
     ]
   },
   {
     title: "Overview",
     icon: LayoutDashboard,
     url: "/master",
-    roles: ["school-admin"],
+    requiredPermissions: ["school-profile.profile.view", "academic-years.years.view", "subjects.subjects.view", "class-groups.groups.view", "people.people.view", "students.students.view", "teachers.teachers.view", "staff.staff.view", "facilities.locations.view", "assets.assets.view", "student-organizations.organizations.view", "extracurriculars.extracurriculars.view"],
+    permissionMode: "any",
     group: "Administrasi",
     feature: "masterDataRead"
   },
@@ -70,48 +65,37 @@ export const tenantMenuItems: TenantNavItem[] = [
     title: "Import",
     icon: Upload,
     url: "/master/import",
-    roles: ["school-admin"],
+    requiredPermissions: ["people-imports.revisions.view"],
     group: "Administrasi",
     feature: "masterDataRead"
   },
   {
     title: "Master Data",
     icon: Database,
-    roles: ["school-admin"],
     group: "Administrasi",
     feature: "masterDataRead",
     items: [
-      { title: "Profil Sekolah", url: "/master/profil", roles: ["school-admin"] },
-      { title: "Tahun Ajaran", url: "/master/tahun-ajaran", roles: ["school-admin"] },
-      { title: "Siswa", url: "/master/siswa", roles: ["school-admin"] },
-      { title: "Guru", url: "/master/guru", roles: ["school-admin"] },
-      { title: "Staf", url: "/master/staf", roles: ["school-admin"] },
-      { title: "Mata Pelajaran", url: "/master/mapel", roles: ["school-admin"] },
-      { title: "Rombongan Belajar", url: "/master/rombel", roles: ["school-admin"] },
-      { title: "Sarana & Prasarana", url: "/master/sarpras", roles: ["school-admin"] },
-      { title: "Aset/Barang", url: "/master/sarpras/aset", roles: ["school-admin"] },
-      { title: "Organisasi", url: "/master/organisasi", roles: ["school-admin"] },
-      { title: "Ekstrakurikuler", url: "/master/organisasi/ekstrakurikuler", roles: ["school-admin"] }
+      { title: "Profil Sekolah", url: "/master/profil", requiredPermissions: ["school-profile.profile.view"] },
+      { title: "Tahun Ajaran", url: "/master/tahun-ajaran", requiredPermissions: ["academic-years.years.view"] },
+      { title: "Siswa", url: "/master/siswa", requiredPermissions: ["students.students.view"] },
+      { title: "Guru", url: "/master/guru", requiredPermissions: ["teachers.teachers.view"] },
+      { title: "Staf", url: "/master/staf", requiredPermissions: ["staff.staff.view"] },
+      { title: "Mata Pelajaran", url: "/master/mapel", requiredPermissions: ["subjects.subjects.view"] },
+      { title: "Rombongan Belajar", url: "/master/rombel", requiredPermissions: ["class-groups.groups.view"] },
+      { title: "Sarana & Prasarana", url: "/master/sarpras", requiredPermissions: ["facilities.locations.view"] },
+      { title: "Aset/Barang", url: "/master/sarpras/aset", requiredPermissions: ["assets.assets.view"] },
+      { title: "Organisasi", url: "/master/organisasi", requiredPermissions: ["student-organizations.organizations.view"] },
+      { title: "Ekstrakurikuler", url: "/master/organisasi/ekstrakurikuler", requiredPermissions: ["extracurriculars.extracurriculars.view"] }
     ]
   },
   {
     title: "Manajemen",
     icon: Settings,
-    roles: ["*"],
     group: "Sistem & Keamanan",
     items: [
-      { title: "Manajemen Pengguna", url: "/users", roles: ["*"] },
-      { title: "Pengaturan Sistem", url: "/settings", roles: ["school-admin"] },
-      { title: "Backup & Restore", url: "/settings/backup-restore", roles: ["school-admin"] }
-    ]
-  },
-  {
-    title: "Integrasi",
-    icon: Plug,
-    roles: ["school-admin"],
-    group: "Sistem & Keamanan",
-    items: [
-      { title: "WhatsApp Bot", url: "/integrasi/whatsapp-bot", roles: ["school-admin"] }
+      { title: "Manajemen Pengguna", url: "/users", requiredPermissions: ["tenant.users.view"] },
+      { title: "Pengaturan Sistem", url: "/settings", requiredPermissions: ["tenant-settings.landing-page.view"] },
+      { title: "Backup & Restore", url: "/settings/backup-restore" }
     ]
   },
 ]

@@ -1,14 +1,15 @@
 import { SessionInfo } from "@/components/dashboard/session-info";
 import { AdvancedAnalytics } from "@/components/dashboard/advanced-analytics";
 import { MasterDataWarningBanner } from "@/components/dashboard/master-data-warning-banner";
+import { NoTenantAccess } from "@/components/dashboard/no-tenant-access";
 import { db } from "@/db";
 import { tenant } from "@/db/schema";
-import { eq } from "drizzle-orm";
-
-import { notFound } from "next/navigation";
+import { and, eq } from "drizzle-orm";
 
 import { OnboardingForm } from "@/app/(tenant)/[domain]/(authenticated)/dashboard/onboarding-form";
 import { PocTrialAction } from "@/components/dashboard/poc-trial-action";
+import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
+import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
 
 
 export default async function DashboardPage({
@@ -17,22 +18,31 @@ export default async function DashboardPage({
   params: Promise<{ domain: string }>
 }) {
   const { domain } = await params;
-  console.log("DashboardPage domain raw:", domain, "typeof:", typeof domain, "length:", domain.length);
-  
+  const evaluator = await createHttpTenantAuthorizationEvaluator();
+  const layoutDecision = await evaluator.evaluate({ surface: "page", domain, operationId: "authenticated.layout" });
+  const layoutPrincipal = enforceAuthorizedTenantOperation(layoutDecision, { domain, operationId: "authenticated.layout" });
+  if (layoutPrincipal.permissions.size === 0) {
+    const [identity] = await db.select({ name: tenant.name }).from(tenant).where(and(eq(tenant.id, layoutPrincipal.tenantId), eq(tenant.domain, domain))).limit(1);
+    return <NoTenantAccess tenantName={identity?.name ?? domain} />;
+  }
+  const dashboardDecision = await evaluator.evaluate({ surface: "page", domain, operationId: "tenant.dashboard.load" });
+  const principal = enforceAuthorizedTenantOperation(dashboardDecision, { domain, operationId: "tenant.dashboard.load" });
+
   const tenantDataArray = await db
     .select()
     .from(tenant)
-    .where(eq(tenant.domain, domain))
+    .where(and(eq(tenant.id, principal.tenantId), eq(tenant.domain, domain)))
     .limit(1);
   const tenantData = tenantDataArray[0];
 
-  if (!tenantData) {
-    notFound();
-  }
+  if (!tenantData) throw new Error("Authorized Tenant disappeared during request");
 
   const currentYear = new Date().getFullYear();
   const defaultSchoolYear = `${currentYear}/${currentYear + 1}`;
   const needsAdminOnboarding = tenantData.onboardingCompletedAt === null;
+  const onboarding = needsAdminOnboarding
+    ? await evaluator.evaluate({ surface: "page", domain, operationId: "tenant.onboarding.complete" })
+    : null;
 
   return (
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -45,7 +55,7 @@ export default async function DashboardPage({
 
       <MasterDataWarningBanner tenantId={tenantData.id} domain={domain} />
 
-      {needsAdminOnboarding ? (
+      {needsAdminOnboarding && onboarding?.kind === "authorized" ? (
         <OnboardingForm domain={domain} defaultSchoolYear={defaultSchoolYear} />
       ) : null}
       

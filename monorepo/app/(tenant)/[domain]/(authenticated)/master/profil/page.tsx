@@ -10,7 +10,9 @@ import { createListSchoolAccreditationsQuery } from "@/lib/master-data/school-ac
 import { createGetSchoolProfileQuery } from "@/lib/master-data/school-profile";
 import { schoolProfileStore } from "@/lib/master-data/school-profile-data";
 import { schoolAccreditationStore } from "@/lib/master-data/school-profile-history-data";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
+import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
+import { projectSchoolAccreditations, projectSchoolProfile } from "@/lib/authorization/school-profile-projection";
 
 const labels: Record<string, string> = {
   displayName: "Nama tampilan", "address.street": "Alamat jalan", "address.village": "Desa/Kelurahan",
@@ -21,16 +23,33 @@ const labels: Record<string, string> = {
 
 export default async function ProfilSekolahPage({ params, searchParams }: { params: Promise<{ domain: string }>; searchParams: Promise<{ headmaster?: string }> }) {
   const [{ domain }, query] = await Promise.all([params, searchParams]);
-  const principal = await enforceMasterDataAccess(domain, "read");
+  const evaluator = await createHttpTenantAuthorizationEvaluator();
+  const baseRequest = { surface: "page" as const, domain, operationId: "school-profile.load" };
+  const base = await evaluator.evaluate({ ...baseRequest, requestedPermissions: ["school-profile.profile.view"] });
+  const authorizationPrincipal = enforceAuthorizedTenantOperation(base, baseRequest);
+  const principal = {
+    userId: authorizationPrincipal.userId,
+    tenantId: authorizationPrincipal.tenantId,
+    role: "school-admin" as const,
+    capabilities: { read: true, write: false, downloadTemplate: false },
+  };
   const headmasterService = createHeadmasterAssignmentService({ store: headmasterAssignmentStore });
-    const [result, accreditationResult, headmasterProfile, eligibleTeachers] = await Promise.all([
+    const [result, accreditationResult, headmasterProfile, eligibleTeachers, sensitive, update, assignHeadmaster, uploadLogo, createAccreditation, correctAccreditation] = await Promise.all([
       createGetSchoolProfileQuery({ store: schoolProfileStore })(principal),
       createListSchoolAccreditationsQuery({ store: schoolAccreditationStore })(principal),
       headmasterService.getProfile(principal),
       headmasterService.listEligibleTeachers(principal),
+      evaluator.evaluate({ ...baseRequest, requestedPermissions: ["school-profile.profile.view", "school-profile.profile.view-sensitive"] }),
+      evaluator.evaluate({ surface: "page", domain, operationId: "school-profile.update" }),
+      evaluator.evaluate({ surface: "page", domain, operationId: "school-profile.headmaster.assign" }),
+      evaluator.evaluate({ surface: "page", domain, operationId: "school-profile.logo.upload" }),
+      evaluator.evaluate({ surface: "page", domain, operationId: "school-profile.accreditations.create" }),
+      evaluator.evaluate({ surface: "page", domain, operationId: "school-profile.accreditations.correct" }),
     ]);
   if (!result.ok) notFound();
-  const { profile } = result;
+  const sensitiveAllowed = sensitive.kind === "authorized";
+  const profile = projectSchoolProfile(result.profile, sensitiveAllowed);
+  const accreditationRecords = projectSchoolAccreditations(accreditationResult.records, sensitiveAllowed);
   const initial = {
     displayName: profile.displayName,
     street: profile.address.street, village: profile.address.village, district: profile.address.district,
@@ -58,14 +77,14 @@ export default async function ProfilSekolahPage({ params, searchParams }: { para
             <div><h3 className="text-sm font-medium">Rekomendasi belum lengkap</h3>{profile.completeness.recommendedMissing.length ? <ul className="mt-2 list-disc pl-5 text-sm text-muted-foreground">{profile.completeness.recommendedMissing.map((field) => <li key={field}>{labels[field] ?? field}</li>)}</ul> : <p className="mt-2 text-sm text-muted-foreground">Semua rekomendasi telah lengkap.</p>}</div>
           </div>
         </section>
-        <HeadmasterHistory domain={domain} current={headmasterProfile.current} history={headmasterProfile.history} teachers={eligibleTeachers} readOnly={!principal.capabilities.write} result={query.headmaster} />
+        <HeadmasterHistory domain={domain} current={headmasterProfile.current} history={headmasterProfile.history} teachers={eligibleTeachers} readOnly={assignHeadmaster.kind !== "authorized"} result={query.headmaster} />
       </TabsContent>
 
       <TabsContent className="pt-4" value="operational">
         <section className="rounded-xl border bg-card p-5">
           <h2 className="mb-1 text-xl font-semibold">Informasi operasional</h2>
           <p className="mb-6 text-sm text-muted-foreground"><span aria-hidden="true">*</span> menandai field wajib.</p>
-          <SchoolProfileForm domain={domain} version={profile.version} initial={initial} readOnly={!principal.capabilities.write} />
+          <SchoolProfileForm domain={domain} version={profile.version} initial={initial} readOnly={update.kind !== "authorized"} />
         </section>
       </TabsContent>
 
@@ -79,7 +98,7 @@ export default async function ProfilSekolahPage({ params, searchParams }: { para
             <div><dt className="text-sm text-muted-foreground">Domain</dt><dd className="font-medium">{profile.provider.domain}</dd></div>
           </dl>
         </section>
-        <SchoolProfileHistory domain={domain} logoAssetId={profile.logoAssetId} readOnly={!principal.capabilities.write} records={accreditationResult.records} />
+        <SchoolProfileHistory domain={domain} logoAssetId={profile.logoAssetId} canUploadLogo={uploadLogo.kind === "authorized"} canCreateAccreditation={createAccreditation.kind === "authorized"} canCorrectAccreditation={correctAccreditation.kind === "authorized"} records={accreditationRecords} />
       </TabsContent>
     </Tabs>
   </main>;

@@ -28,7 +28,7 @@ mysqlTest("MySQL preview persistence binds Tenant ownership and claims one commi
       competing.execute("UPDATE academic_operation_preview SET idempotency_key='commit-b',version=2 WHERE id=? AND version=1 AND idempotency_key IS NULL", [ids.preview]),
     ]);
     await competing.end();
-    assert.equal(claims.filter(([result]) => result.affectedRows === 1).length, 1);
+    assert.equal(claims.filter(([result]) => !Array.isArray(result) && result.affectedRows === 1).length, 1);
     const [rows] = await connection.execute<mysql.RowDataPacket[]>("SELECT tenant_id,actor_user_id,version FROM academic_operation_preview WHERE token_digest=?", [tokenDigest]);
     assert.deepEqual({ tenantId: rows[0]?.tenant_id, actorUserId: rows[0]?.actor_user_id, version: rows[0]?.version }, { tenantId: ids.tenant, actorUserId: ids.actor, version: 2 });
   } finally {

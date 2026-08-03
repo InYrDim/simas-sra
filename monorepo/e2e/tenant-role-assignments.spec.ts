@@ -2,16 +2,41 @@ import { expect, test, type Page } from '@playwright/test';
 
 import { e2e } from './fixtures';
 
-async function login(page: Page) {
+async function signIn(page: Page, email: string) {
   await page.goto(`/${e2e.alpha.domain}/login`);
-  await page.getByLabel('Email').fill(e2e.alpha.adminEmail);
+
+  await expect(
+    page.getByRole('heading', { name: `Masuk ke ${e2e.alpha.name}` }),
+  ).toBeVisible({ timeout: 30_000 });
+  await page.getByLabel('Email').fill(email);
   await page.getByLabel('Kata Sandi').fill(e2e.password);
+  await page.waitForFunction(() => {
+    const form = document.querySelector('form');
+    return form && Object.keys(form).some((key) => key.startsWith('__reactProps'));
+  });
   await page.getByRole('button', { name: 'Masuk' }).click();
-  await expect(page).toHaveURL(new RegExp(`/${e2e.alpha.domain}/`));
 }
 
+async function loginAsSchoolAdmin(page: Page) {
+  await signIn(page, e2e.alpha.adminEmail);
+
+  await expect(page).toHaveURL(
+    new RegExp(
+      `^https?://${e2e.alpha.domain}\\.localhost(?::\\d+)?/dashboard(?:[/?#]|$)`,
+    ),
+    { timeout: 90_000 },
+  );
+  await expect(
+    page.getByRole('heading', { level: 2, name: 'Ringkasan' }),
+  ).toBeVisible();
+}
+
+test('School Admin can log in to the Tenant dashboard', async ({ page }) => {
+  await loginAsSchoolAdmin(page);
+});
+
 test('School Admin sees same-tenant non-admin accounts and overlapping effective access sources', async ({ page }) => {
-  await login(page);
+  await loginAsSchoolAdmin(page);
   const response = await page.goto(`/${e2e.alpha.domain}/settings/assignments`);
 
   expect(response?.status()).toBe(200);

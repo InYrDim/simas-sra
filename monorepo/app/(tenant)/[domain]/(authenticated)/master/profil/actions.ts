@@ -7,7 +7,7 @@ import { createHeadmasterAssignmentService } from "@/lib/master-data/headmaster-
 import { headmasterAssignmentStore } from "@/lib/master-data/headmaster-assignment-data";
 import { createGetSchoolProfileQuery, createUpdateSchoolProfileCommand } from "@/lib/master-data/school-profile";
 import { schoolProfileStore } from "@/lib/master-data/school-profile-data";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { enforceTenantMasterDataOperation } from "@/lib/authorization/tenant-operation-route-access";
 
 export type SchoolProfileFormValues = Readonly<{
   displayName: string;
@@ -39,14 +39,14 @@ function valuesFrom(formData: FormData): SchoolProfileFormValues {
 }
 
 export async function assignHeadmasterAction(domain: string, formData: FormData) {
-  const principal = await enforceMasterDataAccess(domain, "write");
+  const principal = await enforceTenantMasterDataOperation(domain, "school-profile.headmaster.assign");
   const result = await createHeadmasterAssignmentService({ store: headmasterAssignmentStore }).assign(principal, { teacherId: String(formData.get("teacherId") ?? ""), effectiveDate: String(formData.get("effectiveDate") ?? ""), reason: String(formData.get("reason") ?? "") });
   revalidatePath(`/${domain}/master/profil`);
   redirect(`/${domain}/master/profil?headmaster=${result.ok ? "saved" : result.code}`);
 }
 
 export async function updateSchoolProfileAction(domain: string, _previous: SchoolProfileFormState, formData: FormData): Promise<SchoolProfileFormState> {
-  const principal = await enforceMasterDataAccess(domain, "write");
+  const principal = await enforceTenantMasterDataOperation(domain, "school-profile.update");
   const values = valuesFrom(formData);
   const version = Number(formData.get("version"));
   const input: Record<string, unknown> = {

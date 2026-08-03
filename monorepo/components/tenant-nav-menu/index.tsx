@@ -22,7 +22,6 @@ import {
 } from "@/components/ui/sidebar"
 
 import type { TenantFeatureSelection } from "@/lib/features/tenant-feature-policy"
-import { type TenantRole } from "@/types/TenantRole"
 import { type TenantNavItem } from "@/types/components/TenantNavItem"
 
 export function tenantNavigationHref(domain: string, url: string | undefined) {
@@ -32,8 +31,8 @@ export function tenantNavigationHref(domain: string, url: string | undefined) {
   return `/${normalizedDomain}${normalizedUrl}`
 }
 
-function TenantNavCollapsibleItem({ item, role, pathname, domain, disabled }: { item: TenantNavItem, role: TenantRole, pathname: string, domain: string, disabled: boolean }) {
-  const filteredSubItems = item.items!.filter((subItem) => subItem.roles.includes(role) || subItem.roles.includes("*"))
+function TenantNavCollapsibleItem({ item, permissions, pathname, domain, disabled }: { item: TenantNavItem, permissions: ReadonlySet<string>, pathname: string, domain: string, disabled: boolean }) {
+  const filteredSubItems = item.items!.filter((subItem) => isNavigationItemAuthorized(subItem, permissions))
   const isActive = filteredSubItems.some((subItem) => pathname === tenantNavigationHref(domain, subItem.url))
 
   const [isOpen, setIsOpen] = React.useState(isActive)
@@ -100,19 +99,22 @@ function TenantNavCollapsibleItem({ item, role, pathname, domain, disabled }: { 
 
 export function TenantNavMenu({
   items,
-  role,
+  permissions,
   domain,
   features,
 }: {
   items: TenantNavItem[]
-  role: TenantRole
+  permissions: readonly string[]
   domain: string
   features: TenantFeatureSelection
 }) {
   const pathname = usePathname()
+  const permissionSet = new Set(permissions)
 
-  // Filter root items by role
-  const filteredItems = items.filter((item) => item.roles.includes(role) || item.roles.includes("*"))
+  const filteredItems = items.filter((item) => {
+    if (item.items?.length) return item.items.some((child) => isNavigationItemAuthorized(child, permissionSet))
+    return isNavigationItemAuthorized(item, permissionSet)
+  })
 
   // Group items by their "group" property, default to "Menu Utama"
   const groupedItems = filteredItems.reduce((acc, item) => {
@@ -133,7 +135,7 @@ export function TenantNavMenu({
 
               // Nested item scenario
               if (item.items && item.items.length > 0) {
-                return <TenantNavCollapsibleItem key={item.title} item={item} role={role} pathname={pathname} domain={domain} disabled={disabled} />
+                return <TenantNavCollapsibleItem key={item.title} item={item} permissions={permissionSet} pathname={pathname} domain={domain} disabled={disabled} />
               }
 
               // Normal item scenario
@@ -158,4 +160,13 @@ export function TenantNavMenu({
       ))}
     </>
   )
+}
+
+export function isNavigationItemAuthorized(
+  item: Pick<TenantNavItem, "requiredPermissions" | "permissionMode">,
+  permissions: ReadonlySet<string>,
+) {
+  if (!item.requiredPermissions?.length) return permissions.size > 0
+  if (item.permissionMode === "any") return item.requiredPermissions.some((permission) => permissions.has(permission))
+  return item.requiredPermissions.every((permission) => permissions.has(permission))
 }
