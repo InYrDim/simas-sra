@@ -149,7 +149,7 @@ export async function addClassMembershipsAction(
   };
 }
 
-type RelationshipIntent = { operation: string; studentId: string; teacherId: string; classGroupId: string; toClassGroupId: string; effectiveDate: string; reason: string };
+type RelationshipIntent = { operation: string; studentId: string; studentIds: string[]; teacherId: string; classGroupId: string; toClassGroupId: string; effectiveDate: string; reason: string };
 export type ManageClassRelationshipState =
   | { status: "idle" }
   | { status: "preview"; message: string; token: string; idempotencyKey: string; operationId: string; requestedPermission: string; intent: RelationshipIntent }
@@ -168,6 +168,7 @@ export async function manageClassRelationshipAction(
   const input: RelationshipIntent = previous.status === "preview" ? previous.intent : {
     operation,
     studentId: String(form.get("studentId") ?? ""),
+    studentIds: form.getAll("studentIds").map(String),
     teacherId: String(form.get("teacherId") ?? ""),
     classGroupId: String(form.get("classGroupId") ?? ""),
     toClassGroupId: String(form.get("toClassGroupId") ?? ""),
@@ -187,7 +188,7 @@ export async function manageClassRelationshipAction(
     if (!preview.ok) return { status: "error", message: "Pratinjau tidak dapat dibuat. Coba lagi." };
     return { status: "preview", message: operation === "transfer" ? "Tinjau transfer siswa sebelum menyimpan." : "Tinjau perubahan Wali Kelas sebelum menyimpan.", token: preview.token, idempotencyKey: crypto.randomUUID(), operationId, requestedPermission, intent: input };
   }
-  const committed = await commitAuthorizedAcademicPreview({ domain, operationId: previous.operationId, requestedPermissions: [previous.requestedPermission], token: previous.token, idempotencyKey: previous.idempotencyKey, payload: input, mutate: async () => operation === "transfer" ? relationshipService.transfer(principal, input) : operation === "homeroom" ? relationshipService.assignHomeroom(principal, input) : relationshipService.addMembership(principal, input) });
+  const committed = await commitAuthorizedAcademicPreview({ domain, operationId: previous.operationId, requestedPermissions: [previous.requestedPermission], token: previous.token, idempotencyKey: previous.idempotencyKey, payload: input, mutate: async () => operation === "transfer" ? relationshipService.transfer(principal, input) : operation === "homeroom" ? relationshipService.assignHomeroom(principal, input) : operation === "bulk-membership" ? relationshipService.addMemberships(principal, { ...input, studentIds: input.studentIds }) : relationshipService.addMembership(principal, input) });
   if (!committed.ok) return { status: "error", message: "Pratinjau tidak lagi berlaku. Muat ulang data dan tinjau kembali sebelum melanjutkan." };
   const result = committed.outcome as { ok: boolean; code?: string };
   finish(domain, result, input.toClassGroupId || input.classGroupId);
