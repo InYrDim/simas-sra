@@ -4,7 +4,7 @@ import { captureActionError, finishMasterDataAction } from "../action-result";
 import { createTeacherMasterDataService } from "@/lib/master-data/teacher-master-data";
 import { teacherMasterDataStore } from "@/lib/master-data/teacher-master-data-data";
 import { parseTeacherForm, parseTeacherLifecycleForm, teacherResultCode } from "@/lib/master-data/teacher-master-data-route";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { enforceTenantMasterDataOperation } from "@/lib/authorization/tenant-operation-route-access";
 
 const service = createTeacherMasterDataService({ store: teacherMasterDataStore });
 
@@ -13,7 +13,7 @@ function finish(domain: string, code: string, id?: string): never {
 }
 
 export async function createTeacherAction(domain: string, formData: FormData) {
-  const principal = await enforceMasterDataAccess(domain, "write");
+  const principal = await enforceTenantMasterDataOperation(domain, "teachers.create", ["teachers.teachers.create", "people.people.create"]);
   const parsed = parseTeacherForm(formData);
   if (!parsed || parsed.id) finish(domain, "invalid-input");
 
@@ -23,7 +23,7 @@ export async function createTeacherAction(domain: string, formData: FormData) {
 }
 
 export async function editTeacherAction(domain: string, formData: FormData) {
-  const principal = await enforceMasterDataAccess(domain, "write");
+  const principal = await enforceTenantMasterDataOperation(domain, "teachers.update", ["teachers.teachers.update", "people.people.update"]);
   const parsed = parseTeacherForm(formData);
   if (!parsed?.id || parsed.personVersion === undefined || parsed.teacherVersion === undefined) {
     finish(domain, "invalid-input");
@@ -37,9 +37,14 @@ export async function editTeacherAction(domain: string, formData: FormData) {
 }
 
 export async function manageTeacherLifecycleAction(domain: string, formData: FormData) {
-  const principal = await enforceMasterDataAccess(domain, "write");
   const parsed = parseTeacherLifecycleForm(formData);
   if (!parsed) finish(domain, "invalid-input");
+  const lifecyclePermission = parsed.operation === "archive"
+    ? "teachers.teachers.archive"
+    : parsed.operation === "reactivate"
+      ? "teachers.teachers.restore"
+      : "teachers.teachers.manage-lifecycle";
+  const principal = await enforceTenantMasterDataOperation(domain, "teachers.lifecycle", [lifecyclePermission]);
 
   const operation =
     parsed.operation === "transition"
