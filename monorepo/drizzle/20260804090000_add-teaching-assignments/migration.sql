@@ -1,3 +1,5 @@
+ALTER TABLE `class_group` ADD UNIQUE KEY `class_group_tenant_id_year_id_unique` (`tenant_id`,`id`,`academic_year_id`);
+
 CREATE TABLE `teaching_assignment` (
   `id` varchar(36) NOT NULL,
   `tenant_id` varchar(36) NOT NULL,
@@ -18,7 +20,7 @@ CREATE TABLE `teaching_assignment` (
   KEY `teaching_assignment_scope_idx` (`tenant_id`,`teacher_profile_id`,`subject_id`,`class_group_id`,`academic_year_id`,`status`,`starts_on`,`ends_on`),
   CONSTRAINT `teaching_assignment_teacher_fkey` FOREIGN KEY (`tenant_id`,`teacher_profile_id`) REFERENCES `teacher_profile` (`tenant_id`,`id`),
   CONSTRAINT `teaching_assignment_subject_fkey` FOREIGN KEY (`tenant_id`,`subject_id`) REFERENCES `subject` (`tenant_id`,`id`),
-  CONSTRAINT `teaching_assignment_class_group_fkey` FOREIGN KEY (`tenant_id`,`class_group_id`) REFERENCES `class_group` (`tenant_id`,`id`),
+  CONSTRAINT `teaching_assignment_class_group_fkey` FOREIGN KEY (`tenant_id`,`class_group_id`,`academic_year_id`) REFERENCES `class_group` (`tenant_id`,`id`,`academic_year_id`),
   CONSTRAINT `teaching_assignment_academic_year_fkey` FOREIGN KEY (`tenant_id`,`academic_year_id`) REFERENCES `academic_year` (`tenant_id`,`id`),
   CONSTRAINT `teaching_assignment_actor_fkey` FOREIGN KEY (`tenant_id`,`created_by_user_id`) REFERENCES `user` (`tenant_id`,`id`),
   CONSTRAINT `teaching_assignment_version_check` CHECK (`version` > 0),
@@ -42,3 +44,12 @@ CREATE TABLE `teaching_assignment_event` (
   CONSTRAINT `teaching_assignment_event_actor_fkey` FOREIGN KEY (`tenant_id`,`actor_user_id`) REFERENCES `user` (`tenant_id`,`id`),
   CONSTRAINT `teaching_assignment_event_version_check` CHECK (`from_version` >= 0 AND `to_version` = `from_version` + 1)
 );
+
+CREATE TRIGGER `teaching_assignment_no_delete` BEFORE DELETE ON `teaching_assignment`
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Teaching assignments are append-only';
+
+CREATE TRIGGER `teaching_assignment_event_no_update` BEFORE UPDATE ON `teaching_assignment_event`
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Teaching assignment events are immutable';
+
+CREATE TRIGGER `teaching_assignment_event_no_delete` BEFORE DELETE ON `teaching_assignment_event`
+FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Teaching assignment events are append-only';
