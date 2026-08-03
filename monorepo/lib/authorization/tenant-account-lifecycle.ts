@@ -58,6 +58,9 @@ export interface AccountLifecycleRepository {
   listRoles(tenantId: string): Promise<readonly LifecycleRole[]>;
   listAssignments(tenantId: string, userId: string): Promise<readonly LifecycleAssignment[]>;
   findPendingCase(tenantId: string, userId: string, kind: LifecycleCaseKind): Promise<AccountLifecycleCase | null>;
+  lockCase(tenantId: string, caseId: string): Promise<AccountLifecycleCase | null>;
+  completeCase(tenantId: string, caseId: string, consumedAt: Date): Promise<boolean>;
+  activateConsumedAccount(tenantId: string, userId: string, updatedAt: Date): Promise<boolean>;
   createAccount(input: Readonly<{ userId: string; accountId: string; tenantId: string; name: string; email: string; lifecycle: AccountLifecycle; initialCredential: string; createdAt: Date }>): Promise<TenantLifecycleAccount>;
   linkPerson(tenantId: string, personId: string, userId: string, expectedVersion: number, updatedAt: Date): Promise<void>;
   createCase(value: AccountLifecycleCase): Promise<void>;
@@ -266,5 +269,63 @@ export function createTenantAccountLifecycleService<TTransaction extends object>
         },
       })).result;
     },
+  };
+}
+
+export type ConsumeLifecycleCaseResult = Readonly<{
+  status: "activated" | "recovered";
+  tenantId: string;
+  userId: string;
+}>;
+
+export function createConsumeLifecycleCaseCommand<TTransaction extends object>(dependencies: Readonly<{
+  execute: Executor<TTransaction>;
+  repository: (transaction: SecurityCommandStoreTransaction & TTransaction) => AccountLifecycleRepository;
+  now?: () => Date;
+}>) {
+  const now = dependencies.now ?? (() => new Date());
+  return async function consume(input: Readonly<{
+    tenantId: string;
+    caseId: string;
+    secret: string;
+    correlationId: string;
+    idempotencyKey: string;
+  }>): Promise<ConsumeLifecycleCaseResult> {
+    identifier(input.tenantId);
+    identifier(input.caseId);
+    if (!input.secret || input.secret.length > 512) throw new SecurityCommandError("invalid-command");
+    return (await dependencies.execute<ConsumeLifecycleCaseResult>({
+      principal: { kind: "authenticated-user", userId: `lifecycle-case:${input.caseId}` },
+      idempotencyKey: input.idempotencyKey,
+      commandName: "tenant-account.lifecycle-consume",
+      payload: { tenantId: input.tenantId, caseId: input.caseId },
+      correlationId: input.correlationId,
+      deriveContext: async () => tenantContext(input.tenantId),
+      authorizeAndMutate: async ({ transaction }) => {
+        const repository = dependencies.repository(transaction);
+        const lifecycleCase = await repository.lockCase(input.tenantId, input.caseId);
+        const at = now();
+        if (!lifecycleCase || lifecycleCase.state !== "pending" || lifecycleCase.expiresAt <= at) {
+          throw new SecurityCommandError("context-denied");
+        }
+        const expectedDigest = digestLifecycleSecret({
+          purpose: lifecycleCase.kind,
+          tenantId: input.tenantId,
+          userId: lifecycleCase.userId,
+          expiresAt: lifecycleCase.expiresAt,
+          secret: input.secret,
+        });
+        if (expectedDigest !== lifecycleCase.secretDigest) throw new SecurityCommandError("context-denied");
+        if (!await repository.completeCase(input.tenantId, input.caseId, at)) throw new SecurityCommandError("stale-version");
+        if (lifecycleCase.kind === "activation" && !await repository.activateConsumedAccount(input.tenantId, lifecycleCase.userId, at)) {
+          throw new SecurityCommandError("stale-version");
+        }
+        const status = lifecycleCase.kind === "activation" ? "activated" : "recovered";
+        return {
+          result: { status, tenantId: input.tenantId, userId: lifecycleCase.userId },
+          auditEvents: [{ purpose: `lifecycle-${status}`, order: "summary", eventType: `tenant_account.${status}`, targets: { userId: lifecycleCase.userId }, metadata: { caseId: input.caseId } }],
+        };
+      },
+    })).result;
   };
 }

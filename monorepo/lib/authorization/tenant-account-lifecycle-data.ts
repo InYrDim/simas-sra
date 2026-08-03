@@ -18,6 +18,7 @@ import {
 } from "@/db/schema";
 import {
   type AccountLifecycleRepository,
+  createConsumeLifecycleCaseCommand,
   createTenantAccountLifecycleService,
   type TenantLifecycleAccount,
 } from "@/lib/authorization/tenant-account-lifecycle";
@@ -250,6 +251,48 @@ export function createTenantAccountLifecycleDataRepository(
       return { ...row, secretDigest: row.secretDigest, expiresAt: row.expiresAt };
     },
 
+    async lockCase(tenantId, caseId) {
+      assertIdentifier(tenantId);
+      assertIdentifier(caseId);
+      const [row] = await database
+        .select()
+        .from(tenantAccountLifecycleCase)
+        .where(and(eq(tenantAccountLifecycleCase.tenantId, tenantId), eq(tenantAccountLifecycleCase.id, caseId)))
+        .limit(1)
+        .for("update");
+      if (!row || row.secretDigest === null || row.expiresAt === null) return null;
+      return { ...row, secretDigest: row.secretDigest, expiresAt: row.expiresAt };
+    },
+
+    async completeCase(tenantId, caseId, consumedAt) {
+      const updated = await database.update(tenantAccountLifecycleCase).set({
+        state: "completed",
+        consumedAt,
+        version: sql`${tenantAccountLifecycleCase.version} + 1`,
+        updatedAt: consumedAt,
+      }).where(and(
+        eq(tenantAccountLifecycleCase.tenantId, tenantId),
+        eq(tenantAccountLifecycleCase.id, caseId),
+        eq(tenantAccountLifecycleCase.state, "pending"),
+      ));
+      return updated[0].affectedRows === 1;
+    },
+
+    async activateConsumedAccount(tenantId, userId, updatedAt) {
+      const updated = await database.update(tenantAccountSecurity).set({
+        lifecycle: "active",
+        version: sql`${tenantAccountSecurity.version} + 1`,
+        activatedAt: updatedAt,
+        deactivatedAt: null,
+        updatedAt,
+      }).where(and(
+        eq(tenantAccountSecurity.tenantId, tenantId),
+        eq(tenantAccountSecurity.userId, userId),
+        eq(tenantAccountSecurity.lifecycle, "pending-activation"),
+      ));
+      return updated[0].affectedRows === 1;
+    },
+
     async createAccount(input) {
       assertIdentifier(input.userId);
       assertIdentifier(input.accountId);
@@ -406,6 +449,13 @@ export function createTenantAccountLifecycleDataRepository(
 
 export function createTenantAccountLifecycleDataService() {
   return createTenantAccountLifecycleService<MySqlSecurityCommandTransaction>({
+    execute: executeSecurityCommand,
+    repository: createTenantAccountLifecycleDataRepository,
+  });
+}
+
+export function createConsumeTenantLifecycleCaseService() {
+  return createConsumeLifecycleCaseCommand<MySqlSecurityCommandTransaction>({
     execute: executeSecurityCommand,
     repository: createTenantAccountLifecycleDataRepository,
   });

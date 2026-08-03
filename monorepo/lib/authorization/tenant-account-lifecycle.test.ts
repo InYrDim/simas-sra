@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   createTenantAccountLifecycleService,
+  createConsumeLifecycleCaseCommand,
   digestLifecycleSecret,
   type AccountLifecycleCase,
   type AccountLifecycleRepository,
@@ -44,6 +45,9 @@ function fixture(initial = account()) {
     listRoles: async () => [{ id: ROLE_ID, tenantId: TENANT_ID, lifecycle: "active" }],
     listAssignments: async () => [{ id: "assignment-1", roleId: ROLE_ID, state: "suspended", version: 2 }],
     findPendingCase: async () => pending,
+    lockCase: async () => pending,
+    completeCase: async () => { if (!pending) return false; pending = { ...pending, state: "completed", consumedAt: NOW }; return true; },
+    activateConsumedAccount: async () => true,
     createAccount: async (input) => {
       current = account({ userId: input.userId, name: input.name, email: input.email, lifecycle: input.lifecycle });
       return current;
@@ -118,6 +122,32 @@ test("resend cannot change the delivery channel of an existing case", async () =
     state.service.issueActivation({ ...command, idempotencyKey: "resend-channel-change", targetUserId: USER_ID, expectedVersion: 1, deliveryChannel: "temporary-credential", mode: "resend" }),
     (error) => error instanceof SecurityCommandError && error.code === "stale-version",
   );
+});
+
+test("consuming a valid activation case is one-time and activates the account", async () => {
+  const state = fixture();
+  const issued = await state.service.issueActivation({ ...command, targetUserId: USER_ID, expectedVersion: 1, deliveryChannel: "temporary-credential", mode: "reissue" });
+  const consume = createConsumeLifecycleCaseCommand({
+    execute: async (input) => {
+      const mutation = await input.authorizeAndMutate({
+        actor: { kind: "system", service: "public-case-consumer" },
+        context: { kind: "tenant", contextId: TENANT_ID, tenantId: TENANT_ID },
+        expectedVersions: [],
+        transaction: {} as never,
+      });
+      return { commandId: "consume-1", existing: false, result: mutation.result };
+    },
+    repository: () => state.repository,
+    now: () => NOW,
+  });
+
+  assert.deepEqual(await consume({ tenantId: TENANT_ID, caseId: issued.caseId, secret: issued.secret!, correlationId: "consume-correlation", idempotencyKey: "consume-1" }), {
+    status: "activated",
+    tenantId: TENANT_ID,
+    userId: USER_ID,
+  });
+  assert.equal(state.pending?.state, "completed");
+  await assert.rejects(() => consume({ tenantId: TENANT_ID, caseId: issued.caseId, secret: issued.secret!, correlationId: "consume-correlation-2", idempotencyKey: "consume-2" }), (error) => error instanceof SecurityCommandError && error.code === "context-denied");
 });
 
 test("deactivation revokes authority atomically and reactivation restores only selected former roles", async () => {
