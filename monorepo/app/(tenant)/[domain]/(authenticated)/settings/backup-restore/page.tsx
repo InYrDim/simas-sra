@@ -3,13 +3,19 @@ import { DatabaseBackup, RotateCcw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
+import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
 
 export default async function BackupRestorePage({
   params,
 }: {
   params: Promise<{ domain: string }>;
 }) {
-  await params;
+  const { domain } = await params;
+  const evaluator = await createHttpTenantAuthorizationEvaluator();
+  const operationId = "placeholder.settings.backup-restore";
+  const result = await evaluator.evaluate({ surface: "page", domain, operationId });
+  enforceAuthorizedTenantOperation(result, { domain, operationId });
 
   return (
     <main className="mx-auto w-full max-w-5xl space-y-6">
