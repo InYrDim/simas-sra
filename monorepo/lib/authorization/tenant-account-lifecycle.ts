@@ -170,7 +170,9 @@ export function createTenantAccountLifecycleService<TTransaction extends object>
         const at = now();
         const pending = await repository.findPendingCase(input.tenantId, input.targetUserId, input.kind);
         if (input.mode === "resend") {
-          if (!pending || pending.expiresAt <= at) throw new SecurityCommandError("stale-version");
+          if (!pending || pending.expiresAt <= at || pending.deliveryChannel !== input.deliveryChannel) {
+            throw new SecurityCommandError("stale-version");
+          }
           const result: IssueResult = { status: "resent", caseId: pending.id, expiresAt: pending.expiresAt.toISOString() };
           return {
             result,

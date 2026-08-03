@@ -110,6 +110,16 @@ test("resend preserves a valid case while reissue revokes and replaces its mater
   assert.notEqual(state.pending?.secretDigest, firstCase?.secretDigest);
 });
 
+test("resend cannot change the delivery channel of an existing case", async () => {
+  const state = fixture();
+  await state.service.issueActivation({ ...command, targetUserId: USER_ID, expectedVersion: 1, deliveryChannel: "email", mode: "reissue" });
+
+  await assert.rejects(
+    state.service.issueActivation({ ...command, idempotencyKey: "resend-channel-change", targetUserId: USER_ID, expectedVersion: 1, deliveryChannel: "temporary-credential", mode: "resend" }),
+    (error) => error instanceof SecurityCommandError && error.code === "stale-version",
+  );
+});
+
 test("deactivation revokes authority atomically and reactivation restores only selected former roles", async () => {
   const state = fixture(account({ lifecycle: "active", version: 4, assignmentVersion: 7 }));
   await state.service.deactivate({ ...command, targetUserId: USER_ID, expectedVersion: 4, reason: "Pegawai tidak lagi bertugas" });
