@@ -68,6 +68,13 @@ const activeSeeds: readonly CatalogSeed[] = [
   ["tenant.users.view"],
   ["tenant.users.view-contact", ["tenant.users.view"], "sensitive"],
   ["tenant.users.view-sensitive", ["tenant.users.view"], "sensitive"],
+  ["tenant.accounts.view", [], "sensitive", "school-admin-only"],
+  ["tenant.accounts.create", [], "critical", "school-admin-only"],
+  ["tenant.accounts.issue-activation", [], "critical", "school-admin-only"],
+  ["tenant.accounts.activate", [], "critical", "school-admin-only"],
+  ["tenant.accounts.deactivate", [], "critical", "school-admin-only"],
+  ["tenant.accounts.reactivate", [], "critical", "school-admin-only"],
+  ["tenant.accounts.recovery", [], "critical", "school-admin-only"],
   ["tenant.roles.list", [], "sensitive", "school-admin-only"],
   ["tenant.roles.view", [], "sensitive", "school-admin-only"],
   ["tenant.roles.create", [], "critical", "school-admin-only"],
@@ -204,8 +211,8 @@ const activeSeeds: readonly CatalogSeed[] = [
 const reservedKeys = [
   "tenant.roles.copy",
   "tenant.authorization-audit.view", "tenant.authorization-audit.export",
-  "tenant.accounts.create", "tenant.accounts.invite", "tenant.accounts.link", "tenant.accounts.unlink", "tenant.accounts.resend",
-  "tenant.accounts.reissue", "tenant.accounts.deactivate", "tenant.accounts.reactivate", "tenant.accounts.initiate-recovery",
+  "tenant.accounts.invite", "tenant.accounts.link", "tenant.accounts.unlink", "tenant.accounts.resend",
+  "tenant.accounts.reissue", "tenant.accounts.initiate-recovery",
 ] as const;
 
 const moduleMetadata: Record<string, { label: string; group: string }> = {
@@ -313,7 +320,14 @@ const quizHistoryDetailPage = p("ulangan/riwayat/[sessionId]");
 const seeds: OperationSeed[] = [
   { id: "tenant.dashboard.load", entryPoints: [p("dashboard")], permissions: ["tenant.dashboard.view"], legacy: ["tenantRole"] },
   { id: "tenant.onboarding.complete", entryPoints: [a("dashboard/actions.ts", "completeOnboardingAction")], permissions: ["tenant.onboarding.complete"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
-  { id: "tenant.users.load", entryPoints: [p("users")], permissions: ["tenant.users.view", "tenant.users.view-contact", "tenant.users.view-sensitive"], supplemental: ["tenant.users.view-contact", "tenant.users.view-sensitive"], legacy: ["tenantRole"] },
+
+  { id: "tenant.accounts.view", entryPoints: [p("users"), a("users/actions.ts", "getLifecycleWorkspaceAction")], permissions: ["tenant.accounts.view", "tenant.users.view", "tenant.users.view-contact", "tenant.users.view-sensitive"], supplemental: ["tenant.users.view-contact", "tenant.users.view-sensitive"], context: "school-admin-only", legacy: ["legacy-school-admin"] },
+  { id: "tenant.accounts.create", entryPoints: [a("users/actions.ts", "createTenantAccountAction")], permissions: ["tenant.accounts.create"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
+  { id: "tenant.accounts.issue-activation", entryPoints: [a("users/actions.ts", "issueTenantActivationAction")], permissions: ["tenant.accounts.issue-activation"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
+  { id: "tenant.accounts.activate", entryPoints: [a("users/actions.ts", "activateTenantAccountAction")], permissions: ["tenant.accounts.activate"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
+  { id: "tenant.accounts.deactivate", entryPoints: [a("users/actions.ts", "deactivateTenantAccountAction")], permissions: ["tenant.accounts.deactivate"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
+  { id: "tenant.accounts.reactivate", entryPoints: [a("users/actions.ts", "reactivateTenantAccountAction")], permissions: ["tenant.accounts.reactivate"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
+  { id: "tenant.accounts.recovery", entryPoints: [a("users/actions.ts", "initiateTenantRecoveryAction")], permissions: ["tenant.accounts.recovery"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
   { id: "tenant.roles.list", entryPoints: [p("settings/roles"), a("settings/roles/actions.ts", "getRoles")], permissions: ["tenant.roles.list"], context: "school-admin-only", legacy: ["legacy-school-admin"] },
   { id: "tenant.roles.view", entryPoints: [a("settings/roles/actions.ts", "getRole")], permissions: ["tenant.roles.view"], context: "school-admin-only", legacy: ["legacy-school-admin"] },
   { id: "tenant.roles.create", entryPoints: [a("settings/roles/actions.ts", "createRole")], permissions: ["tenant.roles.create"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },

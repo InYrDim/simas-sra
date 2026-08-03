@@ -27,7 +27,7 @@ const legacyMinimum = [
 test("the approved registry and operation map form a valid executable contract", () => {
   assert.equal(PERMISSION_REGISTRY_VERSION, "tenant-permissions@2");
   assert.equal(OPERATION_MAP_VERSION, "tenant-operations@2");
-  assert.equal(permissionRegistry.length, 148);
+  assert.equal(permissionRegistry.length, 152);
   assert.match(permissionRegistryDigest, /^[a-f0-9]{64}$/);
   assert.match(tenantOperationMapDigest, /^[a-f0-9]{64}$/);
   assert.deepEqual(validateTenantRbacContract(), []);
@@ -48,6 +48,7 @@ test("every permission exposes stable Indonesian catalog metadata", () => {
 test("role and assignment administration permissions are active but remain non-assignable", () => {
   assert.equal(resolveActivePermission("tenant.dashboard.view")?.key, "tenant.dashboard.view");
   assert.equal(resolveActivePermission("tenant.roles.change-permissions")?.key, "tenant.roles.change-permissions");
+  assert.equal(resolveActivePermission("tenant.accounts.deactivate")?.key, "tenant.accounts.deactivate");
   assert.equal(resolveActivePermission("unknown.resource.view"), null);
 
   const privileged = permissionRegistry.find((entry) => entry.key === "tenant.roles.change-permissions");
