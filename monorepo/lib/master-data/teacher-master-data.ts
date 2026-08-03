@@ -1,4 +1,5 @@
 import type { MasterDataPrincipal } from "@/lib/master-data/tenant-master-data-access";
+import { projectPeopleProfile } from "@/lib/master-data/people-profile-projection";
 
 export const TEACHER_STATUSES = ["active", "leave", "ended"] as const;
 export const TEACHER_EMPLOYMENT_TYPES = ["civil-servant", "government-contract", "foundation-permanent", "foundation-contract", "honorary"] as const;
@@ -32,8 +33,8 @@ const sensitive = (person: SchoolPerson, teacher?: TeacherProfile | null) => ({ 
 export function createTeacherMasterDataService(dependencies: { store: TeacherMasterDataStore; id?: () => string; now?: () => Date }) {
   const id = dependencies.id ?? (() => crypto.randomUUID()), now = dependencies.now ?? (() => new Date());
   return {
-    list(principal: MasterDataPrincipal) { return dependencies.store.list(principal.tenantId); },
-    listAvailablePeople(principal: MasterDataPrincipal) { return dependencies.store.listAvailablePeople(principal.tenantId); },
+    list(principal: MasterDataPrincipal) { return dependencies.store.list(principal.tenantId).then((records) => records.map((record) => ({ ...record, person: projectPeopleProfile(record.person, principal.permissions), teacher: principal.permissions && !principal.permissions.has("teachers.teachers.view-sensitive") ? { ...record.teacher, nuptk: null } : record.teacher }))); },
+    listAvailablePeople(principal: MasterDataPrincipal) { return dependencies.store.listAvailablePeople(principal.tenantId).then((people) => people.map((person) => projectPeopleProfile(person, principal.permissions))); },
     create(principal: MasterDataPrincipal, input: TeacherInput) {
       if (!principal.capabilities.write) return Promise.resolve(failure("read-only"));
       const timestamp = now(), value = normalized(input, timestamp.toISOString().slice(0, 10)); if (!value) return Promise.resolve(failure("invalid-input"));

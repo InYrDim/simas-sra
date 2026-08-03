@@ -38,8 +38,10 @@ export async function enforceTenantMasterDataOperation(
     role: "school-admin",
     capabilities: {
       read: true,
-      write: operation.operationalGate === "write",
+      write: operation.operationalGate === "write" || principal.schoolAdmin,
       downloadTemplate: false,
     },
+    schoolAdmin: principal.schoolAdmin,
+    permissions: principal.permissions,
   };
 }

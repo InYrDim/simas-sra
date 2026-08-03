@@ -14,6 +14,8 @@ export type MasterDataPrincipal = Readonly<{
   tenantId: string;
   role: "school-admin";
   capabilities: MasterDataCapabilities;
+  schoolAdmin?: boolean;
+  permissions?: ReadonlySet<string>;
 }>;
 
 export type MasterDataAccessSnapshot = Readonly<{

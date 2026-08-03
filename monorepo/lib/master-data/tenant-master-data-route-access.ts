@@ -44,5 +44,7 @@ export async function enforceAcademicAccess(domain: string, operationId: string,
       write: operation.operationalGate === "write",
       downloadTemplate: false,
     },
+    schoolAdmin: result.principal.schoolAdmin,
+    permissions: result.principal.permissions,
   };
 }

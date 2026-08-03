@@ -1,4 +1,4 @@
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { enforceTenantMasterDataOperation } from "@/lib/authorization/tenant-operation-route-access";
 
 export default async function MasterDataLayout({
   children,
@@ -8,6 +8,6 @@ export default async function MasterDataLayout({
   params: Promise<{ domain: string }>;
 }>) {
   const { domain } = await params;
-  await enforceMasterDataAccess(domain, "read");
+  await enforceTenantMasterDataOperation(domain, "master-data.overview.load");
   return children;
 }

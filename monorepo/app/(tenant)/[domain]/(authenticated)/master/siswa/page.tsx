@@ -40,7 +40,7 @@ import {
   serializeMasterDataQuery,
   type MasterDataSearchParams,
 } from "@/lib/master-data/master-data-workspace";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { enforceTenantMasterDataOperation } from "@/lib/authorization/tenant-operation-route-access";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -117,7 +117,7 @@ export default async function StudentsPage({
   >;
 }) {
   const [{ domain }, raw] = await Promise.all([params, searchParams]),
-    principal = await enforceMasterDataAccess(domain, "read"),
+    principal = await enforceTenantMasterDataOperation(domain, "students.load", ["people.people.view", "people.people.view-contact", "people.people.view-sensitive", "students.students.view", "students.students.view-sensitive"]),
     service = createStudentMasterDataService({ store: studentMasterDataStore }),
     records = await service.list(principal),
     personService = createSchoolPersonMasterDataService({

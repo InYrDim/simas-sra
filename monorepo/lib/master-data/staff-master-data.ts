@@ -1,4 +1,5 @@
 import type { MasterDataPrincipal } from "@/lib/master-data/tenant-master-data-access";
+import { projectPeopleProfile } from "@/lib/master-data/people-profile-projection";
 
 export const STAFF_STATUSES = ["active", "leave", "ended"] as const;
 export const STAFF_EMPLOYMENT_TYPES = ["civil-servant", "government-contract", "foundation-permanent", "foundation-contract", "honorary", "other"] as const;
@@ -35,8 +36,8 @@ const sensitive = (person: SchoolPerson, staff?: StaffProfile | null) => ({ nik:
 export function createStaffMasterDataService(dependencies: { store: StaffMasterDataStore; id?: () => string; now?: () => Date }) {
   const id = dependencies.id ?? (() => crypto.randomUUID()), now = dependencies.now ?? (() => new Date());
   return {
-    list(principal: MasterDataPrincipal) { return dependencies.store.list(principal.tenantId); },
-    listAvailablePeople(principal: MasterDataPrincipal) { return dependencies.store.listAvailablePeople(principal.tenantId); },
+    list(principal: MasterDataPrincipal) { return dependencies.store.list(principal.tenantId).then((records) => records.map((record) => ({ ...record, person: projectPeopleProfile(record.person, principal.permissions), staff: principal.permissions && !principal.permissions.has("staff.staff.view-sensitive") ? { ...record.staff, staffNumber: "", normalizedStaffNumber: "" } : record.staff }))); },
+    listAvailablePeople(principal: MasterDataPrincipal) { return dependencies.store.listAvailablePeople(principal.tenantId).then((people) => people.map((person) => projectPeopleProfile(person, principal.permissions))); },
     create(principal: MasterDataPrincipal, input: StaffInput) {
       if (!principal.capabilities.write) return Promise.resolve(failure("read-only"));
       const timestamp = now(), value = normalized(input, timestamp.toISOString().slice(0, 10)); if (!value) return Promise.resolve(failure("invalid-input"));

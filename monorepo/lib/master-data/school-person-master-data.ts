@@ -14,7 +14,11 @@ const profileKinds = (aggregate: SchoolPersonAggregate) => aggregate.profiles.ma
 export function createSchoolPersonMasterDataService(dependencies: { store: SchoolPersonMasterDataStore; id?: () => string; now?: () => Date }) {
   const id = dependencies.id ?? (() => crypto.randomUUID()), now = dependencies.now ?? (() => new Date());
   return {
-    get(principal: MasterDataPrincipal, personId: string) { return dependencies.store.get(principal.tenantId, personId); },
+    async get(principal: MasterDataPrincipal, personId: string) {
+      const aggregate = await dependencies.store.get(principal.tenantId, personId);
+      if (!aggregate || !principal.permissions || principal.permissions.has("people.people.view-sensitive")) return aggregate;
+      return { ...aggregate, person: { ...aggregate.person, nik: null, nip: null } };
+    },
     async archive(principal: MasterDataPrincipal, personId: string, input: { expectedVersion: number; reason: string }) {
       if (!principal.capabilities.write) return failure("read-only"); const reason = input.reason.trim(); if (!reason || input.expectedVersion < 1) return failure("invalid-input");
       return dependencies.store.transaction(principal.tenantId, async (tx) => { const aggregate = await tx.get(personId); if (!aggregate) return failure("not-found"); if (aggregate.person.version !== input.expectedVersion) return failure("conflict"); if (aggregate.person.archived) return failure("archived"); const activeProfiles = aggregate.profiles.filter((profile) => !profile.archived).map((profile) => profile.kind); if (activeProfiles.length) return { ok: false, code: "profile-active", activeProfiles } as const; const timestamp = now(), updated = { ...aggregate.person, archived: true, version: aggregate.person.version + 1, updatedAt: timestamp }; if (!await tx.savePerson(updated, aggregate.person.version)) return failure("conflict"); await tx.appendAudit({ id: id(), tenantId: principal.tenantId, personId, actorUserId: principal.userId, operation: "archived", affectedProfiles: profileKinds(aggregate), fromVersion: aggregate.person.version, toVersion: updated.version, sensitiveBefore: null, sensitiveAfter: null, reason, occurredAt: timestamp }); return { ok: true, aggregate: { ...aggregate, person: updated } } as const; });
