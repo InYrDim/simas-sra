@@ -7,7 +7,7 @@ import { createPpdbSessionService, type PpdbFormField } from "@/lib/admissions/p
 import { ppdbSessionStore } from "@/lib/admissions/ppdb-session-data";
 import { createPpdbSubmissionService } from "@/lib/admissions/ppdb-submission";
 import { ppdbSubmissionStore } from "@/lib/admissions/ppdb-submission-data";
-import { enforceTenantFeatureAccess } from "@/lib/features/tenant-feature-route-access";
+import { enforceTenantFeatureAccess, enforceTenantOperation } from "@/lib/features/tenant-feature-route-access";
 
 const sessionService = createPpdbSessionService({ store: ppdbSessionStore });
 const submissionService = createPpdbSubmissionService({ store: ppdbSubmissionStore });
@@ -57,6 +57,7 @@ function parseFields(formData: FormData): PpdbFormField[] {
 
 export async function createSessionAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ppdbWrite", "write");
+  await enforceTenantOperation(domain, "ppdb.sessions.create");
   const result = await sessionService.create(principal, {
     academicYearId: String(formData.get("academicYearId") ?? ""),
     endDate: String(formData.get("endDate") ?? ""),
@@ -66,6 +67,7 @@ export async function createSessionAction(domain: string, formData: FormData) {
 
 export async function updateFieldsAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ppdbWrite", "write");
+  await enforceTenantOperation(domain, "ppdb.sessions.update");
   const result = await sessionService.updateFields(
     principal,
     String(formData.get("sessionId") ?? ""),
@@ -76,6 +78,7 @@ export async function updateFieldsAction(domain: string, formData: FormData) {
 
 export async function publishSessionAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ppdbWrite", "write");
+  await enforceTenantOperation(domain, "ppdb.sessions.publish");
   const sessionId = String(formData.get("sessionId") ?? "");
   const result = await sessionService.publish(
     principal,
@@ -88,12 +91,14 @@ export async function publishSessionAction(domain: string, formData: FormData) {
 
 export async function endSessionAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ppdbWrite", "write");
+  await enforceTenantOperation(domain, "ppdb.sessions.close");
   const result = await sessionService.end(principal, String(formData.get("sessionId") ?? ""));
   finish(`/${domain}/ppdb`, result);
 }
 
 export async function updateResultSettingsAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ppdbWrite", "write");
+  await enforceTenantOperation(domain, "ppdb.sessions.update");
   const sessionId = String(formData.get("sessionId") ?? "");
   const whatsappGroupUrl = String(formData.get("whatsappGroupUrl") ?? "").trim();
   const result = await sessionService.updateResultSettings(principal, sessionId, {
@@ -108,6 +113,7 @@ export async function updateResultSettingsAction(domain: string, formData: FormD
 
 export async function publishResultsAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ppdbWrite", "write");
+  await enforceTenantOperation(domain, "ppdb.results.publish");
   const sessionId = String(formData.get("sessionId") ?? "");
   const result = await sessionService.publishResults(principal, sessionId);
   finishResults(domain, sessionId, result, "published");
@@ -115,6 +121,7 @@ export async function publishResultsAction(domain: string, formData: FormData) {
 
 export async function updateResultCheckAccessAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ppdbWrite", "write");
+  await enforceTenantOperation(domain, "ppdb.results.manage-access");
   const sessionId = String(formData.get("sessionId") ?? "");
   const open = formData.get("resultCheckOpen") === "true";
   const result = await sessionService.setResultCheckOpen(principal, sessionId, open);
@@ -123,6 +130,7 @@ export async function updateResultCheckAccessAction(domain: string, formData: Fo
 
 export async function decideSubmissionAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ppdbWrite", "write");
+  await enforceTenantOperation(domain, "ppdb.submissions.decide");
   const status = String(formData.get("status") ?? "") as "accepted" | "rejected";
   const scoreRaw = String(formData.get("score") ?? "").trim();
   const score = scoreRaw && Number.isFinite(Number(scoreRaw)) ? Number(scoreRaw) : null;

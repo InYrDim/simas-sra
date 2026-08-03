@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { createQuizSessionService, type QuizAttendanceStatus, type QuizQuestionInput, type QuizSessionMode } from "@/lib/quiz/quiz";
 import { quizSessionStore } from "@/lib/quiz/quiz-data";
 import { DEMO_QUIZ_QUESTIONS } from "@/lib/quiz/quiz-demo";
-import { enforceTenantFeatureAccess } from "@/lib/features/tenant-feature-route-access";
+import { enforceTenantFeatureAccess, enforceTenantOperation } from "@/lib/features/tenant-feature-route-access";
 
 const sessionService = createQuizSessionService({ store: quizSessionStore });
 
@@ -17,6 +17,7 @@ function finish(path: string, result: { ok: boolean; code?: string }): never {
 
 export async function createSessionAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
+  await enforceTenantOperation(domain, "quizzes.sessions.create");
   const result = await sessionService.create(principal, {
     academicYearId: String(formData.get("academicYearId") ?? ""),
     subjectId: String(formData.get("subjectId") ?? ""),
@@ -34,6 +35,7 @@ export async function createSessionAction(domain: string, formData: FormData) {
 
 export async function activateSessionAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
+  await enforceTenantOperation(domain, "quizzes.sessions.publish");
   const sessionId = String(formData.get("sessionId") ?? "");
   const result = await sessionService.activate(principal, sessionId);
   finish(`/${domain}/ulangan/${sessionId}`, result);
@@ -50,6 +52,7 @@ export async function endSessionAction(
   formData: FormData,
 ): Promise<EndSessionActionState> {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
+  await enforceTenantOperation(domain, "quizzes.sessions.close", ["quizzes.sessions.close", "quizzes.attendance.adjust"]);
   const sessionId = String(formData.get("sessionId") ?? "");
   const studentIds = parseStringArray(formData.get("studentIds"));
   const fillMissingAbsent = formData.get("fillMissingAbsent") === "true";
@@ -74,6 +77,7 @@ export async function saveOfflineScoresAction(
   formData: FormData,
 ): Promise<OfflineScoreActionState> {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
+  await enforceTenantOperation(domain, "quizzes.grades.adjust");
   const sessionId = String(formData.get("sessionId") ?? "");
   const studentIds = parseStringArray(formData.get("studentIds"));
   const rawScores = parseStringArray(formData.get("scores"));
@@ -87,6 +91,7 @@ export async function saveOfflineScoresAction(
 
 export async function prepareOfflineGradingAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
+  await enforceTenantOperation(domain, "quizzes.grades.execute");
   const sessionId = String(formData.get("sessionId") ?? "");
   const result = await sessionService.prepareOfflineGrading(principal, sessionId);
   finish(`/${domain}/ulangan/${sessionId}/penilaian`, result);
@@ -94,6 +99,7 @@ export async function prepareOfflineGradingAction(domain: string, formData: Form
 
 export async function finalizeOfflineGradingAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
+  await enforceTenantOperation(domain, "quizzes.grades.execute");
   const sessionId = String(formData.get("sessionId") ?? "");
   const result = await sessionService.finalizeOfflineGrading(principal, sessionId);
   finish(`/${domain}/ulangan/${sessionId}/penilaian`, result);
@@ -101,6 +107,7 @@ export async function finalizeOfflineGradingAction(domain: string, formData: For
 
 export async function gradeSessionAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
+  await enforceTenantOperation(domain, "quizzes.grades.execute");
   const sessionId = String(formData.get("sessionId") ?? "");
   const result = await sessionService.grade(principal, sessionId);
   finish(`/${domain}/ulangan/${sessionId}/penilaian`, result);
@@ -108,6 +115,7 @@ export async function gradeSessionAction(domain: string, formData: FormData) {
 
 export async function addDemoQuestionsAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
+  await enforceTenantOperation(domain, "quizzes.questions.create");
   const sessionId = String(formData.get("sessionId") ?? "");
   const result = await sessionService.addQuestions(principal, sessionId, DEMO_QUIZ_QUESTIONS);
   revalidatePath(`/${domain}/ulangan/${sessionId}`);
@@ -116,6 +124,7 @@ export async function addDemoQuestionsAction(domain: string, formData: FormData)
 
 export async function addQuestionAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
+  await enforceTenantOperation(domain, "quizzes.questions.create");
   const sessionId = String(formData.get("sessionId") ?? "");
   const questionType = String(formData.get("questionType") ?? "multiple_choice") as QuizQuestionInput["questionType"];
   let options: string[] | undefined;
@@ -143,6 +152,7 @@ export async function addQuestionAction(domain: string, formData: FormData) {
 
 export async function removeQuestionAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
+  await enforceTenantOperation(domain, "quizzes.questions.remove");
   const sessionId = String(formData.get("sessionId") ?? "");
   const questionId = String(formData.get("questionId") ?? "");
   const result = await sessionService.removeQuestion(principal, sessionId, questionId);
@@ -171,6 +181,7 @@ export async function saveAttendanceBatchAction(
   formData: FormData,
 ): Promise<SaveAttendanceActionState> {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
+  await enforceTenantOperation(domain, "quizzes.attendance.adjust");
   const sessionId = String(formData.get("sessionId") ?? "");
   const studentIds = parseStringArray(formData.get("studentIds"));
   const statuses = parseStringArray(formData.get("statuses"));
@@ -187,6 +198,7 @@ export async function saveAttendanceBatchAction(
 
 export async function markAttendanceAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
+  await enforceTenantOperation(domain, "quizzes.attendance.adjust");
   const sessionId = String(formData.get("sessionId") ?? "");
   const studentId = String(formData.get("studentId") ?? "");
   const status = String(formData.get("status") ?? "present") as QuizAttendanceStatus;
