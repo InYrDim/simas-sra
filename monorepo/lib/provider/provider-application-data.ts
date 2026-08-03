@@ -23,6 +23,7 @@ import {
   session,
   simasApplication,
   tenant,
+  tenantRbacRollout,
   transactionalOutbox,
   user,
 } from "@/db/schema";
@@ -35,6 +36,8 @@ import {
   type ApplicationStatus,
   type ApprovalConflictField,
 } from "@/lib/provider/provider-applications";
+import { TENANT_AUTHORIZATION_RESOLVER_VERSION } from "@/lib/authorization/tenant-authorization";
+import { OPERATION_MAP_VERSION, PERMISSION_REGISTRY_VERSION } from "@/lib/authorization/tenant-rbac-contract";
 async function requireProviderDataAccess() {
   const providerAccess = await import("@/lib/provider/provider-access");
   return providerAccess.requireProviderDataAccess();
@@ -180,6 +183,7 @@ function duplicateApprovalField(error: unknown): ApprovalConflictField | null {
 
 export type ApprovalTransactionStep =
   | "tenant-created"
+  | "authorization-rollout-initialized"
   | "user-promoted"
   | "authority-projected"
   | "applicant-removed"
@@ -314,6 +318,21 @@ export function createApplicationApprovalStore(options: Readonly<{
               deletionWaitingDays: 30,
             });
             await afterStep("tenant-created");
+
+            await tx.insert(tenantRbacRollout).values({
+              tenantId: values.tenant.id,
+              httpMode: "legacy",
+              workerMode: "legacy",
+              epoch: BigInt(1),
+              resolverVersion: TENANT_AUTHORIZATION_RESOLVER_VERSION,
+              registryVersion: PERMISSION_REGISTRY_VERSION,
+              operationMapVersion: OPERATION_MAP_VERSION,
+              overlayHash: null,
+              multiRoleAcceptedAt: null,
+              version: 1,
+              updatedAt: values.decidedAt,
+            });
+            await afterStep("authorization-rollout-initialized");
 
             const promoted = await tx.update(user).set({
               tenantId: values.tenant.id,

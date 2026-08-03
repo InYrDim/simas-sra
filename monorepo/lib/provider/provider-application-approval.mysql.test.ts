@@ -22,6 +22,7 @@ after(() => closeDatabasePool());
 const mysqlTest = databaseUrl ? test : test.skip;
 const approvalSteps: readonly ApprovalTransactionStep[] = [
   "tenant-created",
+  "authorization-rollout-initialized",
   "user-promoted",
   "authority-projected",
   "applicant-removed",
@@ -62,6 +63,7 @@ type PersistedApprovalState = Readonly<{
     rejectionReason: string | null;
   };
   tenants: readonly { id: string; npsn: string; domain: string; sourceApplicationId: string }[];
+  rollouts: readonly { tenantId: string; httpMode: string; workerMode: string; epoch: string; resolverVersion: string; registryVersion: string; operationMapVersion: string; version: number }[];
   outbox: readonly { eventType: string; aggregateId: string }[];
 }>;
 
@@ -211,6 +213,10 @@ async function readState(fixture: ApprovalFixture): Promise<PersistedApprovalSta
     "SELECT `event_type`, `aggregate_id` FROM `transactional_outbox` WHERE `aggregate_id` = ? ORDER BY `id`",
     [applicationId],
   );
+  const [rollouts] = await connection.execute<mysql.RowDataPacket[]>(
+    "SELECT `tenant_id`, `http_mode`, `worker_mode`, `epoch`, `resolver_version`, `registry_version`, `operation_map_version`, `version` FROM `tenant_rbac_rollout` WHERE `tenant_id` IN (SELECT `id` FROM `tenant` WHERE `source_application_id` = ?) ORDER BY `tenant_id`",
+    [applicationId],
+  );
   const application = applications[0];
 
   return {
@@ -229,6 +235,7 @@ async function readState(fixture: ApprovalFixture): Promise<PersistedApprovalSta
       rejectionReason: application.rejection_reason,
     },
     tenants: tenants.map((row) => ({ id: row.id, npsn: row.npsn, domain: row.domain, sourceApplicationId: row.source_application_id })),
+    rollouts: rollouts.map((row) => ({ tenantId: row.tenant_id, httpMode: row.http_mode, workerMode: row.worker_mode, epoch: String(row.epoch), resolverVersion: row.resolver_version, registryVersion: row.registry_version, operationMapVersion: row.operation_map_version, version: row.version })),
     outbox: outbox.map((row) => ({ eventType: row.event_type, aggregateId: row.aggregate_id })),
   };
 }
@@ -236,6 +243,16 @@ async function readState(fixture: ApprovalFixture): Promise<PersistedApprovalSta
 function assertApprovedIdentityState(state: PersistedApprovalState, fixture: ApprovalFixture): void {
   assert.equal(state.tenants.length, 1);
   const approvedTenant = state.tenants[0];
+  assert.deepEqual(state.rollouts, [{
+    tenantId: approvedTenant.id,
+    httpMode: "legacy",
+    workerMode: "legacy",
+    epoch: "1",
+    resolverVersion: "tenant-authorization@1",
+    registryVersion: "tenant-permissions@2",
+    operationMapVersion: "tenant-operations@3",
+    version: 1,
+  }]);
   assert.deepEqual(state.owner, { tenantId: approvedTenant.id, role: "school-admin" });
   assert.deepEqual(state.accounts, [
     { id: fixture.accountId, userId: fixture.ownerUserId, password: fixture.credentialHash },
@@ -274,6 +291,7 @@ function assertPendingIdentityState(state: PersistedApprovalState, fixture: Appr
       rejectionReason: null,
     },
     tenants: [],
+    rollouts: [],
     outbox: [],
   });
 }
