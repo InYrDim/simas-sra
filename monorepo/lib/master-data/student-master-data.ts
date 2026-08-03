@@ -31,8 +31,8 @@ const sensitive = (person: SchoolPerson, student?: StudentProfile | null) => ({ 
 export function createStudentMasterDataService(dependencies: { store: StudentMasterDataStore; id?: () => string; now?: () => Date }) {
   const id = dependencies.id ?? (() => crypto.randomUUID()), now = dependencies.now ?? (() => new Date());
   return {
-    list(principal: MasterDataPrincipal) { return dependencies.store.list(principal.tenantId).then((records) => records.map((record) => ({ ...record, person: projectPeopleProfile(record.person, principal.permissions), student: principal.permissions && !principal.permissions.has("students.students.view-sensitive") ? { ...record.student, nisn: null, externalStudentId: null } : record.student }))); },
-    listAvailablePeople(principal: MasterDataPrincipal) { return dependencies.store.listAvailablePeople(principal.tenantId).then((people) => people.map((person) => projectPeopleProfile(person, principal.permissions))); },
+    list(principal: MasterDataPrincipal) { return dependencies.store.list(principal.tenantId).then((records) => (principal.schoolAdmin ? records : records.filter((record) => record.person.id === principal.selfPersonId)).map((record) => ({ ...record, person: projectPeopleProfile(record.person, principal.permissions), student: principal.permissions && !principal.permissions.has("students.students.view-sensitive") ? { ...record.student, nisn: null, externalStudentId: null } : record.student }))); },
+    listAvailablePeople(principal: MasterDataPrincipal) { return dependencies.store.listAvailablePeople(principal.tenantId).then((people) => (principal.schoolAdmin ? people : people.filter((person) => person.id === principal.selfPersonId)).map((person) => projectPeopleProfile(person, principal.permissions))); },
     create(principal: MasterDataPrincipal, input: StudentInput) {
       if (!principal.capabilities.write) return Promise.resolve(failure("read-only"));
       const timestamp = now(), value = normalized(input, timestamp.toISOString().slice(0, 10)); if (!value) return Promise.resolve(failure("invalid-input"));

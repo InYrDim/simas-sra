@@ -81,6 +81,7 @@ export type TenantAuthorizationRollout = Readonly<{
 export type TenantAuthorizationAccount = Readonly<{
   userId: string;
   tenantId: string | null;
+  selfPersonId?: string | null;
   legacyRole: string | null;
   accountLifecycle: "pending-activation" | "active" | "inactive" | null;
   providerAdmin: boolean;
@@ -123,6 +124,7 @@ export type TenantAuthorizationPrincipal = Readonly<{
   roleIds: readonly string[];
   permissions: ReadonlySet<string>;
   rolloutEpoch: bigint;
+  selfPersonId?: string | null;
 }>;
 
 export type TenantAuthorizationContextDecision = Readonly<{
@@ -519,6 +521,7 @@ export function createTenantAuthorizationEvaluator(dependencies: TenantAuthoriza
           roleIds: effective?.roleIds ?? [],
           permissions: effective?.permissions ?? new Set<string>(),
           rolloutEpoch: rollout?.epoch ?? BigInt(0),
+          selfPersonId: account?.selfPersonId ?? null,
         };
 
         if (!rbacDenial && required && effective && !hasPermissions(operation, required, effective.permissions)) {

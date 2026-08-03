@@ -28,9 +28,23 @@ export async function enforceTenantMasterDataOperation(
   requestedPermissions?: readonly string[],
 ): Promise<MasterDataPrincipal> {
   const evaluator = await createHttpTenantAuthorizationEvaluator();
-  const result = await evaluator.evaluate({ surface: "api", domain, operationId, requestedPermissions });
-  const principal = enforceAuthorizedTenantOperation(result, { domain, operationId });
   const operation = tenantOperationMap.find((candidate) => candidate.id === operationId);
+  const result = await evaluator.evaluate({
+    surface: "api",
+    domain,
+    operationId,
+    requestedPermissions,
+    context: operation && !["tenant-wide", "none", "school-admin-only"].includes(operation.contextualPolicy)
+      ? {
+        policy: operation.contextualPolicy,
+        async evaluate(principal) {
+          if (operation.contextualPolicy === "self" || operation.contextualPolicy === "assigned-or-self") return { allowed: Boolean(principal.selfPersonId), arm: "self" as const };
+          return { allowed: false };
+        },
+      }
+      : undefined,
+  });
+  const principal = enforceAuthorizedTenantOperation(result, { domain, operationId });
   if (!operation) throw new Error(`Unknown Tenant operation: ${operationId}`);
   return {
     userId: principal.userId,
@@ -43,5 +57,6 @@ export async function enforceTenantMasterDataOperation(
     },
     schoolAdmin: principal.schoolAdmin,
     permissions: principal.permissions,
+    selfPersonId: principal.selfPersonId,
   };
 }

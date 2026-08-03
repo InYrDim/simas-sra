@@ -8,6 +8,7 @@ import {
   applicant,
   providerAdmin,
   schoolAdminAuthority,
+  schoolPerson,
   temporaryCredentialActivation,
   tenant,
   tenantAccountSecurity,
@@ -31,6 +32,7 @@ export const tenantAuthorizationStore: TenantAuthorizationStore = {
       .select({
         userId: user.id,
         tenantId: user.tenantId,
+        selfPersonId: schoolPerson.id,
         legacyRole: user.tenantRole,
         accountLifecycle: tenantAccountSecurity.lifecycle,
         providerAdminUserId: providerAdmin.userId,
@@ -41,6 +43,7 @@ export const tenantAuthorizationStore: TenantAuthorizationStore = {
         passwordChangedAt: temporaryCredentialActivation.passwordChangedAt,
       })
       .from(user)
+      .leftJoin(schoolPerson, and(eq(schoolPerson.tenantId, user.tenantId), eq(schoolPerson.accountUserId, user.id)))
       .leftJoin(tenantAccountSecurity, eq(tenantAccountSecurity.userId, user.id))
       .leftJoin(providerAdmin, eq(providerAdmin.userId, user.id))
       .leftJoin(applicant, eq(applicant.userId, user.id))
@@ -57,6 +60,7 @@ export const tenantAuthorizationStore: TenantAuthorizationStore = {
     return {
       userId: row.userId,
       tenantId: row.tenantId,
+      selfPersonId: row.selfPersonId ?? null,
       legacyRole: row.legacyRole,
       accountLifecycle: row.accountLifecycle,
       providerAdmin: row.providerAdminUserId !== null,

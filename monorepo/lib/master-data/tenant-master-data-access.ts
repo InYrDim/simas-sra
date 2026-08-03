@@ -16,6 +16,7 @@ export type MasterDataPrincipal = Readonly<{
   capabilities: MasterDataCapabilities;
   schoolAdmin?: boolean;
   permissions?: ReadonlySet<string>;
+  selfPersonId?: string | null;
 }>;
 
 export type MasterDataAccessSnapshot = Readonly<{
