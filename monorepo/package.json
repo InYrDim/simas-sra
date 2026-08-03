@@ -37,7 +37,8 @@
     "provider-admin:provision": "tsx scripts/provision-provider-admin.ts",
     "provider-admin:deprovision": "tsx scripts/deprovision-provider-admin.ts",
     "worker:people-import-validation": "tsx scripts/run-people-import-validation.ts",
-    "worker:people-import-execution": "tsx scripts/run-people-import-execution.ts"
+    "worker:people-import-execution": "tsx scripts/run-people-import-execution.ts",
+    "worker:tenant-account-lifecycle-delivery": "tsx scripts/run-tenant-account-lifecycle-delivery.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
