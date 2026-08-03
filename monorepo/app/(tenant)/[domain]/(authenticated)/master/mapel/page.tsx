@@ -16,7 +16,7 @@ import { subjectCatalogStore } from "@/lib/academic/subject-catalog-data";
 import { querySubjects } from "@/lib/academic/subject-catalog-query";
 import { serializeMasterDataQuery, type MasterDataSearchParams } from "@/lib/master-data/master-data-workspace";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { enforceAcademicAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 
 const resultMessages: Record<string, string> = {
@@ -34,10 +34,10 @@ const resultMessages: Record<string, string> = {
 
 export default async function SubjectsPage({ params, searchParams }: { params: Promise<{ domain: string }>; searchParams: Promise<MasterDataSearchParams & { result?: string; action?: string }> }) {
   const [{ domain }, raw] = await Promise.all([params, searchParams]);
-  const principal = await enforceMasterDataAccess(domain, "read");
+  const principal = await enforceAcademicAccess(domain, "subjects.load");
   const service = createSubjectCatalogService({ store: subjectCatalogStore });
   const subjects = await service.list(principal);
-  const result = querySubjects(subjects, raw);
+  const result = querySubjects(subjects, raw, principal.tenantId);
   const selected = subjects.find((subject) => subject.id === result.query.selected && subject.tenantId === principal.tenantId);
   const basePath = `/${domain}/master/mapel`;
   const writable = principal.capabilities.write;

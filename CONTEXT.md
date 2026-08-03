@@ -100,6 +100,10 @@ _Avoid_: profil Siswa, kenaikan kelas otomatis, daftar anggota tanpa riwayat
 Penugasan efektif-dated seorang Guru untuk membina satu Rombongan Belajar tanpa menyiratkan penugasan mengajar Mata Pelajaran.
 _Avoid_: Guru pengampu, role akun, penjadwalan
 
+**Penugasan Mengajar**:
+Hubungan efektif-dated yang menetapkan satu Guru mengajar satu Mata Pelajaran kepada satu Rombongan Belajar dalam satu Tahun Ajaran tanpa mendefinisikan jadwal atau beban mengajar.
+_Avoid_: Wali Kelas, role akun, jadwal pelajaran, katalog Mata Pelajaran
+
 **Organisasi Siswa**:
 Kelompok siswa formal dengan struktur kepengurusan dan periode jabatan, seperti OSIS.
 _Avoid_: struktur organisasi sekolah, Ekstrakurikuler

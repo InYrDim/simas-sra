@@ -10,6 +10,10 @@ const recordFirstAuthentication = createRecordFirstAuthenticationCommand({
 });
 
 export const auth = betterAuth({
+  trustedOrigins: [
+    process.env.BETTER_AUTH_URL ?? "http://localhost:3000",
+    ...(process.env.NODE_ENV === "development" ? ["http://*.localhost:3100"] : []),
+  ],
   database: drizzleAdapter(db, {
     provider: "mysql",
     schema,

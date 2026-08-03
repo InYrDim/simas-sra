@@ -8,13 +8,13 @@ import { MasterDataWorkspace } from "@/components/master-data/master-data-worksp
 import { createAcademicYearService } from "@/lib/academic/academic-year";
 import { academicYearStore } from "@/lib/academic/academic-year-data";
 import { normalizeMasterDataQuery, type MasterDataSearchParams } from "@/lib/master-data/master-data-workspace";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { enforceAcademicAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 const lifecycleLabels = { draft: "Draft", active: "Aktif", closed: "Ditutup", cancelled: "Dibatalkan" } as const;
 const semesterLabels = { pending: "Belum Aktif", active: "Aktif", completed: "Selesai" } as const;
 export default async function AcademicYearsPage({ params, searchParams }: { params: Promise<{ domain: string }>; searchParams: Promise<MasterDataSearchParams & { result?: string }> }) {
   const [{ domain }, raw] = await Promise.all([params, searchParams]);
-  const principal = await enforceMasterDataAccess(domain, "read");
+  const principal = await enforceAcademicAccess(domain, "academic-years.load");
   const service = createAcademicYearService({ store: academicYearStore });
   const years = await service.list(principal);
   const query = normalizeMasterDataQuery(raw, { filters: {}, sorts: ["name-desc", "name-asc"] });

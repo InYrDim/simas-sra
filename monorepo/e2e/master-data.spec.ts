@@ -3,11 +3,23 @@ import { expect, test, type Page } from "@playwright/test";
 import { e2e } from "./fixtures";
 
 async function login(page: Page, domain: string, email: string) {
-  await page.goto(`/${domain}/login`);
+  await page.goto("/", { waitUntil: "networkidle" });
+  await page.getByRole("link", { name: "Masuk" }).click();
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Kata Sandi").fill(e2e.password);
   await page.getByRole("button", { name: "Masuk" }).click();
-  await expect(page).toHaveURL(new RegExp(`/${domain}/`));
+  await page.waitForURL(/\/(?:continue|dashboard|apply)(?:[/?]|$)/, { timeout: 30_000 });
+  await page.goto("/apply", { waitUntil: "networkidle" });
+  await expect(page.getByText("Akun School Admin", { exact: true })).toBeVisible({ timeout: 10_000 });
+  await page.getByRole("link", { name: `Masuk ke ${e2e.alpha.name}` }).click();
+  await page.waitForLoadState("domcontentloaded");
+  await expect(page).toHaveURL(new RegExp(`${domain}\\.localhost:3100/(?:${domain}/)?(?:login|dashboard)(?:[/?]|$)`), { timeout: 5_000 });
+  if (page.url().includes("/login")) {
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Kata Sandi").fill(e2e.password);
+    await page.getByRole("button", { name: "Masuk" }).click();
+    await expect(page).toHaveURL(new RegExp(`${domain}\\.localhost:3100/(?:${domain}/)?dashboard(?:[/?]|$)`), { timeout: 30_000 });
+  }
 }
 
 test("School Admin can open the critical Master Data workspace", async ({ page }) => {
@@ -19,6 +31,16 @@ test("School Admin can open the critical Master Data workspace", async ({ page }
   await expect(page.getByRole("heading", { level: 1, name: "Master Data" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Ringkasan authoritative" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Kelola Tahun Ajaran" })).toBeVisible();
+});
+
+test("School Admin can open Mata Pelajaran workspace through the real App Router", async ({ page }) => {
+  await login(page, e2e.alpha.domain, e2e.alpha.adminEmail);
+
+  const response = await page.goto(`http://localhost:3100/${e2e.alpha.domain}/master/mapel`);
+
+  expect(response?.status()).toBe(200);
+  await expect(page.getByRole("heading", { name: "Mata Pelajaran" })).toBeVisible();
+  await expect(page.getByRole("search")).toBeVisible();
 });
 
 test("non-admin is denied when opening a Master Data URL directly", async ({ page }) => {

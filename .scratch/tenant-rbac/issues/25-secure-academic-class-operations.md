@@ -2,7 +2,7 @@
 
 **What to build:** Enforce exact permissions and contextual policies across Tahun Ajaran, Mata Pelajaran, Rombongan Belajar, Keanggotaan Rombongan Belajar, and Wali Kelas operations.
 
-**Blocked by:** 18 — Introduce the centralized evaluator in shadow mode; 20 — Backfill legacy non-admin access without widening; 22 — Deliver multi-role assignment and effective access.
+**Blocked by:** 18 — Introduce the centralized evaluator in shadow mode; 20 — Backfill legacy non-admin access without widening; 22 — Deliver multi-role assignment and effective access; 33 — Define canonical academic authorization context; 34 — Introduce canonical teaching assignment; 35 — Define academic preview-commit security protocol.
 
 **Status:** ready-for-agent
 

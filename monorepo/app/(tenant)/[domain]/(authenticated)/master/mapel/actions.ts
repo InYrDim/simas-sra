@@ -11,7 +11,7 @@ import {
 import { subjectCatalogStore } from "@/lib/academic/subject-catalog-data";
 import { schoolProfileStore } from "@/lib/master-data/school-profile-data";
 import { parseSubjectForm, subjectResultCode } from "@/lib/academic/subject-catalog-route";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { enforceAcademicAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 const service = createSubjectCatalogService({ store: subjectCatalogStore });
 function finish(domain: string, code: string, selected?: string): never {
@@ -31,7 +31,7 @@ async function schoolEducationLevel(tenantId: string) {
 }
 
 export async function createSubjectAction(domain: string, formData: FormData) {
-  const principal = await enforceMasterDataAccess(domain, "write");
+  const principal = await enforceAcademicAccess(domain, "subjects.create");
   const educationLevel = await schoolEducationLevel(principal.tenantId);
   if (!educationLevel) finish(domain, "invalid-input");
   const parsed = parseSubjectForm(formData, educationLevel);
@@ -42,7 +42,7 @@ export async function createSubjectAction(domain: string, formData: FormData) {
 }
 
 export async function editSubjectAction(domain: string, formData: FormData) {
-  const principal = await enforceMasterDataAccess(domain, "write");
+  const principal = await enforceAcademicAccess(domain, "subjects.update");
   const educationLevel = await schoolEducationLevel(principal.tenantId);
   if (!educationLevel) finish(domain, "invalid-input");
   const parsed = parseSubjectForm(formData, educationLevel);
@@ -53,11 +53,11 @@ export async function editSubjectAction(domain: string, formData: FormData) {
 }
 
 export async function archiveSubjectAction(domain: string, formData: FormData) {
-  const principal = await enforceMasterDataAccess(domain, "write");
   const id = String(formData.get("id") ?? "");
   const version = Number.parseInt(String(formData.get("version") ?? ""), 10);
   const operation = String(formData.get("operation") ?? "");
   if (!id || !Number.isSafeInteger(version) || !["archive", "reactivate"].includes(operation)) finish(domain, "invalid-input");
+  const principal = await enforceAcademicAccess(domain, "subjects.archive-or-restore", [operation === "reactivate" ? "subjects.subjects.restore" : "subjects.subjects.archive"]);
   const result = await (operation === "reactivate" ? service.reactivate(principal, id, version) : service.archive(principal, id, version)).catch(() => null);
   if (!result) finish(domain, "error", id);
   finish(domain, subjectResultCode(result), id);

@@ -2,7 +2,9 @@ import "server-only";
 
 import { forbidden, notFound } from "next/navigation";
 
-import type { MasterDataOperation } from "@/lib/master-data/tenant-master-data-access";
+import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
+import { tenantOperationMap } from "@/lib/authorization/tenant-rbac-contract";
+import type { MasterDataOperation, MasterDataPrincipal } from "@/lib/master-data/tenant-master-data-access";
 import { getMasterDataAccess } from "@/lib/master-data/tenant-master-data-access-data";
 
 export async function enforceMasterDataAccess(domain: string, operation: MasterDataOperation) {
@@ -18,4 +20,29 @@ export async function enforceMasterDataAccess(domain: string, operation: MasterD
     forbidden();
   }
   return access.principal;
+}
+
+/** Enforces a declared operation-map entry for academic routes and actions. */
+export async function enforceAcademicAccess(domain: string, operationId: string, requestedPermissions?: readonly string[]): Promise<MasterDataPrincipal> {
+  const operation = tenantOperationMap.find((candidate) => candidate.id === operationId);
+  if (!operation || operation.lifecycle !== "active") notFound();
+
+  const evaluator = await createHttpTenantAuthorizationEvaluator();
+  const result = await evaluator.evaluate({ domain, operationId, surface: "api", requestedPermissions });
+  if (result.kind !== "authorized") {
+    console.warn({ event: "academic_operation_denied", domain, operationId, reason: result.internal.code });
+    if (result.external.kind === "not-found") notFound();
+    forbidden();
+  }
+
+  return {
+    userId: result.principal.userId,
+    tenantId: result.principal.tenantId,
+    role: "school-admin",
+    capabilities: {
+      read: true,
+      write: operation.operationalGate === "write",
+      downloadTemplate: false,
+    },
+  };
 }

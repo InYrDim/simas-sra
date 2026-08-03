@@ -1,11 +1,13 @@
 import { normalizeMasterDataQuery, type MasterDataSearchParams } from "@/lib/master-data/master-data-workspace";
 import type { Subject } from "@/lib/academic/subject-catalog";
 
-export function querySubjects(subjects: readonly Subject[], params: MasterDataSearchParams) {
+export function querySubjects(subjects: readonly Subject[], params: MasterDataSearchParams, tenantId?: string) {
+  // Tenant scope is applied before any derived filters, counts, ordering, or pagination.
+  const scopedSubjects = tenantId ? subjects.filter((subject) => subject.tenantId === tenantId) : subjects;
   let query = normalizeMasterDataQuery(params, { sorts: ["name-asc", "name-desc", "code-asc", "code-desc"] });
   const search = query.search.trim().toLocaleLowerCase("id-ID");
 
-  const filtered = subjects.filter((subject) =>
+  const filtered = scopedSubjects.filter((subject) =>
     (query.archive === "all" || subject.archived === (query.archive === "archived")) &&
     (!search || subject.normalizedName.includes(search) || subject.normalizedCode.toLocaleLowerCase("id-ID").includes(search)),
   ).sort((left, right) => {
@@ -16,5 +18,5 @@ export function querySubjects(subjects: readonly Subject[], params: MasterDataSe
   const pages = Math.max(1, Math.ceil(filtered.length / query.pageSize));
   if (query.page > pages) query = { ...query, page: pages };
   const offset = (query.page - 1) * query.pageSize;
-  return { query, items: filtered.slice(offset, offset + query.pageSize), total: filtered.length, state: subjects.length === 0 ? "empty" as const : filtered.length === 0 ? "no-results" as const : "results" as const };
+  return { query, items: filtered.slice(offset, offset + query.pageSize), total: filtered.length, state: scopedSubjects.length === 0 ? "empty" as const : filtered.length === 0 ? "no-results" as const : "results" as const };
 }

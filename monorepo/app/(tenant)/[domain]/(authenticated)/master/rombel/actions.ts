@@ -11,7 +11,7 @@ import { classGroupStore } from "@/lib/academic/class-group-data";
 import { createClassMembershipService } from "@/lib/academic/class-membership";
 import { classMembershipStore } from "@/lib/academic/class-membership-data";
 import { rombelResultPath } from "@/lib/academic/rombel-route";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { enforceAcademicAccess } from "@/lib/master-data/tenant-master-data-route-access";
 
 const service = createClassGroupService({ store: classGroupStore });
 const relationshipService = createClassMembershipService({
@@ -41,13 +41,13 @@ function fields(form: FormData) {
 }
 
 export async function createClassGroupAction(domain: string, form: FormData) {
-  const principal = await enforceMasterDataAccess(domain, "write");
+  const principal = await enforceAcademicAccess(domain, "class-groups.create");
   const result = await service.create(principal, fields(form));
   finish(domain, result, result.ok ? result.record.id : undefined);
 }
 
 export async function editClassGroupAction(domain: string, form: FormData) {
-  const principal = await enforceMasterDataAccess(domain, "write");
+  const principal = await enforceAcademicAccess(domain, "class-groups.update");
   const id = String(form.get("id"));
   finish(
     domain,
@@ -62,9 +62,10 @@ export async function editClassGroupAction(domain: string, form: FormData) {
 }
 
 export async function manageClassGroupAction(domain: string, form: FormData) {
-  const principal = await enforceMasterDataAccess(domain, "write");
-  const id = String(form.get("id"));
   const operation = String(form.get("operation"));
+  if (!["archive", "reactivate", "activate", "close", "cancel"].includes(operation)) finish(domain, { ok: false, code: "invalid-input" }, String(form.get("id") ?? ""));
+  const principal = await enforceAcademicAccess(domain, "class-groups.lifecycle", [operation === "archive" ? "class-groups.groups.archive" : operation === "reactivate" ? "class-groups.groups.restore" : "class-groups.groups.manage-lifecycle"]);
+  const id = String(form.get("id"));
   const input = {
     expectedVersion: Number(form.get("expectedVersion")),
     reason: String(form.get("reason") ?? ""),
@@ -93,7 +94,7 @@ export async function addClassMembershipsAction(
   _previous: AddClassMembershipsState,
   form: FormData,
 ): Promise<AddClassMembershipsState> {
-  const principal = await enforceMasterDataAccess(domain, "write");
+  const principal = await enforceAcademicAccess(domain, "class-groups.memberships.assign");
   const result = await relationshipService.addMemberships(principal, {
     studentIds: form.getAll("studentIds").map(String),
     classGroupId: String(form.get("classGroupId") ?? ""),
@@ -124,8 +125,9 @@ export async function manageClassRelationshipAction(
   domain: string,
   form: FormData,
 ) {
-  const principal = await enforceMasterDataAccess(domain, "write");
   const operation = String(form.get("operation"));
+  if (!["bulk-membership", "transfer", "homeroom", "membership"].includes(operation)) finish(domain, { ok: false, code: "invalid-input" }, String(form.get("toClassGroupId") ?? form.get("classGroupId") ?? ""));
+  const principal = await enforceAcademicAccess(domain, operation === "transfer" || operation === "homeroom" ? "class-groups.relationships.manage" : "class-groups.memberships.assign", [operation === "transfer" ? "class-groups.memberships.transfer" : operation === "homeroom" ? "class-groups.homerooms.assign" : "class-groups.memberships.assign"]);
   const input = {
     studentId: String(form.get("studentId") ?? ""),
     teacherId: String(form.get("teacherId") ?? ""),

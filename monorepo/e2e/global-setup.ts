@@ -27,6 +27,7 @@ async function cleanup(connection: Connection) {
   await connection.execute("SET FOREIGN_KEY_CHECKS=0");
   try {
     await connection.query("DELETE FROM tenant_role_assignment WHERE tenant_id IN (?)", [tenantIds]);
+    await connection.query("DELETE FROM school_admin_authority WHERE tenant_id IN (?)", [tenantIds]);
     await connection.query("DELETE FROM tenant_role_permission WHERE tenant_id IN (?)", [tenantIds]);
     await connection.query("DELETE FROM tenant_role WHERE tenant_id IN (?)", [tenantIds]);
     await connection.query("DELETE FROM tenant_account_security WHERE tenant_id IN (?)", [tenantIds]);
@@ -132,16 +133,29 @@ export default async function globalSetup() {
       [e2e.alpha.tenantId, e2e.alpha.staffId],
     );
     await connection.execute(
-      "INSERT INTO tenant_role (id,tenant_id,name,normalized_name,lifecycle,origin,version,created_at,updated_at) VALUES ('e2e00000-0000-4000-8000-000000000081',?,'Staf Operasional','staf operasional','active','scratch',1,NOW(3),NOW(3)),('e2e00000-0000-4000-8000-000000000082',?,'Pembaca Dashboard','pembaca dashboard','active','scratch',1,NOW(3),NOW(3))",
-      [e2e.alpha.tenantId, e2e.alpha.tenantId],
+      "INSERT INTO school_admin_authority (id,tenant_id,user_id,authority_state,version,granted_at,created_at,updated_at) VALUES ('e2e00000-0000-4000-8000-000000000101',? ,?,'active',1,NOW(3),NOW(3),NOW(3)),('e2e00000-0000-4000-8000-000000000102',? ,?,'active',1,NOW(3),NOW(3),NOW(3))",
+      [e2e.alpha.tenantId, e2e.alpha.adminId, e2e.beta.tenantId, e2e.beta.adminId],
     );
+    await connection.execute(
+      "INSERT INTO tenant_role (id,tenant_id,name,normalized_name,lifecycle,origin,version,created_at,updated_at) VALUES ('e2e00000-0000-4000-8000-000000000081',?,'Staf Operasional','staf operasional','active','scratch',1,NOW(3),NOW(3)),('e2e00000-0000-4000-8000-000000000082',?,'Pembaca Dashboard','pembaca dashboard','active','scratch',1,NOW(3),NOW(3)),('e2e00000-0000-4000-8000-000000000083',?,'Admin Akademik','admin akademik','active','scratch',1,NOW(3),NOW(3)),('e2e00000-0000-4000-8000-000000000084',?,'Admin Akademik Beta','admin akademik beta','active','scratch',1,NOW(3),NOW(3))",
+      [e2e.alpha.tenantId, e2e.alpha.tenantId, e2e.alpha.tenantId, e2e.beta.tenantId],
+    );
+    const academicPermissions = [
+      "academic-years.years.view", "academic-years.years.create", "academic-years.years.manage-lifecycle", "academic-years.years.archive", "academic-years.years.restore",
+      "subjects.subjects.view", "subjects.subjects.create", "subjects.subjects.update", "subjects.subjects.archive", "subjects.subjects.restore",
+      "class-groups.groups.view", "class-groups.groups.create", "class-groups.groups.update", "class-groups.groups.manage-lifecycle", "class-groups.groups.archive", "class-groups.groups.restore",
+      "class-groups.memberships.assign", "class-groups.memberships.transfer", "class-groups.homerooms.assign", "people.people.view", "students.students.view", "teachers.teachers.view",
+    ];
+    for (const permissionKey of academicPermissions) {
+      await connection.execute("INSERT INTO tenant_role_permission (tenant_id,role_id,permission_key,created_at) VALUES (?, 'e2e00000-0000-4000-8000-000000000083', ?, NOW(3)), (?, 'e2e00000-0000-4000-8000-000000000084', ?, NOW(3))", [e2e.alpha.tenantId, permissionKey, e2e.beta.tenantId, permissionKey]);
+    }
     await connection.execute(
       "INSERT INTO tenant_role_permission (tenant_id,role_id,permission_key,created_at) VALUES (?,'e2e00000-0000-4000-8000-000000000081','tenant.dashboard.view',NOW(3)),(?,'e2e00000-0000-4000-8000-000000000082','tenant.dashboard.view',NOW(3))",
       [e2e.alpha.tenantId, e2e.alpha.tenantId],
     );
     await connection.execute(
-      "INSERT INTO tenant_role_assignment (id,tenant_id,user_id,role_id,state,version,assigned_at,updated_at) VALUES ('e2e00000-0000-4000-8000-000000000091',?,?,'e2e00000-0000-4000-8000-000000000081','active',1,NOW(3),NOW(3)),('e2e00000-0000-4000-8000-000000000092',?,?,'e2e00000-0000-4000-8000-000000000082','active',1,NOW(3),NOW(3))",
-      [e2e.alpha.tenantId, e2e.alpha.staffId, e2e.alpha.tenantId, e2e.alpha.staffId],
+      "INSERT INTO tenant_role_assignment (id,tenant_id,user_id,role_id,state,version,assigned_at,updated_at) VALUES ('e2e00000-0000-4000-8000-000000000091',?,?,'e2e00000-0000-4000-8000-000000000081','active',1,NOW(3),NOW(3)),('e2e00000-0000-4000-8000-000000000092',?,?,'e2e00000-0000-4000-8000-000000000082','active',1,NOW(3),NOW(3)),('e2e00000-0000-4000-8000-000000000093',?,?,'e2e00000-0000-4000-8000-000000000083','active',1,NOW(3),NOW(3)),('e2e00000-0000-4000-8000-000000000094',?,?,'e2e00000-0000-4000-8000-000000000084','active',1,NOW(3),NOW(3))",
+      [e2e.alpha.tenantId, e2e.alpha.staffId, e2e.alpha.tenantId, e2e.alpha.staffId, e2e.alpha.tenantId, e2e.alpha.adminId, e2e.beta.tenantId, e2e.beta.adminId],
     );
   } catch (error) {
     await cleanup(connection);

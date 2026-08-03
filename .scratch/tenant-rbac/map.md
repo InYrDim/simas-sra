@@ -33,6 +33,9 @@ A decision-complete specification for universal Tenant RBAC, ready for implement
 - [Fix validation and specification handoff](./issues/12-fix-validation-and-spec-handoff.md) — Layered security, isolation, permission-matrix, UI, concurrency, audit, migration, worker, observability, and runbook gates define fourteen incremental implementation slices.
 - [Map current operations to permissions](./issues/13-map-current-operations-to-permissions.md) — Current and target operations map to 149 canonical keys, with exact contextual/projection requirements and a zero-widening legacy-role equivalence contract.
 - [Define the non-admin Tenant account lifecycle](./issues/14-define-non-admin-account-lifecycle.md) — School Admin-only account creation, invitation, profile linking, credential administration, deactivation, reactivation, and role handoff remain separate from Provider-owned School Admin authority.
+- [Define canonical academic authorization context](./issues/33-define-canonical-academic-authorization-context.md) — A server-constructed, effective-dated academic context composes current RBAC and supplemental permissions with Tenant-qualified record scope, lifecycle, entitlement, concealment, and transactional freshness gates.
+- [Introduce canonical teaching assignment](./issues/34-introduce-canonical-teaching-assignment.md) — A versioned, audited Penugasan Mengajar tuple binds one eligible Guru, Mata Pelajaran, Rombongan Belajar, and Tahun Ajaran through an explicit effective lifecycle without deriving authority from Wali Kelas.
+- [Define academic preview-commit security protocol](./issues/35-define-academic-preview-commit-security-protocol.md) — Short-lived opaque previews bind confirmed intent but carry no authority; commit reauthorizes and validates every target before one idempotent atomic mutation or sensitive export.
 
 ## Not yet specified
 

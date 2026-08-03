@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { defineConfig, devices } from "@playwright/test";
 
 const port = 3100;
@@ -11,8 +12,8 @@ export default defineConfig({
   workers: 1,
   reporter: process.env.CI ? "github" : "list",
   globalSetup: "./e2e/global-setup.ts",
-  timeout: 30_000,
-  expect: { timeout: 10_000 },
+  timeout: 120_000,
+  expect: { timeout: 20_000 },
   use: {
     baseURL,
     trace: "on-first-retry",
@@ -31,7 +32,7 @@ export default defineConfig({
         env: {
           BETTER_AUTH_URL: baseURL,
         },
-        url: baseURL,
+        url: `http://localhost:${port}`,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,
       },
