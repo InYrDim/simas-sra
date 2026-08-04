@@ -7,7 +7,8 @@ export async function GET(
   context: { params: Promise<{ domain: string; submissionId: string; documentId: string }> },
 ) {
   const { domain, submissionId, documentId } = await context.params;
-  await enforceTenantOperation(domain, "ppdb.documents.load");
+  const isDownload = new URL(request.url).searchParams.get("download") === "1";
+  await enforceTenantOperation(domain, isDownload ? "ppdb.documents.download" : "ppdb.documents.load");
   const principal = await enforceTenantFeatureAccess(domain, "ppdbRead", "read");
   const document = await ppdbSubmissionStore.findDocument(principal.tenantId, submissionId, documentId);
   if (!document) return Response.json({ code: "not-found" }, { status: 404 });
@@ -18,7 +19,7 @@ export async function GET(
   try {
     const bytes = await createProtectedFileStorage(storageRoot).read(principal.tenantId, document.storageKey);
     const fallbackName = `dokumen-${document.id}.${document.mimeType === "application/pdf" ? "pdf" : document.mimeType === "image/png" ? "png" : "jpg"}`;
-    const disposition = new URL(request.url).searchParams.get("download") === "1" ? "attachment" : "inline";
+    const disposition = isDownload ? "attachment" : "inline";
     return new Response(Buffer.from(bytes), {
       headers: {
         "Cache-Control": "private, no-store",

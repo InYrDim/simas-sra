@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 export const PERMISSION_REGISTRY_VERSION = "tenant-permissions@2";
-export const OPERATION_MAP_VERSION = "tenant-operations@3";
+export const OPERATION_MAP_VERSION = "tenant-operations@4";
 
 export const LEGACY_NON_ADMIN_ROLES = ["pimpinan", "staff", "guru", "siswa", "guest"] as const;
 
@@ -188,6 +188,7 @@ const activeSeeds: readonly CatalogSeed[] = [
   ["ppdb.submissions.view"],
   ["ppdb.submissions.view-sensitive", ["ppdb.submissions.view"], "sensitive"],
   ["ppdb.documents.view-sensitive", ["ppdb.submissions.view", "ppdb.submissions.view-sensitive"], "critical"],
+  ["ppdb.documents.download", [], "critical"],
   ["ppdb.submissions.decide", [], "critical"],
   ["ppdb.submissions.export", ["ppdb.submissions.view"], "critical"],
   ["ppdb.results.view"],
@@ -426,6 +427,8 @@ const seeds: OperationSeed[] = [
   { id: "ppdb.sessions.close", entryPoints: [a("ppdb/actions.ts", "endSessionAction")], permissions: ["ppdb.sessions.close"], gate: "write", entitlement: "PPDB-W", legacy: ["entitlement"] },
   { id: "ppdb.submissions.load", entryPoints: [p("ppdb"), ppdbHistoryPage], permissions: ["ppdb.submissions.view", "ppdb.submissions.view-sensitive", "ppdb.submissions.export"], mode: "conditional", supplemental: ["ppdb.submissions.view-sensitive", "ppdb.submissions.export"], entitlement: "PPDB-R", legacy: ["broad-master-data", "capability-aggregate"] },
   { id: "ppdb.documents.load", entryPoints: [r("ppdb/submissions/[submissionId]/documents/[documentId]", "GET")], permissions: ["ppdb.documents.view-sensitive"], supplemental: ["ppdb.documents.view-sensitive"], entitlement: "PPDB-R", context: "tenant-wide", risk: "critical", legacy: ["entitlement"] },
+  { id: "ppdb.documents.download", entryPoints: [r("ppdb/submissions/[submissionId]/documents/[documentId]", "GET")], permissions: ["ppdb.documents.download", "ppdb.documents.view-sensitive"], mode: "all", supplemental: ["ppdb.documents.view-sensitive"], entitlement: "PPDB-R", context: "tenant-wide", risk: "critical", legacy: ["entitlement"] },
+  { id: "ppdb.submissions.export", entryPoints: [r("ppdb/submissions/export", "GET")], permissions: ["ppdb.submissions.export", "ppdb.submissions.view-sensitive"], mode: "all", supplemental: ["ppdb.submissions.view-sensitive"], entitlement: "PPDB-R", context: "tenant-wide", risk: "critical", legacy: ["entitlement"] },
   { id: "ppdb.submissions.decide", entryPoints: [a("ppdb/actions.ts", "decideSubmissionAction")], permissions: ["ppdb.submissions.decide"], gate: "write", entitlement: "PPDB-W", risk: "critical", legacy: ["entitlement"] },
   { id: "ppdb.results.load", entryPoints: [p("ppdb/results"), ppdbHistoryPage], permissions: ["ppdb.results.view"], entitlement: "PPDB-R", legacy: ["broad-master-data", "capability-aggregate"] },
   { id: "ppdb.results.publish", entryPoints: [a("ppdb/actions.ts", "publishResultsAction")], permissions: ["ppdb.results.publish"], gate: "write", entitlement: "PPDB-W", risk: "critical", legacy: ["entitlement"] },

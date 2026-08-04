@@ -26,11 +26,21 @@ const legacyMinimum = [
 
 test("the approved registry and operation map form a valid executable contract", () => {
   assert.equal(PERMISSION_REGISTRY_VERSION, "tenant-permissions@2");
-  assert.equal(OPERATION_MAP_VERSION, "tenant-operations@3");
-  assert.equal(permissionRegistry.length, 152);
+  assert.equal(OPERATION_MAP_VERSION, "tenant-operations@4");
+  assert.equal(permissionRegistry.length, 153);
   assert.match(permissionRegistryDigest, /^[a-f0-9]{64}$/);
   assert.match(tenantOperationMapDigest, /^[a-f0-9]{64}$/);
   assert.deepEqual(validateTenantRbacContract(), []);
+});
+
+test("PPDB document and export operations require explicit sensitive permissions", () => {
+  const document = tenantOperationMap.find((operation) => operation.id === "ppdb.documents.download");
+  assert.deepEqual(document?.requiredPermissions, ["ppdb.documents.download", "ppdb.documents.view-sensitive"]);
+  assert.deepEqual(document?.supplementalPermissions, ["ppdb.documents.view-sensitive"]);
+
+  const exportOperation = tenantOperationMap.find((operation) => operation.id === "ppdb.submissions.export");
+  assert.deepEqual(exportOperation?.requiredPermissions, ["ppdb.submissions.export", "ppdb.submissions.view-sensitive"]);
+  assert.equal(exportOperation?.entryPoints.some((entry) => entry.includes("ppdb/submissions/export")), true);
 });
 
 test("every permission exposes stable Indonesian catalog metadata", () => {

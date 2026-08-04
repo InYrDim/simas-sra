@@ -12,7 +12,7 @@ import { createPpdbSubmissionService } from "@/lib/admissions/ppdb-submission";
 import { ppdbSubmissionStore } from "@/lib/admissions/ppdb-submission-data";
 import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
 import { enforceAcademicAccess } from "@/lib/master-data/tenant-master-data-route-access";
-import { ClipboardList, FileSearch, History, Megaphone, PencilLine, PlusCircle, Search, StopCircle } from "lucide-react";
+import { ClipboardList, Download, FileSearch, History, Megaphone, PencilLine, PlusCircle, Search, StopCircle } from "lucide-react";
 
 const sessionService = createPpdbSessionService({ store: ppdbSessionStore });
 const submissionService = createPpdbSubmissionService({ store: ppdbSubmissionStore });
@@ -43,6 +43,7 @@ export default async function PPDBDashboardPage({
     .filter((session) => session.status === "ended")
     .sort((a, b) => (b.endedAt?.getTime() ?? 0) - (a.endedAt?.getTime() ?? 0))[0];
   const resultSession = current ?? latestEnded;
+  const canExport = principal.permissions?.has("ppdb.submissions.export") === true && principal.permissions?.has("ppdb.submissions.view-sensitive") === true;
 
   return (
     <main className="min-h-svh bg-slate-50 text-slate-950 pb-20">
@@ -84,6 +85,12 @@ export default async function PPDBDashboardPage({
             <History className="size-4" />
             Riwayat PPDB
           </Button>
+          {canExport && resultSession ? (
+            <Button nativeButton={false} render={<Link href={`/${domain}/ppdb/submissions/export?sessionId=${encodeURIComponent(resultSession.id)}`} />} variant="outline" className="gap-1.5" featureAvailability={availability.ppdbRead}>
+              <Download className="size-4" />
+              Ekspor Pendaftar
+            </Button>
+          ) : null}
         </div>
       </header>
 
