@@ -353,6 +353,27 @@ export function securityAuditEventHash(previousHash: string, canonicalPayloadDig
   return sha256(canonicalJson({ canonicalPayloadDigest, previousHash }));
 }
 
+export function securityAuditEventPayloadDigest(event: PersistedSecurityAuditEvent): string {
+  return sha256(canonicalJson(auditPayload({
+    id: event.id,
+    context: event.context,
+    sequence: event.sequence,
+    eventKey: event.eventKey,
+    schemaVersion: event.schemaVersion,
+    eventType: event.eventType,
+    outcome: event.outcome,
+    actor: event.actor,
+    commandId: event.commandId,
+    targets: event.targets,
+    correlationId: event.correlationId,
+    requestId: event.requestId,
+    reason: event.reason,
+    metadata: event.metadata,
+    occurredAt: event.occurredAt,
+    previousHashForDigest: event.previousHash,
+  })));
+}
+
 function actorEvidence(actor: SecurityActor): JsonValue {
   if (actor.kind === "system") return { kind: actor.kind, service: actor.service };
   const evidence: Record<string, JsonValue> = {

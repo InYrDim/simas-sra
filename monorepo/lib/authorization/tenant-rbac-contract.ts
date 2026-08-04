@@ -75,6 +75,8 @@ const activeSeeds: readonly CatalogSeed[] = [
   ["tenant.accounts.deactivate", [], "critical", "school-admin-only"],
   ["tenant.accounts.reactivate", [], "critical", "school-admin-only"],
   ["tenant.accounts.recovery", [], "critical", "school-admin-only"],
+  ["tenant.authorization-audit.view", [], "sensitive", "school-admin-only"],
+  ["tenant.authorization-audit.export", [], "critical", "school-admin-only"],
   ["tenant.roles.list", [], "sensitive", "school-admin-only"],
   ["tenant.roles.view", [], "sensitive", "school-admin-only"],
   ["tenant.roles.create", [], "critical", "school-admin-only"],
@@ -211,7 +213,6 @@ const activeSeeds: readonly CatalogSeed[] = [
 
 const reservedKeys = [
   "tenant.roles.copy",
-  "tenant.authorization-audit.view", "tenant.authorization-audit.export",
   "tenant.accounts.invite", "tenant.accounts.link", "tenant.accounts.unlink", "tenant.accounts.resend",
   "tenant.accounts.reissue", "tenant.accounts.initiate-recovery",
 ] as const;
@@ -330,6 +331,9 @@ const seeds: OperationSeed[] = [
   { id: "tenant.accounts.deactivate", entryPoints: [a("users/actions.ts", "deactivateTenantAccountAction")], permissions: ["tenant.accounts.deactivate"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
   { id: "tenant.accounts.reactivate", entryPoints: [a("users/actions.ts", "reactivateTenantAccountAction")], permissions: ["tenant.accounts.reactivate"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
   { id: "tenant.accounts.recovery", entryPoints: [a("users/actions.ts", "initiateTenantRecoveryAction")], permissions: ["tenant.accounts.recovery"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
+  { id: "tenant.authorization-audit.load", entryPoints: [p("security-history")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", risk: "sensitive", legacy: ["legacy-school-admin"] },
+  { id: "tenant.authorization-audit.self", entryPoints: [p("security-history")], permissions: ["tenant.users.view"], context: "self", risk: "sensitive", legacy: ["tenantRole"] },
+  { id: "tenant.authorization-audit.export", entryPoints: [r("security-history/export", "GET")], permissions: ["tenant.authorization-audit.export"], gate: "read", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
   { id: "tenant.roles.list", entryPoints: [p("settings/roles"), a("settings/roles/actions.ts", "getRoles")], permissions: ["tenant.roles.list"], context: "school-admin-only", legacy: ["legacy-school-admin"] },
   { id: "tenant.roles.view", entryPoints: [a("settings/roles/actions.ts", "getRole")], permissions: ["tenant.roles.view"], context: "school-admin-only", legacy: ["legacy-school-admin"] },
   { id: "tenant.roles.create", entryPoints: [a("settings/roles/actions.ts", "createRole")], permissions: ["tenant.roles.create"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
