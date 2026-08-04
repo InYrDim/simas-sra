@@ -71,7 +71,7 @@ function endpointIsEligible(endpoints: TeachingAssignmentEndpoint, assignment: P
   const { teacher, subject, classGroup, academicYear } = endpoints;
   if (!teacher || !subject || !classGroup || !academicYear) return false;
   if ([teacher.tenantId, subject.tenantId, classGroup.tenantId, academicYear.tenantId].some((id) => id !== assignment.tenantId)) return false;
-  if (!teacher.active || teacher.archived || subject.archived || classGroup.archived || academicYear.archived) return false;
+   if (!teacher.active || teacher.archived || subject.archived || classGroup.archived || academicYear.archived) return false;
   if (classGroup.academicYearId !== assignment.academicYearId || !subject.educationLevels.includes(classGroup.educationLevel)) return false;
   if (!date(assignment.startsOn) || assignment.endsOn !== null && (!date(assignment.endsOn) || assignment.endsOn <= assignment.startsOn)) return false;
   if (assignment.startsOn < academicYear.startDate || assignment.startsOn > academicYear.endDate) return false;
@@ -98,6 +98,7 @@ export function createTeachingAssignmentService(dependencies: { store: TeachingA
       if (status === "active") return failure("invalid-lifecycle");
       if (!await dependencies.store.actor(input.tenantId, input.createdByUserId)) return failure("invalid-input");
       return dependencies.store.transaction(input.tenantId, async (tx) => {
+        await tx.lockScope(input);
         const valid = await validate(tx, { ...input, status }); if (!valid.ok) return valid;
         const value: TeachingAssignment = { ...input, id: id(), status, reason: cleanReason, version: 1, createdAt: timestamp, updatedAt: timestamp };
         await tx.insert(value); await tx.audit({ id: id(), tenantId: value.tenantId, teachingAssignmentId: value.id, actorUserId: value.createdByUserId, operation: "created", fromVersion: 0, toVersion: 1, effectiveOn: value.startsOn, reason: cleanReason, occurredAt: timestamp });
@@ -149,7 +150,7 @@ export function createTeachingAssignmentService(dependencies: { store: TeachingA
     return dependencies.store.transaction(tenantId, async (tx) => {
       const current = (await tx.list()).find((row) => row.id === assignmentId && row.tenantId === tenantId); if (!current) return failure("not-found"); if (current.version !== expectedVersion) return failure("conflict");
       if (command === "activate" && current.status !== "planned" || command === "end" && current.status !== "active" || command === "cancel" && current.status !== "planned") return failure("invalid-lifecycle");
-      if (command === "activate" && current.startsOn > effectiveOn) return failure("invalid-input");
+       if (command === "activate" && (current.startsOn > effectiveOn || current.endsOn !== null && effectiveOn >= current.endsOn)) return failure("invalid-input");
       const endsOn = command === "end" ? effectiveOn : current.endsOn;
       if (command === "end" && effectiveOn <= current.startsOn) return failure("invalid-input");
       const status = command === "activate" ? "active" : command === "end" ? "ended" : "cancelled";
