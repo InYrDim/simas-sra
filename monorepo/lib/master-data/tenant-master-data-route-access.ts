@@ -22,7 +22,39 @@ export async function enforceMasterDataAccess(domain: string, operation: MasterD
   return access.principal;
 }
 
-/** Enforces a declared operation-map entry for academic routes and actions. */
+/** Enforces a mapped Tenant operation and adapts its principal for master-data services. */
+export async function enforceTenantMasterDataOperation(
+  domain: string,
+  operationId: string,
+  requestedPermissions?: readonly string[],
+): Promise<MasterDataPrincipal> {
+  const operation = tenantOperationMap.find((candidate) => candidate.id === operationId);
+  if (!operation || operation.lifecycle !== "active") notFound();
+
+  const evaluator = await createHttpTenantAuthorizationEvaluator();
+  const result = await evaluator.evaluate({ domain, operationId, surface: "api", requestedPermissions });
+  if (result.kind !== "authorized") {
+    console.warn({ event: "master_data_operation_denied", domain, operationId, reason: result.internal.code });
+    if (result.external.kind === "not-found") notFound();
+    forbidden();
+  }
+
+  const writePermission = operation.operationalGate === "write";
+  return {
+    userId: result.principal.userId,
+    tenantId: result.principal.tenantId,
+    role: "school-admin",
+    capabilities: {
+      read: true,
+      write: result.principal.schoolAdmin || writePermission,
+      downloadTemplate: operation.id === "people-imports.template.download",
+    },
+    schoolAdmin: result.principal.schoolAdmin,
+    permissions: result.principal.permissions,
+    selfPersonId: result.principal.selfPersonId,
+  };
+}
+
 export async function enforceAcademicAccess(domain: string, operationId: string, requestedPermissions?: readonly string[]): Promise<MasterDataPrincipal> {
   const operation = tenantOperationMap.find((candidate) => candidate.id === operationId);
   if (!operation || operation.lifecycle !== "active") notFound();

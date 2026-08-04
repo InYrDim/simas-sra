@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
 import { getPeopleImportExecution } from "@/lib/imports/people-import-execution-data";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { enforceTenantMasterDataOperation } from "@/lib/master-data/tenant-master-data-route-access";
 
 const labels = {
   created: "Dibuat",
@@ -22,10 +22,10 @@ export default async function ExecutionPage({
   params: Promise<{ domain: string; revisionId: string; executionId: string }>;
 }) {
   const { domain, revisionId, executionId } = await params;
-  const principal = await enforceMasterDataAccess(domain, "read");
+  const principal = await enforceTenantMasterDataOperation(domain, "people-imports.load", ["people-imports.revisions.view"]);
   const [availability, result] = await Promise.all([
     getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
-    getPeopleImportExecution(principal.tenantId, executionId),
+    getPeopleImportExecution(principal.tenantId, executionId, revisionId),
   ]);
   if (!result) notFound();
 

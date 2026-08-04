@@ -1,9 +1,9 @@
 import { createPeopleImportService } from "@/lib/imports/people-import";
 import { peopleImportStore } from "@/lib/imports/people-import-data";
 import { createProtectedFileStorage } from "@/lib/platform/protected-file-storage";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { enforceTenantMasterDataOperation } from "@/lib/master-data/tenant-master-data-route-access";
 export async function POST(request: Request, context: { params: Promise<{ domain: string }> }) {
-  const { domain } = await context.params, principal = await enforceMasterDataAccess(domain, "validate-import");
+  const { domain } = await context.params, principal = await enforceTenantMasterDataOperation(domain, "people-imports.upload");
   const form = await request.formData(), file = form.get("file");
   if (!(file instanceof File) || file.size === 0 || file.size > 10 * 1024 * 1024) return Response.json({ code: "invalid-file" }, { status: 400 });
   const root = process.env.PROTECTED_FILE_STORAGE_ROOT; if (!root) return Response.json({ code: "storage-unavailable" }, { status: 503 });

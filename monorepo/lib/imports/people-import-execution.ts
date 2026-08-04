@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 export type ExecutionDecision = { action: "link"; targetPersonId: string } | { action: "create-distinct" | "skip"; targetPersonId?: never };
 export type ExecutionRow = { id: string; rowNumber: number; state: "ready" | "warning" | "rejected"; decision: ExecutionDecision | null };
 export type ExecutionOutcome = "created" | "linked" | "skipped" | "rejected" | "failed" | "already-committed";
-export type ClaimedExecutionRow = { executionId: string; tenantId: string; revisionId: string; rowId: string; actorId: string };
+export type ClaimedExecutionRow = { executionId: string; tenantId: string; revisionId: string; rowId: string; actorId: string; claimedBy?: string; rolloutEpoch?: string | null };
 export type PeopleImportExecutionStore = {
   checkEmergencyStop(): Promise<boolean>;
   claimNext(workerId: string): Promise<ClaimedExecutionRow | null>;

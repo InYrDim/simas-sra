@@ -5,7 +5,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
 import { listImportRevisions } from "@/lib/imports/people-import-review-data";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { enforceTenantMasterDataOperation } from "@/lib/master-data/tenant-master-data-route-access";
 
 const demoMessages: Record<string, string> = {
   success: "Master data demo berhasil diisi. Halaman Akademik dan Pendaftaran sekarang dapat digunakan.",
@@ -21,7 +21,7 @@ export default async function PeopleImportPage({
   searchParams: Promise<{ demo?: string }>;
 }) {
   const [{ domain }, query] = await Promise.all([params, searchParams]);
-  const principal = await enforceMasterDataAccess(domain, "read");
+  const principal = await enforceTenantMasterDataOperation(domain, "people-imports.load", ["people-imports.revisions.view"]);
   const [availability, revisions] = await Promise.all([
     getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
     listImportRevisions(principal),

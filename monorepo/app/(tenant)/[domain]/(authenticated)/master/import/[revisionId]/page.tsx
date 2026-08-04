@@ -9,7 +9,7 @@ import { queryImportReview, type ReviewRow } from "@/lib/imports/people-import-r
 import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
 import type { TenantFeatureAvailability } from "@/lib/features/tenant-feature-availability";
 import { getImportReview } from "@/lib/imports/people-import-review-data";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { enforceTenantMasterDataOperation } from "@/lib/master-data/tenant-master-data-route-access";
 
 const stateLabels = { ready: "Siap", warning: "Perlu keputusan", rejected: "Ditolak" } as const;
 const decisionLabels: Record<string, string> = {
@@ -30,7 +30,7 @@ type PageProps = {
 
 export default async function ImportReviewPage({ params, searchParams }: PageProps) {
   const [{ domain, revisionId }, query] = await Promise.all([params, searchParams]);
-  const principal = await enforceMasterDataAccess(domain, "read");
+  const principal = await enforceTenantMasterDataOperation(domain, "people-imports.load", ["people-imports.revisions.view", "people-imports.revisions.view-sensitive"]);
   const [availability, review] = await Promise.all([
     getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
     getImportReview(principal, revisionId),
