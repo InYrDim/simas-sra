@@ -9,6 +9,7 @@ import { createQuizSessionService } from "@/lib/quiz/quiz";
 import { quizSessionStore } from "@/lib/quiz/quiz-data";
 import { createSubjectCatalogService } from "@/lib/academic/subject-catalog";
 import { subjectCatalogStore } from "@/lib/academic/subject-catalog-data";
+import { listEffectiveTeachingAssignmentsForUser } from "@/lib/academic/teaching-assignment-data";
 import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
 import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 import { ClipboardCheck, Monitor, PenLine } from "lucide-react";
@@ -46,13 +47,15 @@ export default async function UlanganPage({
 }) {
   const [{ domain }, raw] = await Promise.all([params, searchParams]);
   const principal = await enforceMasterDataAccess(domain, "read");
-  const [availability, sessions, years, groups, subjects] = await Promise.all([
+  const [availability, allSessions, years, groups, subjects, assignments] = await Promise.all([
     getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
     sessionService.list(principal),
     academicYearService.list(principal),
     classGroupService.list(principal),
     subjectService.list(principal),
+    principal.schoolAdmin ? Promise.resolve([]) : listEffectiveTeachingAssignmentsForUser(principal.tenantId, principal.userId, new Date().toISOString().slice(0, 10)),
   ]);
+  const sessions = principal.schoolAdmin ? allSessions : allSessions.filter((session) => assignments.some((assignment) => assignment.academicYearId === session.academicYearId && assignment.subjectId === session.subjectId && assignment.classGroupId === session.classGroupId));
 
   const sorted = [...sessions]
     .filter((s) => s.status === "draft" || s.status === "active")

@@ -4,7 +4,7 @@ import test, { after } from "node:test";
 import mysql from "mysql2/promise";
 
 import { closeDatabasePool } from "@/db";
-import { teachingAssignmentStore } from "@/lib/academic/teaching-assignment-data";
+import { listEffectiveTeachingAssignmentsForUser, teachingAssignmentStore } from "@/lib/academic/teaching-assignment-data";
 
 const databaseUrl = process.env.DATABASE_URL;
 const mysqlTest = databaseUrl ? test : test.skip;
@@ -54,8 +54,8 @@ mysqlTest("teaching assignment transactions isolate Tenants and preserve atomic 
       [actorA, tenantA, `${actorA}@test.invalid`, actorB, tenantB, `${actorB}@test.invalid`],
     );
     await connection.execute(
-      "INSERT INTO `school_person` (`id`,`tenant_id`,`full_name`,`normalized_name`,`birth_place`,`normalized_birth_place`,`birth_date`,`gender`,`street`,`archived`,`version`,`created_at`,`updated_at`) VALUES (?,?, 'Teacher A','teacher a','Test','test','1990-01-01','male','Test',false,1,NOW(3),NOW(3))",
-      [personA, tenantA],
+      "INSERT INTO `school_person` (`id`,`tenant_id`,`full_name`,`normalized_name`,`birth_place`,`normalized_birth_place`,`birth_date`,`gender`,`street`,`account_user_id`,`archived`,`version`,`created_at`,`updated_at`) VALUES (?,?, 'Teacher A','teacher a','Test','test','1990-01-01','male','Test',?,false,1,NOW(3),NOW(3))",
+      [personA, tenantA, actorA],
     );
     await connection.execute(
       "INSERT INTO `teacher_profile` (`id`,`tenant_id`,`person_id`,`teacher_number`,`normalized_teacher_number`,`employment_type`,`service_start_date`,`status`,`archived`,`version`,`created_at`,`updated_at`) VALUES (?,?,?,'T-TEST','t-test','honorary','2020-01-01','active',false,1,NOW(3),NOW(3))",
@@ -79,6 +79,9 @@ mysqlTest("teaching assignment transactions isolate Tenants and preserve atomic 
       await tx.insert(first);
       await tx.audit({ id: eventA, tenantId: tenantA, teachingAssignmentId: first.id, actorUserId: actorA, operation: "created", fromVersion: 0, toVersion: 1, effectiveOn: first.startsOn, reason: first.reason, occurredAt: now });
     });
+    await connection.execute("UPDATE `teaching_assignment` SET `status`='active' WHERE id=?", [assignmentA]);
+    assert.deepEqual((await listEffectiveTeachingAssignmentsForUser(tenantA, actorA, "2026-08-01")).map((row) => row.id), [assignmentA]);
+    assert.deepEqual((await listEffectiveTeachingAssignmentsForUser(tenantA, actorA, "2027-06-30")).map((row) => row.id), [assignmentA]);
 
     assert.equal((await teachingAssignmentStore.list(tenantA)).length, 1);
     assert.equal((await teachingAssignmentStore.list(tenantB)).length, 0);

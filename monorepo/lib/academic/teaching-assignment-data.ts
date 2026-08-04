@@ -1,7 +1,7 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, lt, lte, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
-import { academicYear, classGroup, subject, teacherProfile, teachingAssignment, teachingAssignmentEvent, tenant, tenantAccountSecurity, user } from "@/db/schema";
+import { academicYear, classGroup, schoolPerson, subject, teacherProfile, teachingAssignment, teachingAssignmentEvent, tenant, tenantAccountSecurity, user } from "@/db/schema";
 import type { TeachingAssignmentEndpoint, TeachingAssignmentStore } from "@/lib/academic/teaching-assignment";
 
 const levels = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
@@ -43,3 +43,35 @@ export const teachingAssignmentStore: TeachingAssignmentStore = {
     });
   },
 };
+
+export async function listEffectiveTeachingAssignmentsForUser(tenantId: string, userId: string, effectiveOn: string) {
+  return db
+    .select({
+      id: teachingAssignment.id,
+      teacherProfileId: teachingAssignment.teacherProfileId,
+      subjectId: teachingAssignment.subjectId,
+      classGroupId: teachingAssignment.classGroupId,
+      academicYearId: teachingAssignment.academicYearId,
+      startsOn: teachingAssignment.startsOn,
+      endsOn: teachingAssignment.endsOn,
+    })
+    .from(teachingAssignment)
+    .innerJoin(teacherProfile, and(
+      eq(teacherProfile.tenantId, teachingAssignment.tenantId),
+      eq(teacherProfile.id, teachingAssignment.teacherProfileId),
+    ))
+    .innerJoin(schoolPerson, and(
+      eq(schoolPerson.tenantId, teacherProfile.tenantId),
+      eq(schoolPerson.id, teacherProfile.personId),
+    ))
+    .where(and(
+      eq(teachingAssignment.tenantId, tenantId),
+      eq(schoolPerson.accountUserId, userId),
+      eq(teachingAssignment.status, "active"),
+      eq(teacherProfile.status, "active"),
+      eq(teacherProfile.archived, false),
+      eq(schoolPerson.archived, false),
+      lte(teachingAssignment.startsOn, effectiveOn),
+      or(isNull(teachingAssignment.endsOn), gt(teachingAssignment.endsOn, effectiveOn)),
+    ));
+}
