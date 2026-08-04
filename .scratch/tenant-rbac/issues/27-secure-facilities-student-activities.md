@@ -4,13 +4,13 @@
 
 **Blocked by:** 18 — Introduce the centralized evaluator in shadow mode; 20 — Backfill legacy non-admin access without widening; 22 — Deliver multi-role assignment and effective access.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] Every covered page, server action, handler, export, and mutation uses its exact canonical permission and remains Tenant-qualified at the data boundary.
-- [ ] Create, update, archive, restore, lifecycle, membership, assignment, adjustment, and export operations remain distinct where specified.
+- [x] Every covered page, server action, handler, export, and mutation uses its exact canonical permission and remains Tenant-qualified at the data boundary.
+- [x] Create, update, archive, restore, lifecycle, membership, assignment, adjustment, and export operations remain distinct where specified.
 - [ ] Sensitive fields and exports require their supplemental permissions and cannot be exposed through nested relations or generated files.
 - [ ] Free-text staff unit values never grant contextual Unit access; unsupported delegated unit operations remain School Admin-only or denied.
 - [ ] Collection and direct-record behavior follows the common filtering and concealed-response contracts.
-- [ ] Domain invariants, optimistic versions, write restrictions, and atomic audit are revalidated for every mutation.
+- [x] Domain invariants, optimistic versions, write restrictions, and atomic audit are revalidated for every mutation.
 - [ ] Navigation visibility follows effective access without becoming an enforcement source.
 - [ ] Generated matrix, database, HTTP, isolation, concurrency, and browser tests cover each resource and operation.
