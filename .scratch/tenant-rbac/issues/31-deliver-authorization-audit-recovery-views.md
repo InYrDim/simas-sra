@@ -26,8 +26,8 @@
 
 ## Ready-for-human blockers
 
-- The Issue 28 migration was corrected to include a Drizzle statement breakpoint between its two MySQL `ALTER TABLE` statements. The current shared test database already contains the new columns from worker fixtures but has not recorded the migration in its journal, so a clean/release database migration run is still required for final evidence.
-- `pnpm --dir monorepo test` exceeded the 180-second validation window without completing; no assertion failure was emitted before timeout. A human release run is required after the migration chain is repaired.
-- Retention tables were created manually in the test database only to execute the real persistence test; the normal migration path remains unverified until the Issue 28 migration blocker is resolved.
+- The Issue 28 migration now uses MySQL-compatible conditional DDL with Drizzle statement breakpoints. `pnpm --dir monorepo db:migrate` applies successfully against the existing database and records the migration despite pre-existing claim columns.
+- `pnpm --dir monorepo test:security-audit-retention:mysql` passes (1/1), and the Issue 28 worker suite passes (7/7) after the migration is applied through the normal path.
+- `pnpm --dir monorepo test` previously exceeded the 180-second validation window without completing; a human release run is still required for the final full-suite gate and Playwright evidence.
 
 Issue 31 is intentionally not marked resolved.

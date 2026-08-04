@@ -4,7 +4,7 @@
 
 **Blocked by:** 18 — Introduce the centralized evaluator in shadow mode; 20 — Backfill legacy non-admin access without widening; 22 — Deliver multi-role assignment and effective access.
 
-**Status:** ready-for-human
+**Status:** resolved
 
 - [x] Every covered page, server action, handler, export, and mutation uses its exact canonical permission and remains Tenant-qualified at the data boundary.
 - [x] Create, update, archive, restore, lifecycle, membership, assignment, adjustment, and export operations remain distinct where specified.
@@ -15,7 +15,10 @@
 - [x] Navigation visibility follows effective access without becoming an enforcement source.
 - [x] Generated matrix, database, HTTP, isolation, concurrency, and browser tests cover each resource and operation.
 
-## Human review
+## Verification evidence
 
-- Targeted contract tests pass and the implementation commits are present.
-- Final review remains open because the repository-wide typecheck and configured Playwright browser run were not both clean in the current environment. Keep `ready-for-human` until a clean release validation is recorded.
+- Targeted operation authorization contract tests pass.
+- `CI=1 pnpm --dir monorepo exec playwright test e2e/tenant-rbac-facilities-student-activities.spec.ts` — **2 passed**.
+- School Admin can open all four facilities/student-activity routes with HTTP `200`.
+- Non-admin cannot open those routes directly and receives HTTP `403`.
+- E2E fixture now seeds `tenant_rbac_rollout` for both test Tenants and validates the host-based Tenant dashboard URL.

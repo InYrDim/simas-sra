@@ -7,6 +7,7 @@ export async function GET(
   context: { params: Promise<{ domain: string }> },
 ) {
   const { domain } = await context.params;
+
   await enforceTenantOperation(domain, "ppdb.submissions.export");
   const principal = await enforceTenantFeatureAccess(domain, "ppdbRead", "read");
   const sessionId = new URL(request.url).searchParams.get("sessionId") || undefined;

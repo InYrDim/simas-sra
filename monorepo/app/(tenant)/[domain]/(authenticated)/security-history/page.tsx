@@ -53,7 +53,7 @@ export default async function SecurityHistoryPage({
   const filtered = query.event?.trim()
     ? projected.filter((event) => event.eventType.toLowerCase().includes(query.event!.trim().toLowerCase()))
     : projected;
-  const canExport = tenantAccess.kind === "authorized";
+  const canExport = tenantAccess.kind === "authorized" && integrity.valid;
 
   return (
     <main className="space-y-6 p-4 md:p-6" aria-labelledby="security-history-title">

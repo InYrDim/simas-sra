@@ -27,6 +27,7 @@ async function cleanup(connection: Connection) {
   await connection.execute("SET FOREIGN_KEY_CHECKS=0");
   try {
     await connection.query("DELETE FROM tenant_role_assignment WHERE tenant_id IN (?)", [tenantIds]);
+    await connection.query("DELETE FROM tenant_rbac_rollout WHERE tenant_id IN (?)", [tenantIds]);
     await connection.query("DELETE FROM school_admin_authority WHERE tenant_id IN (?)", [tenantIds]);
     await connection.query("DELETE FROM tenant_role_permission WHERE tenant_id IN (?)", [tenantIds]);
     await connection.query("DELETE FROM tenant_role WHERE tenant_id IN (?)", [tenantIds]);
@@ -118,6 +119,14 @@ export default async function globalSetup() {
     await createTenant(connection, e2e.alpha, e2e.alpha.adminId);
     await createTenant(connection, e2e.beta, e2e.beta.adminId);
     await connection.execute(
+      "INSERT INTO tenant_rbac_rollout (tenant_id,http_mode,worker_mode,epoch,resolver_version,registry_version,operation_map_version,version,updated_at) VALUES (?,'legacy','legacy',1,'tenant-authorization@1','tenant-permissions@2','tenant-operations@4',1,NOW(3)),(?,'legacy','legacy',1,'tenant-authorization@1','tenant-permissions@2','tenant-operations@4',1,NOW(3))",
+      [e2e.alpha.tenantId, e2e.beta.tenantId],
+    );
+    await connection.execute(
+      "UPDATE tenant SET settings=JSON_SET(settings,'$.features.ppdb',true,'$.features.ppdbRead',true,'$.features.ppdbWrite',true) WHERE id IN (?,?)",
+      [e2e.alpha.tenantId, e2e.beta.tenantId],
+    );
+    await connection.execute(
       "INSERT INTO ppdb_session (id,tenant_id,academic_year_id,end_date,status,fields,draft_fields,version,published_at,created_at,updated_at) VALUES (?,?,?,'2031-06-30','published',JSON_ARRAY(),JSON_ARRAY(),1,NOW(3),NOW(3),NOW(3))",
       [e2e.alpha.ppdbSessionId, e2e.alpha.tenantId, e2e.alpha.academicYearId],
     );
@@ -144,7 +153,7 @@ export default async function globalSetup() {
       "academic-years.years.view", "academic-years.years.create", "academic-years.years.manage-lifecycle", "academic-years.years.archive", "academic-years.years.restore",
       "subjects.subjects.view", "subjects.subjects.create", "subjects.subjects.update", "subjects.subjects.archive", "subjects.subjects.restore",
       "class-groups.groups.view", "class-groups.groups.create", "class-groups.groups.update", "class-groups.groups.manage-lifecycle", "class-groups.groups.archive", "class-groups.groups.restore",
-      "class-groups.memberships.assign", "class-groups.memberships.transfer", "class-groups.homerooms.assign", "people.people.view", "students.students.view", "teachers.teachers.view",
+      "class-groups.memberships.assign", "class-groups.memberships.transfer", "class-groups.homerooms.assign", "people.people.view", "students.students.view", "teachers.teachers.view", "ppdb.submissions.view", "ppdb.submissions.view-sensitive", "ppdb.submissions.export",
     ];
     for (const permissionKey of academicPermissions) {
       await connection.execute("INSERT INTO tenant_role_permission (tenant_id,role_id,permission_key,created_at) VALUES (?, 'e2e00000-0000-4000-8000-000000000083', ?, NOW(3)), (?, 'e2e00000-0000-4000-8000-000000000084', ?, NOW(3))", [e2e.alpha.tenantId, permissionKey, e2e.beta.tenantId, permissionKey]);
@@ -153,6 +162,7 @@ export default async function globalSetup() {
       "INSERT INTO tenant_role_permission (tenant_id,role_id,permission_key,created_at) VALUES (?,'e2e00000-0000-4000-8000-000000000081','tenant.dashboard.view',NOW(3)),(?,'e2e00000-0000-4000-8000-000000000082','tenant.dashboard.view',NOW(3))",
       [e2e.alpha.tenantId, e2e.alpha.tenantId],
     );
+
     await connection.execute(
       "INSERT INTO tenant_role_assignment (id,tenant_id,user_id,role_id,state,version,assigned_at,updated_at) VALUES ('e2e00000-0000-4000-8000-000000000091',?,?,'e2e00000-0000-4000-8000-000000000081','active',1,NOW(3),NOW(3)),('e2e00000-0000-4000-8000-000000000092',?,?,'e2e00000-0000-4000-8000-000000000082','active',1,NOW(3),NOW(3)),('e2e00000-0000-4000-8000-000000000093',?,?,'e2e00000-0000-4000-8000-000000000083','active',1,NOW(3),NOW(3)),('e2e00000-0000-4000-8000-000000000094',?,?,'e2e00000-0000-4000-8000-000000000084','active',1,NOW(3),NOW(3))",
       [e2e.alpha.tenantId, e2e.alpha.staffId, e2e.alpha.tenantId, e2e.alpha.staffId, e2e.alpha.tenantId, e2e.alpha.adminId, e2e.beta.tenantId, e2e.beta.adminId],

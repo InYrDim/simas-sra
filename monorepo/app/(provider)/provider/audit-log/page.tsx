@@ -31,7 +31,7 @@ export default async function ProviderAuditLogPage() {
         <h1 id="provider-audit-title" className="text-2xl font-bold tracking-tight">Audit Log Provider</h1>
         <div className="flex flex-wrap items-center justify-between gap-4">
           <p className="mt-2 text-muted-foreground">Riwayat lifecycle Provider dan operasi keamanan lintas Tenant.</p>
-          <Link className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted" href="/provider/audit-log/export">Ekspor aman</Link>
+          {integrity.valid ? <Link className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted" href="/provider/audit-log/export">Ekspor aman</Link> : null}
         </div>
       </header>
       <Card>

@@ -23,14 +23,14 @@ const databaseUrl = process.env.DATABASE_URL;
 const mysqlTest = databaseUrl ? test : test.skip;
 after(() => closeDatabasePool());
 
-const context = { kind: "provider" as const, contextId: "simas-provider", providerContextId: "simas-provider" };
-
 function digest(value: string): string {
   return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
 mysqlTest("persists policy, legal hold, and certificates without rewriting the audit chain", async () => {
   const connection = await mysql.createConnection(databaseUrl!);
+  const context = { kind: "provider" as const, contextId: randomUUID(), providerContextId: "" };
+  context.providerContextId = context.contextId;
   const userId = randomUUID();
   const commandId = randomUUID();
   const eventId = randomUUID();
@@ -102,14 +102,17 @@ mysqlTest("persists policy, legal hold, and certificates without rewriting the a
     assert.deepEqual(events[0], { event_hash: eventHash, canonical_payload_digest: canonicalPayloadDigest, sequence: 1 });
     assert.deepEqual(heads[0], { head_hash: eventHash, next_sequence: 2 });
   } finally {
-    await connection.execute("DELETE FROM `security_audit_retention_certificate` WHERE `security_context_kind`='provider' AND `context_id`=?", [context.contextId]);
-    await connection.execute("DELETE FROM `security_audit_legal_hold` WHERE `security_context_kind`='provider' AND `context_id`=?", [context.contextId]);
-    await connection.execute("DELETE FROM `security_audit_retention_policy` WHERE `security_context_kind`='provider' AND `context_id`=?", [context.contextId]);
-    await connection.execute("DELETE FROM `security_audit_event` WHERE `id`=?", [eventId]);
-    await connection.execute("DELETE FROM `security_audit_head` WHERE `security_context_kind`='provider' AND `context_id`=?", [context.contextId]);
-    await connection.execute("DELETE FROM `security_command` WHERE `id`=?", [commandId]);
-    await connection.execute("DELETE FROM `provider_admin` WHERE `user_id`=?", [userId]);
-    await connection.execute("DELETE FROM `user` WHERE `id`=?", [userId]);
-    await connection.end();
+    try {
+      await connection.execute("DELETE FROM `security_audit_retention_certificate` WHERE `security_context_kind`='provider' AND `context_id`=?", [context.contextId]);
+      await connection.execute("DELETE FROM `security_audit_legal_hold` WHERE `security_context_kind`='provider' AND `context_id`=?", [context.contextId]);
+      await connection.execute("DELETE FROM `security_audit_retention_policy` WHERE `security_context_kind`='provider' AND `context_id`=?", [context.contextId]);
+      await connection.execute("DELETE FROM `security_audit_event` WHERE `id`=?", [eventId]);
+      await connection.execute("DELETE FROM `security_audit_head` WHERE `security_context_kind`='provider' AND `context_id`=?", [context.contextId]);
+      await connection.execute("DELETE FROM `security_command` WHERE `id`=?", [commandId]);
+      await connection.execute("DELETE FROM `provider_admin` WHERE `user_id`=?", [userId]);
+      await connection.execute("DELETE FROM `user` WHERE `id`=?", [userId]);
+    } finally {
+      await connection.end();
+    }
   }
 });

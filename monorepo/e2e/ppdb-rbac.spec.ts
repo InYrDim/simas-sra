@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { e2e } from "./fixtures";
 
 async function signIn(page: Page) {
-  await page.goto(`/${e2e.alpha.domain}/login`);
+  await page.goto(`http://${e2e.alpha.domain}.localhost:3100/login`);
   await page.getByLabel("Email").fill(e2e.alpha.adminEmail);
   await page.getByLabel("Kata Sandi").fill(e2e.password);
   await page.waitForFunction(() => {
@@ -16,7 +16,15 @@ async function signIn(page: Page) {
 
 test("Tenant admin sees and can request the protected PPDB export", async ({ page }) => {
   await signIn(page);
-  const response = await page.goto(`/ppdb/submissions/export?sessionId=${e2e.alpha.ppdbSessionId}`);
-  expect(response?.status()).toBe(200);
-  expect(response?.headers()["content-disposition"]).toContain("ppdb-submissions.csv");
+  const exportUrl = `http://${e2e.alpha.domain}.localhost:3100/ppdb/submissions/export?sessionId=${e2e.alpha.ppdbSessionId}`;
+  const response = await page.evaluate(async (url) => {
+    const result = await fetch(url, { credentials: "include", cache: "no-store" });
+    return {
+      status: result.status,
+      contentDisposition: result.headers.get("content-disposition"),
+    };
+  }, exportUrl);
+
+  expect(response.status).toBe(200);
+  expect(response.contentDisposition).toContain("ppdb-submissions.csv");
 });

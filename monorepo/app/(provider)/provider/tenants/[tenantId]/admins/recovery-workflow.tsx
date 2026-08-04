@@ -56,7 +56,7 @@ export function SchoolAdminRecoveryWorkflow({ tenantId, authorityId, authorityVe
           <Button disabled={startPending} type="submit">{startPending ? "Memulai recovery…" : "Mulai recovery"}</Button>
         </form>
       ) : null}
-      {startState.status === "started" && startState.secret ? (
+      {startState.status === "started" && startState.secret && proofState.status === "idle" ? (
         <div className="space-y-2 rounded-md bg-muted p-3" role="status">
           <p className="text-sm font-medium">Secret proof satu kali</p>
           <code className="block break-all text-xs">{startState.secret}</code>
@@ -68,7 +68,7 @@ export function SchoolAdminRecoveryWorkflow({ tenantId, authorityId, authorityVe
           </form>
         </div>
       ) : null}
-      {proofState.status === "proof-completed" ? (
+      {proofState.status === "proof-completed" && reactivateState.status !== "reactivated" ? (
         <form action={reactivateAction}>
           <Button disabled={reactivatePending} type="submit" variant="secondary">{reactivatePending ? "Mengaktifkan kembali…" : "Konfirmasi reaktivasi authority"}</Button>
         </form>

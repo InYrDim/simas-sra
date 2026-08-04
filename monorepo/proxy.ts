@@ -28,8 +28,9 @@ function publicRequestOrigin(req: NextRequest) {
 }
 
 function publicRequestUrl(req: NextRequest, pathname: string) {
-  const destination = new URL(pathname, req.url);
+  const destination = req.nextUrl.clone();
   const { host, protocol } = publicRequestOrigin(req);
+  destination.pathname = pathname;
   destination.host = host;
   destination.port = host.match(/:(\d+)$/)?.[1] ?? "";
   destination.protocol = `${protocol}:`;
@@ -45,6 +46,7 @@ export function proxy(req: NextRequest) {
     req.nextUrl.pathname,
     process.env.APP_DOMAIN,
   );
+
 
   if (route.kind === "not-found") {
     return new NextResponse(null, { status: 404 });
@@ -64,7 +66,9 @@ export function proxy(req: NextRequest) {
     requestHeaders.set("x-forwarded-host", publicOrigin.host);
     requestHeaders.set("x-forwarded-proto", publicOrigin.protocol);
     requestHeaders.set("x-forwarded-port", publicOrigin.port);
-    return NextResponse.rewrite(new URL(route.pathname, req.url), {
+    const destination = req.nextUrl.clone();
+    destination.pathname = route.pathname;
+    return NextResponse.rewrite(destination, {
       request: { headers: requestHeaders },
     });
   }
