@@ -11,6 +11,7 @@ import { studentMasterDataStore } from "@/lib/master-data/student-master-data-da
 import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
 import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 import { ArrowLeft, CheckCircle, UserX, Clock } from "lucide-react";
+import { canAccessQuizSession } from "@/lib/quiz/quiz-assignment-access";
 
 const sessionService = createQuizSessionService({ store: quizSessionStore });
 const classGroupService = createClassGroupService({ store: classGroupStore });
@@ -45,7 +46,7 @@ export default async function AbsensiPage({
   ]);
 
   const session = sessions.find((s) => s.id === sessionId);
-  if (!session) {
+   if (!session || !await canAccessQuizSession(principal, session)) {
     return (
       <main className="min-h-svh bg-slate-50 text-slate-950 flex items-center justify-center">
         <p className="text-slate-500">Sesi ulangan tidak ditemukan.</p>

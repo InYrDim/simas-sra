@@ -17,6 +17,7 @@ import { subjectCatalogStore } from "@/lib/academic/subject-catalog-data";
 import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
 import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
 import { ArrowLeft, CheckCircle, FileText } from "lucide-react";
+import { canAccessQuizSession } from "@/lib/quiz/quiz-assignment-access";
 
 const sessionService = createQuizSessionService({ store: quizSessionStore });
 const academicYearService = createAcademicYearService({ store: academicYearStore });
@@ -58,7 +59,7 @@ export default async function PenilaianPage({
   ]);
 
   const session = sessions.find((s) => s.id === sessionId);
-  if (!session) {
+   if (!session || !await canAccessQuizSession(principal, session)) {
     return (
       <main className="min-h-svh bg-slate-50 text-slate-950 flex items-center justify-center">
         <p className="text-slate-500">Sesi ulangan tidak ditemukan.</p>

@@ -4,12 +4,14 @@ import { forbidden, notFound } from "next/navigation";
 
 import type { TenantFeatureKey } from "@/config/tenant-features";
 import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
+import type { TenantAuthorizationContext } from "@/lib/authorization/tenant-authorization";
 import { getTenantFeatureAccess } from "@/lib/features/tenant-feature-access-data";
 
 export async function enforceTenantOperation(
   domain: string,
   operationId: string,
   requestedPermissions?: readonly string[],
+  context?: TenantAuthorizationContext,
 ) {
   const evaluator = await createHttpTenantAuthorizationEvaluator();
   const result = await evaluator.evaluate({
@@ -17,6 +19,7 @@ export async function enforceTenantOperation(
     operationId,
     surface: "api",
     requestedPermissions,
+    context,
   });
 
   if (result.kind === "denied") {

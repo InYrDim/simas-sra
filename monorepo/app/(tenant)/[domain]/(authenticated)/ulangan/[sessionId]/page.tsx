@@ -11,6 +11,7 @@ import { createClassGroupService } from "@/lib/academic/class-group";
 import { classGroupStore } from "@/lib/academic/class-group-data";
 import { createQuizSessionService } from "@/lib/quiz/quiz";
 import { quizSessionStore } from "@/lib/quiz/quiz-data";
+import { canAccessQuizSession } from "@/lib/quiz/quiz-assignment-access";
 import { createStudentMasterDataService } from "@/lib/master-data/student-master-data";
 import { studentMasterDataStore } from "@/lib/master-data/student-master-data-data";
 import { createSubjectCatalogService } from "@/lib/academic/subject-catalog";
@@ -70,7 +71,7 @@ export default async function QuizSessionDetailPage({
   ]);
 
   const session = sessions.find((s) => s.id === sessionId);
-  if (!session) {
+   if (!session || !await canAccessQuizSession(principal, session)) {
     return (
       <main className="min-h-svh bg-slate-50 text-slate-950 flex items-center justify-center">
         <p className="text-slate-500">Sesi ulangan tidak ditemukan.</p>

@@ -16,6 +16,7 @@ import { studentMasterDataStore } from "@/lib/master-data/student-master-data-da
 import { createSubjectCatalogService } from "@/lib/academic/subject-catalog";
 import { subjectCatalogStore } from "@/lib/academic/subject-catalog-data";
 import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { canAccessQuizSession } from "@/lib/quiz/quiz-assignment-access";
 
 const sessionService = createQuizSessionService({ store: quizSessionStore });
 const academicYearService = createAcademicYearService({ store: academicYearStore });
@@ -50,7 +51,7 @@ export default async function QuizHistoryDetailPage({
     studentService.list(principal),
   ]);
   const session = sessions.find((record) => record.id === sessionId);
-  if (!session || (session.status !== "ended" && session.status !== "graded")) notFound();
+   if (!session || (session.status !== "ended" && session.status !== "graded") || !await canAccessQuizSession(principal, session)) notFound();
 
   const [questions, attendance, answerSheets] = await Promise.all([
     sessionService.listQuestions(principal, sessionId),

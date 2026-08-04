@@ -10,6 +10,7 @@ import { quizSessionStore } from "@/lib/quiz/quiz-data";
 import { createSubjectCatalogService } from "@/lib/academic/subject-catalog";
 import { subjectCatalogStore } from "@/lib/academic/subject-catalog-data";
 import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { canAccessQuizSession } from "@/lib/quiz/quiz-assignment-access";
 import { ClipboardList, Eye, History, Monitor, PenLine, Trophy } from "lucide-react";
 
 const sessionService = createQuizSessionService({ store: quizSessionStore });
@@ -53,8 +54,10 @@ export default async function RiwayatPage({
   ]);
 
   // Filter to ended/graded sessions only (history)
-  const historySessions = sessions
+  const historySessions = (await Promise.all(sessions
     .filter((s) => s.status === "ended" || s.status === "graded")
+    .map(async (session) => (await canAccessQuizSession(principal, session)) ? session : null)))
+    .filter((session): session is (typeof sessions)[number] => session !== null)
     .sort((a, b) => (b.endedAt?.getTime() ?? 0) - (a.endedAt?.getTime() ?? 0));
 
   function yearLabel(id: string) { return years.find((y) => y.id === id)?.label ?? id; }

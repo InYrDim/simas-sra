@@ -5,10 +5,27 @@ import { redirect } from "next/navigation";
 
 import { createQuizSessionService, type QuizAttendanceStatus, type QuizQuestionInput, type QuizSessionMode } from "@/lib/quiz/quiz";
 import { quizSessionStore } from "@/lib/quiz/quiz-data";
+import { listEffectiveTeachingAssignmentsForUser } from "@/lib/academic/teaching-assignment-data";
 import { DEMO_QUIZ_QUESTIONS } from "@/lib/quiz/quiz-demo";
 import { enforceTenantFeatureAccess, enforceTenantOperation } from "@/lib/features/tenant-feature-route-access";
 
 const sessionService = createQuizSessionService({ store: quizSessionStore });
+
+async function enforceQuizOperation(domain: string, operationId: string, principal: Awaited<ReturnType<typeof enforceTenantFeatureAccess>>, sessionId: string, permissions?: readonly string[]) {
+  const session = (await quizSessionStore.list(principal.tenantId)).find((candidate) => candidate.id === sessionId);
+  return enforceTenantOperation(domain, operationId, permissions, {
+    policy: "assigned",
+    async evaluate(current) {
+      if (current.schoolAdmin) return { allowed: true, arm: "assigned" as const };
+      if (!session) return { allowed: false };
+      const assignments = await listEffectiveTeachingAssignmentsForUser(current.tenantId, current.userId, new Date().toISOString().slice(0, 10));
+      return {
+        allowed: assignments.some((assignment) => assignment.academicYearId === session.academicYearId && assignment.subjectId === session.subjectId && assignment.classGroupId === session.classGroupId),
+        arm: "assigned" as const,
+      };
+    },
+  });
+}
 
 function finish(path: string, result: { ok: boolean; code?: string }): never {
   revalidatePath(path);
@@ -17,11 +34,21 @@ function finish(path: string, result: { ok: boolean; code?: string }): never {
 
 export async function createSessionAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
-  await enforceTenantOperation(domain, "quizzes.sessions.create");
+  const academicYearId = String(formData.get("academicYearId") ?? "");
+  const subjectId = String(formData.get("subjectId") ?? "");
+  const classGroupId = String(formData.get("classGroupId") ?? "");
+  await enforceTenantOperation(domain, "quizzes.sessions.create", undefined, {
+    policy: "assigned",
+    async evaluate(current) {
+      if (current.schoolAdmin) return { allowed: true, arm: "assigned" as const };
+      const assignments = await listEffectiveTeachingAssignmentsForUser(current.tenantId, current.userId, new Date().toISOString().slice(0, 10));
+      return { allowed: assignments.some((assignment) => assignment.academicYearId === academicYearId && assignment.subjectId === subjectId && assignment.classGroupId === classGroupId), arm: "assigned" as const };
+    },
+  });
   const result = await sessionService.create(principal, {
-    academicYearId: String(formData.get("academicYearId") ?? ""),
-    subjectId: String(formData.get("subjectId") ?? ""),
-    classGroupId: String(formData.get("classGroupId") ?? ""),
+    academicYearId,
+    subjectId,
+    classGroupId,
     mode: String(formData.get("mode") ?? "luring") as QuizSessionMode,
     title: String(formData.get("title") ?? ""),
     description: String(formData.get("description") ?? ""),
@@ -35,8 +62,8 @@ export async function createSessionAction(domain: string, formData: FormData) {
 
 export async function activateSessionAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
-  await enforceTenantOperation(domain, "quizzes.sessions.publish");
   const sessionId = String(formData.get("sessionId") ?? "");
+  await enforceQuizOperation(domain, "quizzes.sessions.publish", principal, sessionId);
   const result = await sessionService.activate(principal, sessionId);
   finish(`/${domain}/ulangan/${sessionId}`, result);
 }
@@ -52,8 +79,8 @@ export async function endSessionAction(
   formData: FormData,
 ): Promise<EndSessionActionState> {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
-  await enforceTenantOperation(domain, "quizzes.sessions.close", ["quizzes.sessions.close", "quizzes.attendance.adjust"]);
   const sessionId = String(formData.get("sessionId") ?? "");
+  await enforceQuizOperation(domain, "quizzes.sessions.close", principal, sessionId, ["quizzes.sessions.close", "quizzes.attendance.adjust"]);
   const studentIds = parseStringArray(formData.get("studentIds"));
   const fillMissingAbsent = formData.get("fillMissingAbsent") === "true";
   const result = await sessionService.end(principal, sessionId, studentIds, fillMissingAbsent);
@@ -77,8 +104,8 @@ export async function saveOfflineScoresAction(
   formData: FormData,
 ): Promise<OfflineScoreActionState> {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
-  await enforceTenantOperation(domain, "quizzes.grades.adjust");
   const sessionId = String(formData.get("sessionId") ?? "");
+  await enforceQuizOperation(domain, "quizzes.grades.adjust", principal, sessionId);
   const studentIds = parseStringArray(formData.get("studentIds"));
   const rawScores = parseStringArray(formData.get("scores"));
   if (studentIds.length === 0 || studentIds.length !== rawScores.length) return { status: "error", code: "invalid-input" };
@@ -91,32 +118,32 @@ export async function saveOfflineScoresAction(
 
 export async function prepareOfflineGradingAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
-  await enforceTenantOperation(domain, "quizzes.grades.execute");
   const sessionId = String(formData.get("sessionId") ?? "");
+  await enforceQuizOperation(domain, "quizzes.grades.execute", principal, sessionId);
   const result = await sessionService.prepareOfflineGrading(principal, sessionId);
   finish(`/${domain}/ulangan/${sessionId}/penilaian`, result);
 }
 
 export async function finalizeOfflineGradingAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
-  await enforceTenantOperation(domain, "quizzes.grades.execute");
   const sessionId = String(formData.get("sessionId") ?? "");
+  await enforceQuizOperation(domain, "quizzes.grades.execute", principal, sessionId);
   const result = await sessionService.finalizeOfflineGrading(principal, sessionId);
   finish(`/${domain}/ulangan/${sessionId}/penilaian`, result);
 }
 
 export async function gradeSessionAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
-  await enforceTenantOperation(domain, "quizzes.grades.execute");
   const sessionId = String(formData.get("sessionId") ?? "");
+  await enforceQuizOperation(domain, "quizzes.grades.execute", principal, sessionId);
   const result = await sessionService.grade(principal, sessionId);
   finish(`/${domain}/ulangan/${sessionId}/penilaian`, result);
 }
 
 export async function addDemoQuestionsAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
-  await enforceTenantOperation(domain, "quizzes.questions.create");
   const sessionId = String(formData.get("sessionId") ?? "");
+  await enforceQuizOperation(domain, "quizzes.questions.create", principal, sessionId);
   const result = await sessionService.addQuestions(principal, sessionId, DEMO_QUIZ_QUESTIONS);
   revalidatePath(`/${domain}/ulangan/${sessionId}`);
   redirect(`/${domain}/ulangan/${sessionId}?result=${result.ok ? "demo-questions-added" : result.code ?? "error"}`);
@@ -124,8 +151,8 @@ export async function addDemoQuestionsAction(domain: string, formData: FormData)
 
 export async function addQuestionAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
-  await enforceTenantOperation(domain, "quizzes.questions.create");
   const sessionId = String(formData.get("sessionId") ?? "");
+  await enforceQuizOperation(domain, "quizzes.questions.create", principal, sessionId);
   const questionType = String(formData.get("questionType") ?? "multiple_choice") as QuizQuestionInput["questionType"];
   let options: string[] | undefined;
   if (questionType === "multiple_choice") {
@@ -152,8 +179,8 @@ export async function addQuestionAction(domain: string, formData: FormData) {
 
 export async function removeQuestionAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
-  await enforceTenantOperation(domain, "quizzes.questions.remove");
   const sessionId = String(formData.get("sessionId") ?? "");
+  await enforceQuizOperation(domain, "quizzes.questions.remove", principal, sessionId);
   const questionId = String(formData.get("questionId") ?? "");
   const result = await sessionService.removeQuestion(principal, sessionId, questionId);
   revalidatePath(`/domain}/ulangan/${sessionId}`);
@@ -181,8 +208,8 @@ export async function saveAttendanceBatchAction(
   formData: FormData,
 ): Promise<SaveAttendanceActionState> {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
-  await enforceTenantOperation(domain, "quizzes.attendance.adjust");
   const sessionId = String(formData.get("sessionId") ?? "");
+  await enforceQuizOperation(domain, "quizzes.attendance.adjust", principal, sessionId);
   const studentIds = parseStringArray(formData.get("studentIds"));
   const statuses = parseStringArray(formData.get("statuses"));
   if (studentIds.length === 0 || studentIds.length !== statuses.length) return { status: "error", code: "invalid-input" };
@@ -198,8 +225,8 @@ export async function saveAttendanceBatchAction(
 
 export async function markAttendanceAction(domain: string, formData: FormData) {
   const principal = await enforceTenantFeatureAccess(domain, "ulanganWrite", "write");
-  await enforceTenantOperation(domain, "quizzes.attendance.adjust");
   const sessionId = String(formData.get("sessionId") ?? "");
+  await enforceQuizOperation(domain, "quizzes.attendance.adjust", principal, sessionId);
   const studentId = String(formData.get("studentId") ?? "");
   const status = String(formData.get("status") ?? "present") as QuizAttendanceStatus;
   const notes = String(formData.get("notes") ?? "");
