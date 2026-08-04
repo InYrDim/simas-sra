@@ -1107,6 +1107,81 @@ export const securityReconciliationFinding = mysqlTable(
   ],
 );
 
+export const securityAuditRetentionPolicy = mysqlTable(
+  "security_audit_retention_policy",
+  {
+    securityContextKind: mysqlEnum("security_context_kind", ["tenant", "provider"]).notNull(),
+    contextId: varchar("context_id", { length: 36 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }),
+    providerContextId: varchar("provider_context_id", { length: 36 }),
+    retentionDays: int("retention_days").notNull(),
+    version: int("version").default(1).notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("security_audit_retention_policy_partition_unique").on(table.securityContextKind, table.contextId),
+    check("security_audit_retention_policy_days_check", sql`${table.retentionDays} >= 0 AND ${table.version} > 0`),
+    check("security_audit_retention_policy_context_check", sql`(
+      (${table.securityContextKind} = 'tenant' AND ${table.tenantId} = ${table.contextId} AND ${table.providerContextId} IS NULL)
+      OR (${table.securityContextKind} = 'provider' AND ${table.tenantId} IS NULL AND ${table.providerContextId} = ${table.contextId})
+    )`),
+  ],
+);
+
+export const securityAuditLegalHold = mysqlTable(
+  "security_audit_legal_hold",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    securityContextKind: mysqlEnum("security_context_kind", ["tenant", "provider"]).notNull(),
+    contextId: varchar("context_id", { length: 36 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }),
+    providerContextId: varchar("provider_context_id", { length: 36 }),
+    caseId: varchar("case_id", { length: 128 }).notNull(),
+    reason: varchar("reason", { length: 1000 }).notNull(),
+    state: mysqlEnum("state", ["active", "released"]).default("active").notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+    releasedAt: timestamp("released_at", { fsp: 3 }),
+  },
+  (table) => [
+    unique("security_audit_legal_hold_case_unique").on(table.securityContextKind, table.contextId, table.caseId),
+    index("security_audit_legal_hold_state_idx").on(table.securityContextKind, table.contextId, table.state),
+    check("security_audit_legal_hold_context_check", sql`(
+      (${table.securityContextKind} = 'tenant' AND ${table.tenantId} = ${table.contextId} AND ${table.providerContextId} IS NULL)
+      OR (${table.securityContextKind} = 'provider' AND ${table.tenantId} IS NULL AND ${table.providerContextId} = ${table.contextId})
+    )`),
+    check("security_audit_legal_hold_release_check", sql`(${table.state} = 'active' AND ${table.releasedAt} IS NULL) OR (${table.state} = 'released' AND ${table.releasedAt} IS NOT NULL)`),
+  ],
+);
+
+export const securityAuditRetentionCertificate = mysqlTable(
+  "security_audit_retention_certificate",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    securityContextKind: mysqlEnum("security_context_kind", ["tenant", "provider"]).notNull(),
+    contextId: varchar("context_id", { length: 36 }).notNull(),
+    tenantId: varchar("tenant_id", { length: 36 }),
+    providerContextId: varchar("provider_context_id", { length: 36 }),
+    policyVersion: int("policy_version").notNull(),
+    retentionDays: int("retention_days").notNull(),
+    legalHold: boolean("legal_hold").notNull(),
+    tenantDeleted: boolean("tenant_deleted").notNull(),
+    retainedCount: int("retained_count").notNull(),
+    minimizedCount: int("minimized_count").notNull(),
+    disposalEligibleCount: int("disposal_eligible_count").notNull(),
+    eventWatermark: varchar("event_watermark", { length: 64 }).notNull(),
+    issuedAt: timestamp("issued_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("security_audit_retention_certificate_id_unique").on(table.securityContextKind, table.contextId, table.id),
+    index("security_audit_retention_certificate_context_idx").on(table.securityContextKind, table.contextId, table.issuedAt),
+    check("security_audit_retention_certificate_count_check", sql`${table.retentionDays} >= 0 AND ${table.policyVersion} > 0 AND ${table.retainedCount} >= 0 AND ${table.minimizedCount} >= 0 AND ${table.disposalEligibleCount} >= 0`),
+    check("security_audit_retention_certificate_context_check", sql`(
+      (${table.securityContextKind} = 'tenant' AND ${table.tenantId} = ${table.contextId} AND ${table.providerContextId} IS NULL)
+      OR (${table.securityContextKind} = 'provider' AND ${table.tenantId} IS NULL AND ${table.providerContextId} = ${table.contextId})
+    )`),
+  ],
+);
+
 export const securityAuditHead = mysqlTable(
   "security_audit_head",
   {

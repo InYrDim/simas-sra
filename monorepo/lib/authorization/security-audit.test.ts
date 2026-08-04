@@ -88,6 +88,32 @@ test("verifies the anchored chain and detects payload, reorder, and deletion tam
   assert.equal(securityAuditEventHash(snapshot.auditEvents[0]!.previousHash, snapshot.auditEvents[0]!.canonicalPayloadDigest), snapshot.auditEvents[0]!.eventHash);
 });
 
+test("detects reordered, duplicated, forked, and unanchored events", async () => {
+  const { controlled, execute } = fixture();
+  await execute({
+    principal: { kind: "authenticated-user", userId: actor.userId },
+    idempotencyKey: "audit-tamper-1",
+    commandName: "tenant.account.change",
+    payload: { targetUserId: "target-1" },
+    correlationId: "correlation-tamper",
+    authorizeAndMutate: async () => ({ result: { ok: true }, auditEvents: [
+      ...drafts,
+      { purpose: "follow-up", order: "consequence", eventType: "tenant_account.zero_role_entered", targets: { userId: "target-1" }, metadata: {} },
+    ] }),
+  });
+  const snapshot = controlled.snapshot();
+  const context = { kind: "tenant" as const, contextId: "tenant-1", tenantId: "tenant-1" };
+  const head = snapshot.auditHeads["tenant:tenant-1"]!;
+  const reordered = [snapshot.auditEvents[1]!, snapshot.auditEvents[0]!];
+  assert.ok(verifySecurityAuditChain(reordered, { context, headHash: head.headHash, nextSequence: head.nextSequence }).findings.some((finding) => finding.code === "reordered-event"));
+  const duplicated = [...snapshot.auditEvents, snapshot.auditEvents[1]!];
+  assert.ok(verifySecurityAuditChain(duplicated, { context, headHash: head.headHash, nextSequence: head.nextSequence }).findings.some((finding) => finding.code === "duplicate-event"));
+  const forked = snapshot.auditEvents.map((event, index) => index === 1 ? { ...event, previousHash: "f".repeat(64) } : event);
+  assert.ok(verifySecurityAuditChain(forked, { context, headHash: head.headHash, nextSequence: head.nextSequence }).findings.some((finding) => finding.code === "forked-chain"));
+  const unanchored = snapshot.auditEvents.map((event, index) => index === 0 ? { ...event, previousHash: "a".repeat(64) } : event);
+  assert.ok(verifySecurityAuditChain(unanchored, { context, headHash: head.headHash, nextSequence: head.nextSequence }).findings.some((finding) => finding.code === "unanchored-event"));
+});
+
 test("CSV export neutralizes spreadsheet formulas and retention respects legal hold and deletion minimization", () => {
   const csv = buildSecurityAuditCsv([{
     id: "event-1", sequence: "1", eventType: "=IMPORTXML", outcome: "succeeded",

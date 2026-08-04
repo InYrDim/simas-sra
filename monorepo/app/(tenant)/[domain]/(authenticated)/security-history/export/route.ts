@@ -1,7 +1,7 @@
 import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
 import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
-import { buildSecurityAuditCsv, projectSecurityAuditEvents, verifySecurityAuditChain } from "@/lib/authorization/security-audit";
-import { getSecurityAuditHead, getTenantSecurityContext, listTenantSecurityAuditEvents } from "@/lib/authorization/security-audit-data";
+import { buildSecurityAuditCsv, projectSecurityAuditEvents } from "@/lib/authorization/security-audit";
+import { getSecurityAuditHead, getTenantSecurityContext, listTenantSecurityAuditEvents, recordSecurityAuditIntegrityFindings, verifyAndRecordSecurityAuditChain } from "@/lib/authorization/security-audit-data";
 
 export async function GET(
   _request: Request,
@@ -17,9 +17,12 @@ export async function GET(
     listTenantSecurityAuditEvents(principal.tenantId),
     getSecurityAuditHead(context),
   ]);
-  const integrity = head && verifySecurityAuditChain(events, { context, headHash: head.headHash, nextSequence: head.nextSequence });
-  if (!integrity?.valid) {
-    console.error({ event: "security_audit_integrity_failure", context: context.contextId, findings: integrity?.findings ?? [{ code: "unanchored" }] });
+  const integrity = head
+    ? await verifyAndRecordSecurityAuditChain({ events, context, headHash: head.headHash, nextSequence: head.nextSequence })
+    : { valid: events.length === 0, findings: events.length === 0 ? [] : [{ code: "unanchored" as const }], checkedEvents: events.length };
+  if (!head && events.length > 0) await recordSecurityAuditIntegrityFindings({ context, findings: integrity.findings });
+  if (!integrity.valid) {
+    console.error({ event: "security_audit_integrity_failure", context: context.contextId, findings: integrity.findings });
     return Response.json({ error: "audit-integrity-unavailable" }, { status: 503, headers: { "Cache-Control": "no-store" } });
   }
   const projected = projectSecurityAuditEvents(events, {

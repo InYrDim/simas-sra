@@ -3,8 +3,8 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { projectSecurityAuditEvents, verifySecurityAuditChain } from "@/lib/authorization/security-audit";
-import { getProviderSecurityContext, getSecurityAuditHead, listProviderSecurityAuditEvents } from "@/lib/authorization/security-audit-data";
+import { projectSecurityAuditEvents } from "@/lib/authorization/security-audit";
+import { getProviderSecurityContext, getSecurityAuditHead, listProviderSecurityAuditEvents, recordSecurityAuditIntegrityFindings, verifyAndRecordSecurityAuditChain } from "@/lib/authorization/security-audit-data";
 import { getProviderPageAccess } from "@/lib/provider/provider-access";
 
 export const metadata = { title: "Audit Log Provider" };
@@ -17,8 +17,9 @@ export default async function ProviderAuditLogPage() {
     getSecurityAuditHead(context),
   ]);
   const integrity = head
-    ? verifySecurityAuditChain(events, { context, headHash: head.headHash, nextSequence: head.nextSequence })
+    ? await verifyAndRecordSecurityAuditChain({ events, context, headHash: head.headHash, nextSequence: head.nextSequence })
     : { valid: events.length === 0, findings: events.length === 0 ? [] : [{ code: "unanchored" as const }], checkedEvents: events.length };
+  if (!head && events.length > 0) await recordSecurityAuditIntegrityFindings({ context, findings: integrity.findings });
   const projected = projectSecurityAuditEvents(events, { scope: "provider", providerContextId: context.providerContextId });
   if (!integrity.valid) {
     console.error({ event: "security_audit_integrity_failure", context: context.contextId, findings: integrity.findings });

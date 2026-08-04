@@ -1,11 +1,15 @@
 import "server-only";
 
+import { randomUUID } from "node:crypto";
+
 import { and, asc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { securityAuditEvent, securityAuditHead } from "@/db/schema";
+import { securityAuditEvent, securityAuditHead, securityReconciliationFinding } from "@/db/schema";
 import type { PersistedSecurityAuditEvent } from "@/lib/authorization/security-command-store";
 import type { SecurityActor, SecurityContext, JsonValue } from "@/lib/authorization/security-command";
+import type { SecurityAuditIntegrityFinding, SecurityAuditIntegrityResult } from "@/lib/authorization/security-audit";
+import { verifySecurityAuditChain } from "@/lib/authorization/security-audit";
 
 const providerContextId = process.env.PROVIDER_SECURITY_CONTEXT_ID?.trim() || "simas-provider";
 
@@ -107,4 +111,51 @@ export async function getSecurityAuditHead(context: SecurityContext) {
 
 export function getProviderSecurityContext(): Extract<SecurityContext, { kind: "provider" }> {
   return { kind: "provider", contextId: providerContextId, providerContextId };
+}
+
+const INTEGRITY_MIGRATION_KEY = "security-audit-integrity-v1";
+
+/** Records an invalid chain as a blocking, partition-qualified operational finding. */
+export async function recordSecurityAuditIntegrityFindings(input: Readonly<{
+  context: SecurityContext;
+  findings: readonly SecurityAuditIntegrityFinding[];
+  detectedAt?: Date;
+}>): Promise<void> {
+  if (input.findings.length === 0) return;
+  const detectedAt = input.detectedAt ?? new Date();
+  await db.insert(securityReconciliationFinding).values(input.findings.map((finding, index) => {
+    const suffix = `${finding.sequence ?? "head"}:${finding.eventId ?? index}`;
+    return {
+      id: randomUUID(),
+      migrationKey: INTEGRITY_MIGRATION_KEY,
+      scopeKey: input.context.contextId,
+      findingKey: `${finding.code}:${suffix}`.slice(0, 160),
+      tenantId: input.context.kind === "tenant" ? input.context.tenantId : null,
+      userId: null,
+      reasonCode: `audit-integrity:${finding.code}`,
+      severity: "blocking" as const,
+      state: "open" as const,
+      safeDetails: { contextKind: input.context.kind, contextId: input.context.contextId, sequence: finding.sequence ?? null, eventId: finding.eventId ?? null } satisfies JsonValue,
+      detectedAt,
+      resolvedAt: null,
+    };
+  })).onDuplicateKeyUpdate({ set: {
+    state: "open",
+    severity: "blocking",
+    safeDetails: { contextKind: input.context.kind, contextId: input.context.contextId } satisfies JsonValue,
+    detectedAt,
+    resolvedAt: null,
+  }});
+}
+
+export async function verifyAndRecordSecurityAuditChain(input: Readonly<{
+  events: readonly PersistedSecurityAuditEvent[];
+  context: SecurityContext;
+  headHash: string;
+  nextSequence: bigint;
+  detectedAt?: Date;
+}>): Promise<SecurityAuditIntegrityResult> {
+  const result = verifySecurityAuditChain(input.events, input);
+  if (!result.valid) await recordSecurityAuditIntegrityFindings({ context: input.context, findings: result.findings, detectedAt: input.detectedAt });
+  return result;
 }

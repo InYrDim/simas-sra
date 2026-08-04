@@ -30,10 +30,14 @@ export type SecurityAuditProjection = Readonly<{
 export type SecurityAuditIntegrityFinding = Readonly<{
   code:
     | "unanchored"
+    | "unanchored-event"
     | "sequence-gap"
+    | "deleted-event"
     | "duplicate-sequence"
     | "duplicate-event"
     | "wrong-partition"
+    | "reordered-event"
+    | "forked-chain"
     | "previous-hash-mismatch"
     | "payload-digest-mismatch"
     | "event-hash-mismatch"
@@ -151,12 +155,20 @@ export function verifySecurityAuditChain(
   input: Readonly<{ context: SecurityContext; headHash: string; nextSequence: bigint }>,
 ): SecurityAuditIntegrityResult {
   const findings: SecurityAuditIntegrityFinding[] = [];
-  if (!HASH_PATTERN.test(input.headHash)) findings.push({ code: "unanchored" });
+  const anchored = HASH_PATTERN.test(input.headHash);
+  if (!anchored) findings.push({ code: "unanchored" });
   const ordered = [...events].sort((left, right) => Number(left.sequence - right.sequence));
   const sequences = new Set<string>();
   const ids = new Set<string>();
   let previousHash = "0".repeat(64);
   let expectedSequence = BigInt(1);
+  for (let index = 0; index < events.length; index += 1) {
+    if (events[index]?.id !== ordered[index]?.id) {
+      findings.push({ code: "reordered-event", sequence: events[index]?.sequence.toString(), eventId: events[index]?.id });
+      break;
+    }
+  }
+  if (ordered.length > 0 && ordered[0]?.previousHash !== previousHash) findings.push({ code: "unanchored-event", sequence: ordered[0]?.sequence.toString(), eventId: ordered[0]?.id });
   for (const event of ordered) {
     const sequence = event.sequence.toString();
     if (event.context.kind !== input.context.kind || event.context.contextId !== input.context.contextId) {
@@ -166,8 +178,14 @@ export function verifySecurityAuditChain(
     if (ids.has(event.id)) findings.push({ code: "duplicate-event", sequence, eventId: event.id });
     sequences.add(sequence);
     ids.add(event.id);
-    if (event.sequence !== expectedSequence) findings.push({ code: "sequence-gap", sequence, eventId: event.id });
-    if (event.previousHash !== previousHash) findings.push({ code: "previous-hash-mismatch", sequence, eventId: event.id });
+    if (event.sequence !== expectedSequence) {
+      findings.push({ code: "sequence-gap", sequence, eventId: event.id });
+      if (event.sequence > expectedSequence) findings.push({ code: "deleted-event", sequence, eventId: event.id });
+    }
+    if (event.previousHash !== previousHash) {
+      findings.push({ code: "previous-hash-mismatch", sequence, eventId: event.id });
+      if (HASH_PATTERN.test(event.previousHash) && event.previousHash !== "0".repeat(64)) findings.push({ code: "forked-chain", sequence, eventId: event.id });
+    }
     try {
       if (securityAuditEventPayloadDigest(event) !== event.canonicalPayloadDigest) {
         findings.push({ code: "payload-digest-mismatch", sequence, eventId: event.id });
@@ -184,6 +202,7 @@ export function verifySecurityAuditChain(
   if (input.nextSequence !== expectedSequence || input.headHash !== previousHash) {
     findings.push({ code: "head-mismatch" });
   }
+  if (!anchored && ordered.length > 0) findings.push({ code: "unanchored-event", sequence: ordered[0]?.sequence.toString(), eventId: ordered[0]?.id });
   return { valid: findings.length === 0, findings, checkedEvents: ordered.length };
 }
 

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
 import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
-import { listTenantSecurityAuditEvents } from "@/lib/authorization/security-audit-data";
+import { getSecurityAuditHead, getTenantSecurityContext, listTenantSecurityAuditEvents, recordSecurityAuditIntegrityFindings, verifyAndRecordSecurityAuditChain } from "@/lib/authorization/security-audit-data";
 import { projectSecurityAuditEvents } from "@/lib/authorization/security-audit";
 
 export const metadata = { title: "Riwayat Keamanan Tenant" };
@@ -36,7 +36,15 @@ export default async function SecurityHistoryPage({
   if (!access) enforceAuthorizedTenantOperation(tenantAccess, { domain, operationId: "tenant.authorization-audit.load" });
   if (!access) return null;
 
-  const events = await listTenantSecurityAuditEvents(access.principal.tenantId);
+  const context = getTenantSecurityContext(access.principal.tenantId);
+  const [events, head] = await Promise.all([
+    listTenantSecurityAuditEvents(access.principal.tenantId),
+    getSecurityAuditHead(context),
+  ]);
+  const integrity = head
+    ? await verifyAndRecordSecurityAuditChain({ events, context, headHash: head.headHash, nextSequence: head.nextSequence })
+    : { valid: events.length === 0, findings: events.length === 0 ? [] : [{ code: "unanchored" as const }], checkedEvents: events.length };
+  if (!head && events.length > 0) await recordSecurityAuditIntegrityFindings({ context, findings: integrity.findings });
   const projected = projectSecurityAuditEvents(events, {
     scope: access.scope,
     tenantId: access.principal.tenantId,
@@ -63,6 +71,7 @@ export default async function SecurityHistoryPage({
         <CardHeader>
           <CardTitle>Peristiwa tercatat</CardTitle>
           <CardDescription>{filtered.length} peristiwa ditampilkan · Correlation ID tersedia untuk penelusuran.</CardDescription>
+          {!integrity.valid ? <p className="text-sm text-destructive" role="alert">Verifikasi integritas gagal; data tidak boleh dipakai sebagai bukti. Sinyal operasional sudah dicatat.</p> : null}
           <form className="flex max-w-md gap-2" method="get">
             <label className="sr-only" htmlFor="event-filter">Saring jenis peristiwa</label>
             <Input id="event-filter" name="event" defaultValue={query.event} placeholder="Saring jenis peristiwa" className="min-w-0 flex-1" />
