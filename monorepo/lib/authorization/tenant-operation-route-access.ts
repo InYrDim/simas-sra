@@ -6,9 +6,9 @@ import type { TenantAuthorizationResult } from "@/lib/authorization/tenant-autho
 import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
 import { tenantOperationMap } from "@/lib/authorization/tenant-rbac-contract";
 import { alias } from "drizzle-orm/mysql-core";
-import { and, eq, gt, isNull, lte, or } from "drizzle-orm";
+import { and, eq, gt, gte, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
-import { classMembership, schoolPerson, studentProfile, teacherProfile, teachingAssignment } from "@/db/schema";
+import { academicYear, classGroup, classMembership, schoolPerson, studentProfile, teacherProfile, teachingAssignment } from "@/db/schema";
 import type { MasterDataPrincipal } from "@/lib/master-data/tenant-master-data-access";
 
 export function enforceAuthorizedTenantOperation(
@@ -76,14 +76,18 @@ async function loadAssignedPersonIds(tenantId: string, userId: string) {
     db.select({ personId: schoolPerson.id }).from(teachingAssignment)
       .innerJoin(teacherProfile, and(eq(teacherProfile.tenantId, teachingAssignment.tenantId), eq(teacherProfile.id, teachingAssignment.teacherProfileId)))
       .innerJoin(schoolPerson, and(eq(schoolPerson.tenantId, teacherProfile.tenantId), eq(schoolPerson.id, teacherProfile.personId)))
-      .where(and(eq(teachingAssignment.tenantId, tenantId), eq(schoolPerson.accountUserId, userId), eq(teachingAssignment.status, "active"), lte(teachingAssignment.startsOn, today), or(isNull(teachingAssignment.endsOn), gt(teachingAssignment.endsOn, today)))) ,
+      .innerJoin(classGroup, and(eq(classGroup.tenantId, teachingAssignment.tenantId), eq(classGroup.id, teachingAssignment.classGroupId), eq(classGroup.academicYearId, teachingAssignment.academicYearId)))
+      .innerJoin(academicYear, and(eq(academicYear.tenantId, teachingAssignment.tenantId), eq(academicYear.id, teachingAssignment.academicYearId)))
+      .where(and(eq(teachingAssignment.tenantId, tenantId), eq(schoolPerson.accountUserId, userId), eq(teachingAssignment.status, "active"), eq(teacherProfile.status, "active"), eq(teacherProfile.archived, false), eq(schoolPerson.archived, false), eq(classGroup.archived, false), eq(academicYear.archived, false), lte(academicYear.startDate, today), gte(academicYear.endDate, today), lte(teachingAssignment.startsOn, today), or(isNull(teachingAssignment.endsOn), gt(teachingAssignment.endsOn, today)))),
     db.select({ personId: schoolPerson.id }).from(classMembership)
-      .innerJoin(teachingAssignment, and(eq(teachingAssignment.tenantId, classMembership.tenantId), eq(teachingAssignment.classGroupId, classMembership.classGroupId)))
+      .innerJoin(teachingAssignment, and(eq(teachingAssignment.tenantId, classMembership.tenantId), eq(teachingAssignment.classGroupId, classMembership.classGroupId), eq(teachingAssignment.academicYearId, classMembership.academicYearId)))
       .innerJoin(teacherProfile, and(eq(teacherProfile.tenantId, teachingAssignment.tenantId), eq(teacherProfile.id, teachingAssignment.teacherProfileId)))
       .innerJoin(teacherPerson, and(eq(teacherPerson.tenantId, teacherProfile.tenantId), eq(teacherPerson.id, teacherProfile.personId)))
       .innerJoin(studentProfile, and(eq(studentProfile.tenantId, classMembership.tenantId), eq(studentProfile.id, classMembership.studentId)))
       .innerJoin(schoolPerson, and(eq(schoolPerson.tenantId, studentProfile.tenantId), eq(schoolPerson.id, studentProfile.personId)))
-      .where(and(eq(classMembership.tenantId, tenantId), eq(teacherPerson.accountUserId, userId), eq(teachingAssignment.status, "active"), lte(teachingAssignment.startsOn, today), or(isNull(teachingAssignment.endsOn), gt(teachingAssignment.endsOn, today)), isNull(classMembership.endedAt))),
+      .innerJoin(classGroup, and(eq(classGroup.tenantId, classMembership.tenantId), eq(classGroup.id, classMembership.classGroupId), eq(classGroup.academicYearId, classMembership.academicYearId)))
+      .innerJoin(academicYear, and(eq(academicYear.tenantId, classMembership.tenantId), eq(academicYear.id, classMembership.academicYearId)))
+      .where(and(eq(classMembership.tenantId, tenantId), eq(classMembership.planned, false), eq(teacherPerson.accountUserId, userId), eq(teachingAssignment.status, "active"), eq(teacherProfile.status, "active"), eq(teacherProfile.archived, false), eq(teacherPerson.archived, false), eq(studentProfile.status, "active"), eq(studentProfile.archived, false), eq(schoolPerson.archived, false), eq(classGroup.archived, false), eq(academicYear.archived, false), lte(academicYear.startDate, today), gte(academicYear.endDate, today), lte(teachingAssignment.startsOn, today), or(isNull(teachingAssignment.endsOn), gt(teachingAssignment.endsOn, today)), lte(classMembership.startedAt, today), or(isNull(classMembership.endedAt), gt(classMembership.endedAt, today)))),
   ]);
   return new Set([...teacherRows, ...studentRows].map(({ personId }) => personId));
 }

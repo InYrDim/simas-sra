@@ -32,6 +32,31 @@ function fixture() {
 }
 function service(store: StudentMasterDataStore) { let n = 0; return createStudentMasterDataService({ store, id: () => `id-${++n}`, now: () => new Date("2026-07-20T09:00:00Z") }); }
 
+test("constructs assigned visibility before projecting the Siswa result set", async () => {
+  const data = fixture();
+  const catalog = service(data.store);
+  const first = await catalog.create(principal, input);
+  const second = await catalog.create(principal, { ...input, fullName: "Budi Santoso", birthPlace: "Bandung", birthDate: "2011-04-05", nik: "", nip: "", nis: "00043", nisn: "0012345679", email: "budi@example.com", phone: "081234567891" });
+  assert.equal(first.ok, true); assert.equal(second.ok, true);
+  if (!first.ok || !second.ok) return;
+
+  const scoped = await catalog.list({
+    ...principal,
+    schoolAdmin: false,
+    selfPersonId: first.record.person.id,
+    assignedPersonIds: new Set([second.record.person.id]),
+  });
+  assert.deepEqual(scoped.map((record) => record.person.id).sort(), [first.record.person.id, second.record.person.id].sort());
+
+  const concealed = await catalog.list({
+    ...principal,
+    schoolAdmin: false,
+    selfPersonId: null,
+    assignedPersonIds: new Set(),
+  });
+  assert.equal(concealed.length, 0);
+});
+
 test("creates normalized Warga Sekolah and active Siswa atomically without an account", async () => {
   const data = fixture(); const result = await service(data.store).create(principal, input);
   assert.equal(result.ok, true); if (!result.ok) return;

@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, eq, gt, gte, isNull, lte, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { academicYear, classGroup, schoolPerson, subject, teacherProfile, teachingAssignment, teachingAssignmentEvent, tenant, tenantAccountSecurity, user } from "@/db/schema";
@@ -64,6 +64,15 @@ export async function listEffectiveTeachingAssignmentsForUser(tenantId: string, 
       eq(schoolPerson.tenantId, teacherProfile.tenantId),
       eq(schoolPerson.id, teacherProfile.personId),
     ))
+    .innerJoin(classGroup, and(
+      eq(classGroup.tenantId, teachingAssignment.tenantId),
+      eq(classGroup.id, teachingAssignment.classGroupId),
+      eq(classGroup.academicYearId, teachingAssignment.academicYearId),
+    ))
+    .innerJoin(academicYear, and(
+      eq(academicYear.tenantId, teachingAssignment.tenantId),
+      eq(academicYear.id, teachingAssignment.academicYearId),
+    ))
     .where(and(
       eq(teachingAssignment.tenantId, tenantId),
       eq(schoolPerson.accountUserId, userId),
@@ -71,6 +80,10 @@ export async function listEffectiveTeachingAssignmentsForUser(tenantId: string, 
       eq(teacherProfile.status, "active"),
       eq(teacherProfile.archived, false),
       eq(schoolPerson.archived, false),
+      eq(classGroup.archived, false),
+      eq(academicYear.archived, false),
+      lte(academicYear.startDate, effectiveOn),
+      gte(academicYear.endDate, effectiveOn),
       lte(teachingAssignment.startsOn, effectiveOn),
       or(isNull(teachingAssignment.endsOn), gt(teachingAssignment.endsOn, effectiveOn)),
     ));
