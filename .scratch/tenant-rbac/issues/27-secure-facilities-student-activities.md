@@ -14,3 +14,8 @@
 - [x] Domain invariants, optimistic versions, write restrictions, and atomic audit are revalidated for every mutation.
 - [x] Navigation visibility follows effective access without becoming an enforcement source.
 - [x] Generated matrix, database, HTTP, isolation, concurrency, and browser tests cover each resource and operation.
+
+## Human review
+
+- Targeted contract tests pass and the implementation commits are present.
+- Final review remains open because the repository-wide typecheck and configured Playwright browser run were not both clean in the current environment. Keep `ready-for-human` until a clean release validation is recorded.

@@ -4,9 +4,9 @@
 
 **Blocked by:** 18 — Introduce the centralized evaluator in shadow mode; 20 — Backfill legacy non-admin access without widening; 22 — Deliver multi-role assignment and effective access; 26 — Secure people and profile operations.
 
-**Status:** in-progress
+**Status:** resolved
 
-Implementation notes: execution and validation workers now use a Node-safe adapter to the centralized evaluator on the same write transaction, recheck Tenant/account/authority/entitlement and rollout state, fence validation completion to the claimant, and atomically persist audit, success, outcome, and transactional-outbox records. MySQL coverage verifies concurrent workers, duplicate submission, revocation, epoch change, partial failure, and outbox cardinality. Crash/audit-failure, invalid-item, stale-version, and complete retry-path race fixtures remain before final resolution.
+Implementation notes: execution and validation workers use a Node-safe adapter to the centralized evaluator on the same write transaction, recheck Tenant/account/authority/entitlement and rollout state, fence completion and failure updates with per-claim tokens, and atomically persist audit, success, outcome, and transactional-outbox records. Real MySQL worker coverage verifies concurrent workers, duplicate submission, stale claimant fencing, crash/reclaim boundaries, audit rollback, invalid batch items, stale process versions, rollout epoch changes, complete validation retry, revocation, partial failure, and outbox cardinality.
 
 - [x] Upload, template download, validation, matching decisions, execution, status, result download, and retry operations use the exact operation-map permissions rather than broad import or feature checks.
 - [x] Execution requires both import execution permission and every destination create/update permission required by the approved row decisions.
@@ -15,4 +15,4 @@ Implementation notes: execution and validation workers now use a Node-safe adapt
 - [x] Permission, account, role, relationship, entitlement, write state, or rollout-epoch revocation after enqueue prevents unauthorized execution without partial side effects.
 - [x] Atomic claim, leases, idempotency, audit, and outbox behavior prevent duplicate execution across retries, crashes, and concurrent workers.
 - [x] Worker results expose safe requester-facing status and restricted telemetry without leaking concealed target details.
-- [ ] Real database and worker race tests cover duplicate claim, stale process version, crash boundaries, invalid batch items, audit failure, and epoch change.
+- [x] Real database and worker race tests cover duplicate claim, stale process version, crash boundaries, invalid batch items, audit failure, epoch change, and complete retry path.

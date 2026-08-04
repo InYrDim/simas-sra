@@ -111,12 +111,12 @@ export async function parsePeopleImportWorkbook(bytes: Uint8Array): Promise<Pars
 }
 
 export type PeopleImportStorage = { write(tenantId: string, key: string, bytes: Uint8Array): Promise<void>; read(tenantId: string, key: string): Promise<Uint8Array>; remove(tenantId: string, key: string): Promise<void> };
-export type ClaimedImportJob = { id: string; tenantId: string; domain?: string; batchId: string; storageKey: string; attempts: number; actorId?: string; claimedBy?: string; rolloutEpoch?: string | null };
+export type ClaimedImportJob = { id: string; tenantId: string; domain?: string; batchId: string; storageKey: string; attempts: number; actorId?: string; claimedBy?: string; claimToken?: string; rolloutEpoch?: string | null };
 export type PeopleImportStore = {
   createBatch(input: { batchId: string; jobId: string; tenantId: string; actorId: string; storageKey: string; byteSize: number }): Promise<{ batchId: string; jobId: string }>;
   claimJob(workerId: string): Promise<ClaimedImportJob | null>;
-  completeValidation(input: { jobId: string; tenantId: string; domain: string; batchId: string; actorId?: string; claimedBy?: string; rolloutEpoch?: string | null; kind: PeopleImportKind; version: string; rows: ImportRow[] }): Promise<void>;
-  failJob(input: { jobId: string; code: string; retryable: boolean }): Promise<void>;
+  completeValidation(input: { jobId: string; tenantId: string; domain: string; batchId: string; actorId?: string; claimedBy?: string; claimToken?: string; rolloutEpoch?: string | null; kind: PeopleImportKind; version: string; rows: ImportRow[] }): Promise<void>;
+  failJob(input: { jobId: string; tenantId: string; claimedBy?: string; claimToken?: string; code: string; retryable: boolean }): Promise<void>;
 };
 export function createPeopleImportService(deps: { store: PeopleImportStore; storage: PeopleImportStorage; id?: () => string }) {
   const id = deps.id ?? randomUUID;
@@ -130,7 +130,7 @@ export function createPeopleImportService(deps: { store: PeopleImportStore; stor
     },
     async runNext(workerId: string) {
       const job = await deps.store.claimJob(workerId); if (!job) return false;
-      try { const parsed = await parsePeopleImportWorkbook(await deps.storage.read(job.tenantId, job.storageKey)); if (!parsed.ok) { await deps.store.failJob({ jobId: job.id, code: parsed.code, retryable: false }); return true; } await deps.store.completeValidation({ jobId: job.id, tenantId: job.tenantId, domain: job.domain ?? "", batchId: job.batchId, actorId: job.actorId, claimedBy: job.claimedBy, rolloutEpoch: job.rolloutEpoch, kind: parsed.kind, version: parsed.version, rows: parsed.rows }); } catch { await deps.store.failJob({ jobId: job.id, code: "validation-failed", retryable: job.attempts < 5 }); }
+      try { const parsed = await parsePeopleImportWorkbook(await deps.storage.read(job.tenantId, job.storageKey)); if (!parsed.ok) { await deps.store.failJob({ jobId: job.id, tenantId: job.tenantId, claimedBy: job.claimedBy, claimToken: job.claimToken, code: parsed.code, retryable: false }); return true; } await deps.store.completeValidation({ jobId: job.id, tenantId: job.tenantId, domain: job.domain ?? "", batchId: job.batchId, actorId: job.actorId, claimedBy: job.claimedBy, claimToken: job.claimToken, rolloutEpoch: job.rolloutEpoch, kind: parsed.kind, version: parsed.version, rows: parsed.rows }); } catch { await deps.store.failJob({ jobId: job.id, tenantId: job.tenantId, claimedBy: job.claimedBy, claimToken: job.claimToken, code: "validation-failed", retryable: job.attempts < 5 }); }
       return true;
     },
   };

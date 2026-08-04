@@ -48,6 +48,7 @@ function fixture(initial = account()) {
     lockCase: async () => pending,
     completeCase: async () => { if (!pending) return false; pending = { ...pending, state: "completed", consumedAt: NOW }; return true; },
     activateConsumedAccount: async () => true,
+    resetCredential: async () => true,
     createAccount: async (input) => {
       current = account({ userId: input.userId, name: input.name, email: input.email, lifecycle: input.lifecycle });
       return current;
@@ -148,6 +149,24 @@ test("consuming a valid activation case is one-time and activates the account", 
   });
   assert.equal(state.pending?.state, "completed");
   await assert.rejects(() => consume({ tenantId: TENANT_ID, caseId: issued.caseId, secret: issued.secret!, correlationId: "consume-correlation-2", idempotencyKey: "consume-2" }), (error) => error instanceof SecurityCommandError && error.code === "context-denied");
+});
+
+test("recovery consumes once and replaces the credential without exposing it in the result", async () => {
+  const state = fixture(account({ lifecycle: "active" }));
+  const issued = await state.service.initiateRecovery({ ...command, targetUserId: USER_ID, expectedVersion: 1, deliveryChannel: "temporary-credential", mode: "reissue" });
+  let resetCredential = "";
+  state.repository.resetCredential = async (_tenantId, _userId, credential) => { resetCredential = credential; return true; };
+  const consume = createConsumeLifecycleCaseCommand({
+    execute: async (input) => {
+      const mutation = await input.authorizeAndMutate({ actor: { kind: "system", service: "public-case-consumer" }, context: { kind: "tenant", contextId: TENANT_ID, tenantId: TENANT_ID }, expectedVersions: [], transaction: {} as never });
+      return { commandId: "consume-recovery-1", existing: false, result: mutation.result };
+    },
+    repository: () => state.repository,
+    now: () => NOW,
+  });
+  assert.deepEqual(await consume({ tenantId: TENANT_ID, caseId: issued.caseId, secret: issued.secret!, correlationId: "recovery-correlation", idempotencyKey: "recovery-consume-1" }), { status: "recovered", tenantId: TENANT_ID, userId: USER_ID });
+  assert.equal(resetCredential, issued.secret);
+  await assert.rejects(() => consume({ tenantId: TENANT_ID, caseId: issued.caseId, secret: issued.secret!, correlationId: "recovery-correlation-2", idempotencyKey: "recovery-consume-2" }), (error) => error instanceof SecurityCommandError && error.code === "context-denied");
 });
 
 test("deactivation revokes authority atomically and reactivation restores only selected former roles", async () => {

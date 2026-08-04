@@ -1,4 +1,4 @@
-import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 
 import {
   SecurityCommandError,
@@ -61,6 +61,7 @@ export interface AccountLifecycleRepository {
   lockCase(tenantId: string, caseId: string): Promise<AccountLifecycleCase | null>;
   completeCase(tenantId: string, caseId: string, consumedAt: Date): Promise<boolean>;
   activateConsumedAccount(tenantId: string, userId: string, updatedAt: Date): Promise<boolean>;
+  resetCredential(tenantId: string, userId: string, credential: string, updatedAt: Date): Promise<boolean>;
   createAccount(input: Readonly<{ userId: string; accountId: string; tenantId: string; name: string; email: string; lifecycle: AccountLifecycle; initialCredential: string; createdAt: Date }>): Promise<TenantLifecycleAccount>;
   linkPerson(tenantId: string, personId: string, userId: string, expectedVersion: number, updatedAt: Date): Promise<void>;
   createCase(value: AccountLifecycleCase): Promise<void>;
@@ -161,7 +162,6 @@ export function createTenantAccountLifecycleService<TTransaction extends object>
       idempotencyKey: input.idempotencyKey,
       commandName: `tenant-account.${input.kind}.${input.mode}`,
       payload: { tenantId: input.tenantId, targetUserId: input.targetUserId, deliveryChannel: input.deliveryChannel, mode: input.mode },
-      expectedVersions: [{ resourceType: "tenant-account", resourceId: input.targetUserId, expectedVersion: input.expectedVersion }],
       correlationId: input.correlationId,
       requestId: input.requestId,
       deriveContext: async () => tenantContext(input.tenantId),
@@ -169,7 +169,7 @@ export function createTenantAccountLifecycleService<TTransaction extends object>
         const repository = dependencies.repository(transaction);
         await authorize(repository, actor, input.tenantId);
         const account = await target(repository, input.tenantId, input.targetUserId);
-        if (account.version !== input.expectedVersion || (input.kind === "activation" && account.lifecycle !== "pending-activation")) throw new SecurityCommandError("stale-version");
+        if (account.version !== input.expectedVersion || (input.kind === "activation" && account.lifecycle !== "pending-activation") || (input.kind === "recovery" && account.lifecycle !== "active")) throw new SecurityCommandError("stale-version");
         const at = now();
         const pending = await repository.findPendingCase(input.tenantId, input.targetUserId, input.kind);
         if (input.mode === "resend") {
@@ -295,7 +295,11 @@ export function createConsumeLifecycleCaseCommand<TTransaction extends object>(d
     identifier(input.caseId);
     if (!input.secret || input.secret.length > 512) throw new SecurityCommandError("invalid-command");
     return (await dependencies.execute<ConsumeLifecycleCaseResult>({
-      principal: { kind: "authenticated-user", userId: `lifecycle-case:${input.caseId}` },
+      principal: {
+        kind: "system",
+        service: "tenant-account-lifecycle-consumer",
+        context: tenantContext(input.tenantId),
+      },
       idempotencyKey: input.idempotencyKey,
       commandName: "tenant-account.lifecycle-consume",
       payload: { tenantId: input.tenantId, caseId: input.caseId },
@@ -315,9 +319,14 @@ export function createConsumeLifecycleCaseCommand<TTransaction extends object>(d
           expiresAt: lifecycleCase.expiresAt,
           secret: input.secret,
         });
-        if (expectedDigest !== lifecycleCase.secretDigest) throw new SecurityCommandError("context-denied");
+        const expected = Buffer.from(expectedDigest, "hex");
+        const actual = Buffer.from(lifecycleCase.secretDigest, "hex");
+        if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) throw new SecurityCommandError("context-denied");
         if (!await repository.completeCase(input.tenantId, input.caseId, at)) throw new SecurityCommandError("stale-version");
         if (lifecycleCase.kind === "activation" && !await repository.activateConsumedAccount(input.tenantId, lifecycleCase.userId, at)) {
+          throw new SecurityCommandError("stale-version");
+        }
+        if (lifecycleCase.kind === "recovery" && !await repository.resetCredential(input.tenantId, lifecycleCase.userId, input.secret, at)) {
           throw new SecurityCommandError("stale-version");
         }
         const status = lifecycleCase.kind === "activation" ? "activated" : "recovered";

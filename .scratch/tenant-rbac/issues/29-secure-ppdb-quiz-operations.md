@@ -16,3 +16,8 @@
 - [x] Generated matrix, differential isolation, document security, HTTP, and browser tests cover authenticated and intentionally excluded surfaces.
 
 **Implementation note:** Authenticated document downloads now require `ppdb.documents.download` plus `ppdb.documents.view-sensitive`; Tenant exports require `ppdb.submissions.export` plus the sensitive projection. Public Applicant print views remain intentionally outside Tenant RBAC. Browser runtime verification requires restarting the pre-existing Next dev server so it loads the new export route.
+
+## Human review
+
+- Targeted authorization and export tests pass, and the operation-level implementation is present.
+- Final review remains open because the configured Playwright run could not complete against the pre-existing Next server. Keep `ready-for-human` until a clean browser/release validation is recorded.

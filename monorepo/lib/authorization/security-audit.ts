@@ -1,3 +1,5 @@
+
+
 import { securityAuditEventHash, securityAuditEventPayloadDigest } from "@/lib/authorization/security-command";
 import type {
   JsonValue,
@@ -10,7 +12,10 @@ const HASH_PATTERN = /^[a-f0-9]{64}$/;
 const FORMULA_PATTERN = /^[=+\-@]/;
 const SENSITIVE_KEY_PATTERN = /(?:password|secret|token|credential|authorization|cookie|privatekey|private_key|api[_-]?key)/i;
 const PERSONAL_KEY_PATTERN = /^(?:email|phone|telephone|address|ipaddress|ip_address|useragent|user_agent)$/i;
-const RESTRICTED_EVENT_PATTERN = /(?:compatibility_finding|migration_(?:skipped|finding))/i;
+const RESTRICTED_EVENT_PATTERN = /(?:compatibility_finding|legacy_migration|^school_admin\.|(?:^|\.)integrity(?:\.|$)|(?:^|\.)denial(?:\.|$))/i;
+const SELF_EVENT_PATTERN = /^(?:tenant_account|tenant_assignment|tenant_role)\./i;
+const POST_DELETION_PERSONAL_KEY_PATTERN = /^(?:userId|tenantId|actorUserId|targetUserId|displayName|email|phone|telephone|address|ipAddress|userAgent|name)$/i;
+const SELF_RESTRICTED_KEY_PATTERN = /^(?:affectedCount|activeCountBefore|activeCountAfter|roleWideCount|otherUserCount)$/i;
 
 export type SecurityAuditScope = "tenant" | "self" | "provider";
 
@@ -63,31 +68,37 @@ function neutralizeFormula(value: string): string {
   return FORMULA_PATTERN.test(value) ? `'${value}` : value;
 }
 
-function safeValue(value: unknown, key = "", seen = new Set<object>()): JsonValue {
+function safeValue(value: unknown, key = "", seen = new Set<object>(), minimizePersonalData = false, selfHistory = false): JsonValue {
+  if (SENSITIVE_KEY_PATTERN.test(key)) return "[REDACTED]";
+  if (minimizePersonalData && POST_DELETION_PERSONAL_KEY_PATTERN.test(key)) return "[REDACTED_AFTER_TENANT_DELETION]";
+  if (selfHistory && SELF_RESTRICTED_KEY_PATTERN.test(key)) return "[REDACTED_FOR_SELF_HISTORY]";
   if (typeof value === "string") return neutralizeFormula(value);
   if (value === null || typeof value === "boolean") return value;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (typeof value !== "object" || value instanceof Date) return null;
   if (seen.has(value)) return null;
-  if (SENSITIVE_KEY_PATTERN.test(key)) return "[REDACTED]";
   seen.add(value);
   if (Array.isArray(value)) {
-    const result = value.map((item) => safeValue(item, key, seen));
+    const result = value.map((item) => safeValue(item, key, seen, minimizePersonalData, selfHistory));
     seen.delete(value);
     return result;
   }
   const result: Record<string, JsonValue> = {};
   for (const [childKey, childValue] of Object.entries(value)) {
     if (SENSITIVE_KEY_PATTERN.test(childKey) || PERSONAL_KEY_PATTERN.test(childKey)) continue;
-    if (childValue !== undefined) result[childKey] = safeValue(childValue, childKey, seen);
+    if (childKey !== undefined) result[childKey] = safeValue(childValue, childKey, seen, minimizePersonalData, selfHistory);
   }
   seen.delete(value);
   return result;
 }
 
-function actorProjection(actor: SecurityActor): SecurityAuditProjection["actor"] {
-  if (actor.kind === "system") return { kind: actor.kind, id: null, label: actor.service };
-  return { kind: actor.kind, id: actor.userId, label: neutralizeFormula(actor.displayName) };
+function actorProjection(actor: SecurityActor, minimizePersonalData: boolean, selfHistory: boolean): SecurityAuditProjection["actor"] {
+  if (actor.kind === "system") return { kind: actor.kind, id: null, label: minimizePersonalData ? "[redacted]" : actor.service };
+  return {
+    kind: actor.kind,
+    id: minimizePersonalData || selfHistory ? null : actor.userId,
+    label: minimizePersonalData ? "[redacted]" : neutralizeFormula(actor.displayName),
+  };
 }
 
 function isVisible(
@@ -101,17 +112,19 @@ function isVisible(
     return event.context.kind === "provider" && event.context.providerContextId === providerContextId;
   }
   if (event.context.kind !== "tenant" || event.context.tenantId !== tenantId) return false;
+  if (RESTRICTED_EVENT_PATTERN.test(event.eventType)) return false;
   if (scope === "tenant") return true;
-  return event.targets.userId === userId || event.actor.kind === "tenant-user" && event.actor.userId === userId;
+  return SELF_EVENT_PATTERN.test(event.eventType)
+    && (event.targets.userId === userId || event.actor.kind === "tenant-user" && event.actor.userId === userId);
 }
 
 export function projectSecurityAuditEvents(
   events: readonly PersistedSecurityAuditEvent[],
-  input: Readonly<{ scope: SecurityAuditScope; tenantId?: string; userId?: string; providerContextId?: string }>,
+  input: Readonly<{ scope: SecurityAuditScope; tenantId?: string; userId?: string; providerContextId?: string; postTenantDeletion?: boolean }>,
 ): readonly SecurityAuditProjection[] {
   if (input.scope === "self" && !input.userId) return [];
   const projected = events
-    .filter((event) => !RESTRICTED_EVENT_PATTERN.test(event.eventType))
+    .filter((event) => input.scope === "provider" || !RESTRICTED_EVENT_PATTERN.test(event.eventType))
     .filter((event) => isVisible(event, input.scope, input.tenantId, input.userId, input.providerContextId))
     .sort((left, right) => Number(left.sequence - right.sequence))
     .map((event) => ({
@@ -119,11 +132,11 @@ export function projectSecurityAuditEvents(
       sequence: event.sequence.toString(),
       eventType: event.eventType,
       outcome: event.outcome,
-      actor: actorProjection(event.actor),
-      targetUserId: event.targets.userId ?? null,
+      actor: actorProjection(event.actor, input.postTenantDeletion === true, input.scope === "self"),
+      targetUserId: input.postTenantDeletion ? null : event.targets.userId ?? null,
       correlationId: event.correlationId,
-      reason: event.reason ? neutralizeFormula(event.reason) : null,
-      metadata: safeValue(event.metadata),
+      reason: input.postTenantDeletion ? null : event.reason ? neutralizeFormula(event.reason) : null,
+      metadata: safeValue(event.metadata, "", new Set<object>(), input.postTenantDeletion === true, input.scope === "self"),
       occurredAt: event.occurredAt.toISOString(),
     }));
   return projected;

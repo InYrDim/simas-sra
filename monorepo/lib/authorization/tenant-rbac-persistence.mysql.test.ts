@@ -164,8 +164,10 @@ mysqlTest("MySQL enforces Tenant-qualified RBAC, lifecycle, and audit persistenc
       "INSERT INTO `user` (`id`,`name`,`email`,`email_verified`,`created_at`,`updated_at`) VALUES (?,'Admin A',?,false,NOW(3),NOW(3)),(?,'Member B',?,false,NOW(3),NOW(3))",
       [ids.adminA, `${ids.adminA}@test.invalid`, ids.memberB, `${ids.memberB}@test.invalid`],
     );
-    await createTenant(connection, ids.tenantA, ids.applicationA, ids.adminA, ids.bindingA, "91000001");
-    await createTenant(connection, ids.tenantB, ids.applicationB, ids.memberB, ids.bindingB, "91000002");
+    const npsnA = String(91000000 + (Number.parseInt(ids.tenantA.replaceAll("-", "").slice(-6), 16) % 1_000_000));
+    const npsnB = String(91000000 + (Number.parseInt(ids.tenantB.replaceAll("-", "").slice(-6), 16) % 1_000_000));
+    await createTenant(connection, ids.tenantA, ids.applicationA, ids.adminA, ids.bindingA, npsnA);
+    await createTenant(connection, ids.tenantB, ids.applicationB, ids.memberB, ids.bindingB, npsnB);
     await connection.execute("UPDATE `user` SET `tenant_id`=?,`tenant_role`='school-admin' WHERE `id`=?", [ids.tenantA, ids.adminA]);
     await connection.execute("UPDATE `user` SET `tenant_id`=?,`tenant_role`='guest' WHERE `id`=?", [ids.tenantB, ids.memberB]);
     await connection.execute(

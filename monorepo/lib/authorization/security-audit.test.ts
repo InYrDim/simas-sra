@@ -55,11 +55,21 @@ test("projects only the permitted partition and removes secrets and unnecessary 
   const event = controlled.snapshot().auditEvents;
   const self = projectSecurityAuditEvents(event, { scope: "self", tenantId: "tenant-1", userId: "user-1" });
   assert.equal(self.length, 1);
-  assert.equal(JSON.stringify(self), JSON.stringify(projectSecurityAuditEvents(event, { scope: "tenant", tenantId: "tenant-1" })));
+  const tenant = projectSecurityAuditEvents(event, { scope: "tenant", tenantId: "tenant-1" });
+  assert.equal(tenant.length, 1);
+  assert.equal(self[0]?.actor.id, null);
+  assert.equal(tenant[0]?.actor.id, actor.userId);
   assert.doesNotMatch(JSON.stringify(self), /password|example\.test/);
   assert.equal((self[0]?.metadata as { details?: { exportFormula?: string } }).details?.exportFormula, "'\=HYPERLINK(\"https://evil.test\")");
+  assert.equal((self[0]?.metadata as { details?: { password?: string } }).details?.password, undefined);
   assert.deepEqual(projectSecurityAuditEvents(event, { scope: "tenant", tenantId: "other-tenant" }), []);
-  assert.deepEqual(projectSecurityAuditEvents([...event, { ...event[0]!, id: "restricted-event", sequence: BigInt(2), eventType: "tenant_role.legacy_migration_finding" }], { scope: "tenant", tenantId: "tenant-1" }), self);
+  assert.deepEqual(projectSecurityAuditEvents([...event, { ...event[0]!, id: "restricted-event", sequence: BigInt(2), eventType: "tenant_role.legacy_migration_finding" }], { scope: "tenant", tenantId: "tenant-1" }), tenant);
+  assert.deepEqual(projectSecurityAuditEvents([{ ...event[0]!, eventType: "school_admin.authority_disabled", targets: { userId: actor.userId } }], { scope: "self", tenantId: "tenant-1", userId: actor.userId }), []);
+  const minimized = projectSecurityAuditEvents(event, { scope: "tenant", tenantId: "tenant-1", postTenantDeletion: true });
+  assert.equal(minimized[0]?.targetUserId, null);
+  assert.equal(minimized[0]?.actor.id, null);
+  assert.equal(minimized[0]?.reason, null);
+  assert.doesNotMatch(JSON.stringify(minimized), /user-1|target-1|Admin Sekolah|example\\.test/);
 });
 
 test("verifies the anchored chain and detects payload, reorder, and deletion tampering", async () => {

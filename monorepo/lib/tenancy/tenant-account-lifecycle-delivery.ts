@@ -68,8 +68,7 @@ export async function deliverPendingLifecycleEvents(input: Readonly<{ limit?: nu
   const now = input.now ?? new Date();
   const delivered: InternalLifecycleDelivery[] = [];
 
-  await db.transaction(async (transaction) => {
-    const events = await transaction.select({
+  const events = await db.select({
       outboxId: securityOutbox.id,
       caseId: tenantAccountLifecycleCase.id,
       tenantId: tenantAccountLifecycleCase.tenantId,
@@ -77,6 +76,7 @@ export async function deliverPendingLifecycleEvents(input: Readonly<{ limit?: nu
       kind: tenantAccountLifecycleCase.kind,
       deliveryChannel: tenantAccountLifecycleCase.deliveryChannel,
       expiresAt: tenantAccountLifecycleCase.expiresAt,
+      attempts: securityOutbox.attempts,
       domain: tenant.domain,
       recipient: user.email,
     }).from(securityOutbox)
@@ -84,21 +84,44 @@ export async function deliverPendingLifecycleEvents(input: Readonly<{ limit?: nu
       .innerJoin(tenant, eq(tenant.id, tenantAccountLifecycleCase.tenantId))
       .innerJoin(user, and(eq(user.id, tenantAccountLifecycleCase.userId), eq(user.tenantId, tenantAccountLifecycleCase.tenantId)))
       .where(and(eq(securityOutbox.eventType, "tenant_account.lifecycle_delivery_requested"), isNull(securityOutbox.publishedAt), lte(securityOutbox.availableAt, now), eq(tenantAccountLifecycleCase.state, "pending")))
-      .limit(limit)
-      .for("update");
+      .limit(limit);
 
     for (const event of events) {
       if (event.deliveryChannel !== "email" || !event.expiresAt || event.expiresAt <= now) {
-        await transaction.update(securityOutbox).set({ publishedAt: now, attempts: sql`${securityOutbox.attempts} + 1`, lastError: "lifecycle case is not deliverable" }).where(eq(securityOutbox.id, event.outboxId));
+        await db.transaction(async (transaction) => {
+          const marked = await transaction.update(securityOutbox).set({ publishedAt: now, attempts: sql`${securityOutbox.attempts} + 1`, lastError: "lifecycle case is not deliverable" }).where(and(eq(securityOutbox.id, event.outboxId), isNull(securityOutbox.publishedAt)));
+          if (marked[0].affectedRows === 1) {
+            await transaction.update(tenantAccountLifecycleCase).set({ deliveryAttempts: sql`${tenantAccountLifecycleCase.deliveryAttempts} + 1`, updatedAt: now }).where(eq(tenantAccountLifecycleCase.id, event.caseId));
+          }
+          if (event.expiresAt && event.expiresAt <= now) {
+            await transaction.update(tenantAccountLifecycleCase).set({ state: "expired", version: sql`${tenantAccountLifecycleCase.version} + 1`, updatedAt: now }).where(and(eq(tenantAccountLifecycleCase.id, event.caseId), eq(tenantAccountLifecycleCase.state, "pending")));
+          }
+        });
         continue;
       }
-      const secret = deriveInternalEmailSecret({ key: process.env.TENANT_ACCOUNT_LIFECYCLE_SECRET_KEY ?? "", caseId: event.caseId, kind: event.kind, tenantId: event.tenantId, userId: event.userId, expiresAt: event.expiresAt });
-      const delivery = createInternalLifecycleDelivery({ caseId: event.caseId, tenantId: event.tenantId, userId: event.userId, kind: event.kind, recipient: event.recipient, domain: event.domain, secret, expiresAt: event.expiresAt });
-      await input.send(delivery);
-      delivered.push(delivery);
-      await transaction.update(securityOutbox).set({ publishedAt: now, attempts: sql`${securityOutbox.attempts} + 1`, lastError: null }).where(eq(securityOutbox.id, event.outboxId));
-    }
-  });
+
+      try {
+        const secret = deriveInternalEmailSecret({ key: process.env.TENANT_ACCOUNT_LIFECYCLE_SECRET_KEY ?? "", caseId: event.caseId, kind: event.kind, tenantId: event.tenantId, userId: event.userId, expiresAt: event.expiresAt });
+        const delivery = createInternalLifecycleDelivery({ caseId: event.caseId, tenantId: event.tenantId, userId: event.userId, kind: event.kind, recipient: event.recipient, domain: event.domain, secret, expiresAt: event.expiresAt });
+        await input.send(delivery);
+        const published = await db.transaction(async (transaction) => {
+          const updated = await transaction.update(securityOutbox).set({ publishedAt: now, attempts: sql`${securityOutbox.attempts} + 1`, lastError: null }).where(and(eq(securityOutbox.id, event.outboxId), isNull(securityOutbox.publishedAt)));
+          if (updated[0].affectedRows === 1) {
+            await transaction.update(tenantAccountLifecycleCase).set({ deliveryAttempts: sql`${tenantAccountLifecycleCase.deliveryAttempts} + 1`, updatedAt: now }).where(eq(tenantAccountLifecycleCase.id, event.caseId));
+          }
+          return updated;
+        });
+        if (published[0].affectedRows === 1) delivered.push(delivery);
+      } catch {
+        const retryAt = new Date(now.getTime() + Math.min(60 * 60_000, 5_000 * 2 ** Math.min(event.attempts, 8)));
+        await db.transaction(async (transaction) => {
+          const marked = await transaction.update(securityOutbox).set({ attempts: sql`${securityOutbox.attempts} + 1`, availableAt: retryAt, lastError: "lifecycle delivery adapter failed" }).where(and(eq(securityOutbox.id, event.outboxId), isNull(securityOutbox.publishedAt)));
+          if (marked[0].affectedRows === 1) {
+            await transaction.update(tenantAccountLifecycleCase).set({ deliveryAttempts: sql`${tenantAccountLifecycleCase.deliveryAttempts} + 1`, updatedAt: now }).where(eq(tenantAccountLifecycleCase.id, event.caseId));
+          }
+        });
+      }
+  }
   return delivered;
 }
 

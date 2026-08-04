@@ -250,7 +250,6 @@ test("issue #27 does not expose sensitive projections or unguarded exports", asy
 test("free-text staff work units do not define delegated authorization scope", async () => {
   const staffLoad = tenantOperationMap.find((candidate) => candidate.id === "staff.load");
   assert.equal(staffLoad?.contextualPolicy, "self");
-  assert.equal(staffLoad?.contextualPolicy === "assigned", false);
   const routeAccess = await source("lib/authorization/tenant-operation-route-access.ts");
   assert.doesNotMatch(routeAccess, /workUnit/);
 });

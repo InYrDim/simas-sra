@@ -293,6 +293,21 @@ export function createTenantAccountLifecycleDataRepository(
       return updated[0].affectedRows === 1;
     },
 
+    async resetCredential(tenantId, userId, credential, updatedAt) {
+      assertIdentifier(tenantId);
+      assertIdentifier(userId);
+      if (!credential || credential.length > 512) throw new SecurityCommandError("invalid-command");
+      const password = await hashPassword(credential);
+      const updated = await database.update(account).set({
+        password,
+        updatedAt,
+      }).where(and(
+        eq(account.userId, userId),
+        eq(account.providerId, "credential"),
+      ));
+      return updated[0].affectedRows === 1;
+    },
+
     async createAccount(input) {
       assertIdentifier(input.userId);
       assertIdentifier(input.accountId);

@@ -64,7 +64,7 @@ export default async function SecurityHistoryPage({
             {access.scope === "tenant" ? "Riwayat otorisasi Tenant sesuai kewenangan Anda." : "Riwayat keamanan yang berkaitan dengan akun Anda."}
           </p>
         </div>
-        {canExport ? <Link className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted" href="/security-history/export">Ekspor aman</Link> : null}
+        {canExport ? <Link className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-muted" href={`/${domain}/security-history/export`}>Ekspor aman</Link> : null}
       </header>
 
       <Card>

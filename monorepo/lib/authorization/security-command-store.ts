@@ -7,6 +7,7 @@ import {
   securityAuditHead,
   securityCommand,
   securityOutbox,
+  tenantRbacRollout,
   user,
 } from "@/db/schema";
 import {
@@ -107,7 +108,11 @@ export type SecurityCommandStore<TDomainTransaction extends object = object> = R
 }>;
 
 export type SecurityCommandDatabaseTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
-export type MySqlSecurityCommandTransaction = Readonly<{ database: SecurityCommandDatabaseTransaction }>;
+export type MySqlSecurityCommandTransaction = Readonly<{
+  database: SecurityCommandDatabaseTransaction;
+  readState?(id: string): Promise<Readonly<{ id: string; version: number; value: JsonValue }> | null>;
+  writeState?(input: Readonly<{ id: string; expectedVersion: number; value: JsonValue }>): Promise<boolean>;
+}>;
 
 function errorDetails(error: unknown): string {
   if (!(error instanceof Error)) return String(error);
@@ -173,6 +178,73 @@ export function createMySqlSecurityCommandStore(options: Readonly<{
         try {
           return await db.transaction(async (database) => work({
             database,
+            async readState(id) {
+              const [row] = await database
+                .select({
+                  id: tenantRbacRollout.tenantId,
+                  version: tenantRbacRollout.version,
+                  httpMode: tenantRbacRollout.httpMode,
+                  workerMode: tenantRbacRollout.workerMode,
+                  epoch: tenantRbacRollout.epoch,
+                  resolverVersion: tenantRbacRollout.resolverVersion,
+                  registryVersion: tenantRbacRollout.registryVersion,
+                  operationMapVersion: tenantRbacRollout.operationMapVersion,
+                  overlayHash: tenantRbacRollout.overlayHash,
+                  multiRoleAcceptedAt: tenantRbacRollout.multiRoleAcceptedAt,
+                  updatedAt: tenantRbacRollout.updatedAt,
+                })
+                .from(tenantRbacRollout)
+                .where(eq(tenantRbacRollout.tenantId, id))
+                .limit(1)
+                .for("update");
+              if (!row) return null;
+              return {
+                id: row.id,
+                version: row.version,
+                value: {
+                  httpMode: row.httpMode,
+                  workerMode: row.workerMode,
+                  epoch: row.epoch.toString(),
+                  version: row.version,
+                  resolverVersion: row.resolverVersion,
+                  registryVersion: row.registryVersion,
+                  operationMapVersion: row.operationMapVersion,
+                  overlayHash: row.overlayHash,
+                  multiRoleAcceptedAt: row.multiRoleAcceptedAt?.toISOString() ?? null,
+                  legacyAuthorityDisabledAt: null,
+                  rollbackEligible: row.multiRoleAcceptedAt === null,
+                },
+              };
+            },
+            async writeState(input) {
+              if (typeof input.value !== "object" || input.value === null || Array.isArray(input.value)) return false;
+              const value = input.value as Record<string, JsonValue>;
+              const modes = new Set(["legacy", "intersection", "rbac", "rbac-emergency"]);
+              if (
+                typeof value.httpMode !== "string" || !modes.has(value.httpMode)
+                || typeof value.workerMode !== "string" || !modes.has(value.workerMode)
+                || typeof value.epoch !== "string" || typeof value.version !== "number"
+                || typeof value.resolverVersion !== "string" || typeof value.registryVersion !== "string"
+                || typeof value.operationMapVersion !== "string"
+                || (value.overlayHash !== null && typeof value.overlayHash !== "string")
+              ) return false;
+              const updated = await database.update(tenantRbacRollout).set({
+                httpMode: value.httpMode as "legacy" | "intersection" | "rbac" | "rbac-emergency",
+                workerMode: value.workerMode as "legacy" | "intersection" | "rbac" | "rbac-emergency",
+                epoch: BigInt(value.epoch),
+                resolverVersion: value.resolverVersion,
+                registryVersion: value.registryVersion,
+                operationMapVersion: value.operationMapVersion,
+                overlayHash: value.overlayHash as string | null,
+                multiRoleAcceptedAt: typeof value.multiRoleAcceptedAt === "string" ? new Date(value.multiRoleAcceptedAt) : null,
+                version: input.expectedVersion + 1,
+                updatedAt: new Date(),
+              }).where(and(
+                eq(tenantRbacRollout.tenantId, input.id),
+                eq(tenantRbacRollout.version, input.expectedVersion),
+              ));
+              return updated[0].affectedRows === 1;
+            },
             async resolveActor(principal) {
               if (principal.kind === "system") return { kind: "system", service: principal.service };
               const [account] = await database

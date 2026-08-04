@@ -13,6 +13,7 @@ const poolConnection = globalDatabase.mysqlPool ?? mysql.createPool({
   maxIdle: 5,
   idleTimeout: 60_000,
   enableKeepAlive: true,
+  timezone: "Z",
 });
 globalDatabase.mysqlPool = poolConnection;
 
