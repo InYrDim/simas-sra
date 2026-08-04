@@ -28,7 +28,7 @@ export default defineConfig({
   webServer: process.env.E2E_BASE_URL
     ? undefined
     : {
-        command: `pnpm dev --hostname 0.0.0.0 --port ${port}`,
+        command: `pnpm exec next dev --hostname 0.0.0.0 --port ${port}`,
         env: {
           BETTER_AUTH_URL: baseURL,
         },
