@@ -226,3 +226,31 @@ test("issue #27 pages and actions use operation enforcement without broad checks
     assert.doesNotMatch(contents, /capabilities\.write/, path);
   }
 });
+
+test("issue #27 does not expose sensitive projections or unguarded exports", async () => {
+  const sensitiveFields = /\b(?:nik|nip|phone|email|workUnit|positionAssignments|servicePeriods)\b/;
+  for (const path of [
+    "app/(tenant)/[domain]/(authenticated)/master/sarpras/page.tsx",
+    "app/(tenant)/[domain]/(authenticated)/master/sarpras/aset/page.tsx",
+    "app/(tenant)/[domain]/(authenticated)/master/organisasi/page.tsx",
+    "app/(tenant)/[domain]/(authenticated)/master/organisasi/ekstrakurikuler/page.tsx",
+  ]) {
+    assert.doesNotMatch(await source(path), sensitiveFields, path);
+  }
+
+  const targetOperations = tenantOperationMap.filter((candidate) =>
+    ["facilities", "assets", "student-organizations", "extracurriculars"].some((module) => candidate.id.startsWith(`${module}.`)),
+  );
+  for (const candidate of targetOperations) {
+    assert.equal(candidate.entryPoints.some((entry) => /export|download/i.test(entry)), false, candidate.id);
+    assert.equal(candidate.requiredPermissions.some((permission) => /view-sensitive|\.export$|\.download$/.test(permission)), false, candidate.id);
+  }
+});
+
+test("free-text staff work units do not define delegated authorization scope", async () => {
+  const staffLoad = tenantOperationMap.find((candidate) => candidate.id === "staff.load");
+  assert.equal(staffLoad?.contextualPolicy, "self");
+  assert.equal(staffLoad?.contextualPolicy === "assigned", false);
+  const routeAccess = await source("lib/authorization/tenant-operation-route-access.ts");
+  assert.doesNotMatch(routeAccess, /workUnit/);
+});
