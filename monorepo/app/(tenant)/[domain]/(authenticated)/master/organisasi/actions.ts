@@ -1,13 +1,87 @@
 "use server";
-import { revalidatePath } from "next/cache";import { redirect } from "next/navigation";import { createStudentOrganizationService } from "@/lib/master-data/student-organization";import { studentOrganizationStore } from "@/lib/master-data/student-organization-data";import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
-const service=createStudentOrganizationService({store:studentOrganizationStore}),text=(f:FormData,n:string)=>String(f.get(n)??""),optional=(f:FormData,n:string)=>text(f,n)||null;
-function finish(domain:string,result:{ok:boolean;code?:string}){revalidatePath(`/${domain}/master/organisasi`);redirect(`/${domain}/master/organisasi?result=${result.ok?"saved":result.code??"error"}`);}
-export async function createOrganizationAction(domain:string,f:FormData){finish(domain,await service.createOrganization(await enforceMasterDataAccess(domain,"write"),{name:text(f,"name"),abbreviation:optional(f,"abbreviation"),code:text(f,"code"),description:optional(f,"description"),foundingDate:optional(f,"foundingDate"),secretariatLocationId:optional(f,"secretariatLocationId")}));}
-export async function createPeriodAction(domain:string,f:FormData){finish(domain,await service.createPeriod(await enforceMasterDataAccess(domain,"write"),{organizationId:text(f,"organizationId"),name:text(f,"name"),startDate:text(f,"startDate"),endDate:text(f,"endDate")}));}
-export async function transitionPeriodAction(domain:string,f:FormData){finish(domain,await service.transitionPeriod(await enforceMasterDataAccess(domain,"write"),text(f,"periodId"),text(f,"operation") as "activate"|"complete",{expectedVersion:Number(f.get("expectedVersion")),reason:text(f,"reason")}));}
-export async function correctPeriodAction(domain:string,f:FormData){finish(domain,await service.correctCompletedPeriod(await enforceMasterDataAccess(domain,"write"),text(f,"periodId"),{expectedVersion:Number(f.get("expectedVersion")),startDate:text(f,"startDate"),endDate:text(f,"endDate"),reason:text(f,"reason")}));}
-export async function addMembershipAction(domain:string,f:FormData){finish(domain,await service.addMembership(await enforceMasterDataAccess(domain,"write"),{organizationId:text(f,"organizationId"),studentId:text(f,"studentId"),startDate:text(f,"startDate"),endDate:optional(f,"endDate"),reason:text(f,"reason")}));}
-export async function endMembershipAction(domain:string,f:FormData){finish(domain,await service.endMembership(await enforceMasterDataAccess(domain,"write"),text(f,"membershipId"),{effectiveDate:text(f,"effectiveDate"),reason:text(f,"reason")}));}
-export async function assignLeadershipAction(domain:string,f:FormData){finish(domain,await service.assignLeadership(await enforceMasterDataAccess(domain,"write"),{periodId:text(f,"periodId"),studentId:text(f,"studentId"),positionName:text(f,"positionName"),allowsMultipleHolders:f.get("allowsMultipleHolders")==="on",startDate:text(f,"startDate"),endDate:optional(f,"endDate"),reason:text(f,"reason")}));}
-export async function endLeadershipAction(domain:string,f:FormData){finish(domain,await service.endLeadership(await enforceMasterDataAccess(domain,"write"),text(f,"leadershipId"),{effectiveDate:text(f,"effectiveDate"),reason:text(f,"reason")}));}
-export async function archiveOrganizationAction(domain:string,f:FormData){finish(domain,await service.archiveOrganization(await enforceMasterDataAccess(domain,"write"),text(f,"organizationId"),{expectedVersion:Number(f.get("expectedVersion")),reason:text(f,"reason")}));}
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+
+import { enforceTenantMasterDataOperation } from "@/lib/authorization/tenant-operation-route-access";
+import { createStudentOrganizationService } from "@/lib/master-data/student-organization";
+import { studentOrganizationStore } from "@/lib/master-data/student-organization-data";
+
+const service = createStudentOrganizationService({ store: studentOrganizationStore });
+const text = (form: FormData, name: string) => String(form.get(name) ?? "");
+const optional = (form: FormData, name: string) => text(form, name) || null;
+
+function finish(domain: string, result: { ok: boolean; code?: string }) {
+  revalidatePath(`/${domain}/master/organisasi`);
+  redirect(`/${domain}/master/organisasi?result=${result.ok ? "saved" : result.code ?? "error"}`);
+}
+
+export async function createOrganizationAction(domain: string, form: FormData) {
+  const principal = await enforceTenantMasterDataOperation(domain, "student-organizations.create");
+  finish(domain, await service.createOrganization(principal, {
+    name: text(form, "name"), abbreviation: optional(form, "abbreviation"), code: text(form, "code"),
+    description: optional(form, "description"), foundingDate: optional(form, "foundingDate"),
+    secretariatLocationId: optional(form, "secretariatLocationId"),
+  }));
+}
+
+export async function createPeriodAction(domain: string, form: FormData) {
+  const principal = await enforceTenantMasterDataOperation(domain, "student-organizations.periods.create");
+  finish(domain, await service.createPeriod(principal, {
+    organizationId: text(form, "organizationId"), name: text(form, "name"),
+    startDate: text(form, "startDate"), endDate: text(form, "endDate"),
+  }));
+}
+
+export async function transitionPeriodAction(domain: string, form: FormData) {
+  const principal = await enforceTenantMasterDataOperation(domain, "student-organizations.periods.lifecycle");
+  finish(domain, await service.transitionPeriod(principal, text(form, "periodId"), text(form, "operation") as "activate" | "complete", {
+    expectedVersion: Number(form.get("expectedVersion")), reason: text(form, "reason"),
+  }));
+}
+
+export async function correctPeriodAction(domain: string, form: FormData) {
+  const principal = await enforceTenantMasterDataOperation(domain, "student-organizations.periods.correct");
+  finish(domain, await service.correctCompletedPeriod(principal, text(form, "periodId"), {
+    expectedVersion: Number(form.get("expectedVersion")), startDate: text(form, "startDate"),
+    endDate: text(form, "endDate"), reason: text(form, "reason"),
+  }));
+}
+
+export async function addMembershipAction(domain: string, form: FormData) {
+  const principal = await enforceTenantMasterDataOperation(domain, "student-organizations.memberships.assign");
+  finish(domain, await service.addMembership(principal, {
+    organizationId: text(form, "organizationId"), studentId: text(form, "studentId"),
+    startDate: text(form, "startDate"), endDate: optional(form, "endDate"), reason: text(form, "reason"),
+  }));
+}
+
+export async function endMembershipAction(domain: string, form: FormData) {
+  const principal = await enforceTenantMasterDataOperation(domain, "student-organizations.memberships.unassign");
+  finish(domain, await service.endMembership(principal, text(form, "membershipId"), {
+    effectiveDate: text(form, "effectiveDate"), reason: text(form, "reason"),
+  }));
+}
+
+export async function assignLeadershipAction(domain: string, form: FormData) {
+  const principal = await enforceTenantMasterDataOperation(domain, "student-organizations.leadership.assign");
+  finish(domain, await service.assignLeadership(principal, {
+    periodId: text(form, "periodId"), studentId: text(form, "studentId"), positionName: text(form, "positionName"),
+    allowsMultipleHolders: form.get("allowsMultipleHolders") === "on", startDate: text(form, "startDate"),
+    endDate: optional(form, "endDate"), reason: text(form, "reason"),
+  }));
+}
+
+export async function endLeadershipAction(domain: string, form: FormData) {
+  const principal = await enforceTenantMasterDataOperation(domain, "student-organizations.leadership.unassign");
+  finish(domain, await service.endLeadership(principal, text(form, "leadershipId"), {
+    effectiveDate: text(form, "effectiveDate"), reason: text(form, "reason"),
+  }));
+}
+
+export async function archiveOrganizationAction(domain: string, form: FormData) {
+  const principal = await enforceTenantMasterDataOperation(domain, "student-organizations.archive");
+  finish(domain, await service.archiveOrganization(principal, text(form, "organizationId"), {
+    expectedVersion: Number(form.get("expectedVersion")), reason: text(form, "reason"),
+  }));
+}
