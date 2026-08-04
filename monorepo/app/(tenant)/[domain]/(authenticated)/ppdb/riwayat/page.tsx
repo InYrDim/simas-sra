@@ -5,14 +5,14 @@ import { createAcademicYearService } from "@/lib/academic/academic-year"
 import { academicYearStore } from "@/lib/academic/academic-year-data"
 import { createPpdbSessionService } from "@/lib/admissions/ppdb-session"
 import { ppdbSessionStore } from "@/lib/admissions/ppdb-session-data"
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access"
+import { enforceAcademicAccess } from "@/lib/master-data/tenant-master-data-route-access"
 
 const sessionService = createPpdbSessionService({ store: ppdbSessionStore })
 const academicYearService = createAcademicYearService({ store: academicYearStore })
 
 export default async function PPDBHistoryPage({ params }: { params: Promise<{ domain: string }> }) {
   const { domain } = await params
-  const principal = await enforceMasterDataAccess(domain, "read")
+  const principal = await enforceAcademicAccess(domain, "ppdb.sessions.load")
   const [sessions, years] = await Promise.all([sessionService.list(principal), academicYearService.list(principal)])
   const ended = sessions.filter((session) => session.status === "ended").sort((a, b) => (b.endedAt?.getTime() ?? 0) - (a.endedAt?.getTime() ?? 0))
 

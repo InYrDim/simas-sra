@@ -9,7 +9,7 @@ import { quizSessionStore } from "@/lib/quiz/quiz-data";
 import { createStudentMasterDataService } from "@/lib/master-data/student-master-data";
 import { studentMasterDataStore } from "@/lib/master-data/student-master-data-data";
 import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { enforceQuizPageAccess } from "@/lib/quiz/quiz-route-access";
 import { ArrowLeft, CheckCircle, UserX, Clock } from "lucide-react";
 import { canAccessQuizSession } from "@/lib/quiz/quiz-assignment-access";
 
@@ -37,7 +37,7 @@ export default async function AbsensiPage({
   searchParams: Promise<{ result?: string }>;
 }) {
   const [{ domain, sessionId }, raw] = await Promise.all([params, searchParams]);
-  const principal = await enforceMasterDataAccess(domain, "read");
+  const principal = await enforceQuizPageAccess(domain, "quizzes.attendance.load", sessionId);
 
   const [availability, sessions, groups] = await Promise.all([
     getTenantFeatureAvailability(principal.tenantId, principal.capabilities),

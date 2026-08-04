@@ -11,7 +11,7 @@ import { createSubjectCatalogService } from "@/lib/academic/subject-catalog";
 import { subjectCatalogStore } from "@/lib/academic/subject-catalog-data";
 import { listEffectiveTeachingAssignmentsForUser } from "@/lib/academic/teaching-assignment-data";
 import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { enforceQuizPageAccess } from "@/lib/quiz/quiz-route-access";
 import { ClipboardCheck, Monitor, PenLine } from "lucide-react";
 
 const sessionService = createQuizSessionService({ store: quizSessionStore });
@@ -46,7 +46,7 @@ export default async function UlanganPage({
   searchParams: Promise<{ result?: string }>;
 }) {
   const [{ domain }, raw] = await Promise.all([params, searchParams]);
-  const principal = await enforceMasterDataAccess(domain, "read");
+  const principal = await enforceQuizPageAccess(domain, "quizzes.sessions.load");
   const [availability, allSessions, years, groups, subjects, assignments] = await Promise.all([
     getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
     sessionService.list(principal),

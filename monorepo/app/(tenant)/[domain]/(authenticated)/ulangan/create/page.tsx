@@ -8,7 +8,7 @@ import { classGroupStore } from "@/lib/academic/class-group-data";
 import { createSubjectCatalogService } from "@/lib/academic/subject-catalog";
 import { subjectCatalogStore } from "@/lib/academic/subject-catalog-data";
 import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { enforceQuizPageAccess } from "@/lib/quiz/quiz-route-access";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 
@@ -22,7 +22,7 @@ export default async function CreateUlanganPage({
   params: Promise<{ domain: string }>;
 }) {
   const { domain } = await params;
-  const principal = await enforceMasterDataAccess(domain, "read");
+  const principal = await enforceQuizPageAccess(domain, "quizzes.sessions.load");
   const [availability, years, groups, subjects] = await Promise.all([
     getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
     academicYearService.list(principal),

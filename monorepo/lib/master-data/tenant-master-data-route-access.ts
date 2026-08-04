@@ -35,16 +35,20 @@ export async function enforceAcademicAccess(domain: string, operationId: string,
     forbidden();
   }
 
+  const writePermission = operation.id.startsWith("ppdb.")
+    ? [...result.principal.permissions].some((permission) => permission.startsWith("ppdb.") && !permission.endsWith(".view"))
+    : operation.operationalGate === "write";
   return {
     userId: result.principal.userId,
     tenantId: result.principal.tenantId,
     role: "school-admin",
     capabilities: {
       read: true,
-      write: operation.operationalGate === "write",
+      write: result.principal.schoolAdmin || writePermission,
       downloadTemplate: false,
     },
     schoolAdmin: result.principal.schoolAdmin,
     permissions: result.principal.permissions,
+    selfPersonId: result.principal.selfPersonId,
   };
 }

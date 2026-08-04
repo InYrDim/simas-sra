@@ -9,7 +9,7 @@ import { createQuizSessionService } from "@/lib/quiz/quiz";
 import { quizSessionStore } from "@/lib/quiz/quiz-data";
 import { createSubjectCatalogService } from "@/lib/academic/subject-catalog";
 import { subjectCatalogStore } from "@/lib/academic/subject-catalog-data";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { enforceQuizPageAccess } from "@/lib/quiz/quiz-route-access";
 import { canAccessQuizSession } from "@/lib/quiz/quiz-assignment-access";
 import { ClipboardList, Eye, History, Monitor, PenLine, Trophy } from "lucide-react";
 
@@ -45,7 +45,7 @@ export default async function RiwayatPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   const { domain } = await params;
-  const principal = await enforceMasterDataAccess(domain, "read");
+  const principal = await enforceQuizPageAccess(domain, "quizzes.sessions.load");
   const [sessions, years, groups, subjects] = await Promise.all([
     sessionService.list(principal),
     academicYearService.list(principal),

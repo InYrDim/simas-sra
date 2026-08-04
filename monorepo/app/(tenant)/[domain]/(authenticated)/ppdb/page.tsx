@@ -11,7 +11,7 @@ import { ppdbSessionStore } from "@/lib/admissions/ppdb-session-data";
 import { createPpdbSubmissionService } from "@/lib/admissions/ppdb-submission";
 import { ppdbSubmissionStore } from "@/lib/admissions/ppdb-submission-data";
 import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { enforceAcademicAccess } from "@/lib/master-data/tenant-master-data-route-access";
 import { ClipboardList, FileSearch, History, Megaphone, PencilLine, PlusCircle, Search, StopCircle } from "lucide-react";
 
 const sessionService = createPpdbSessionService({ store: ppdbSessionStore });
@@ -26,7 +26,7 @@ export default async function PPDBDashboardPage({
   searchParams: Promise<{ q?: string; result?: string }>;
 }) {
   const [{ domain }, raw] = await Promise.all([params, searchParams]);
-  const principal = await enforceMasterDataAccess(domain, "read");
+  const principal = await enforceAcademicAccess(domain, "ppdb.submissions.load");
   const [availability, sessions, years] = await Promise.all([
     getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
     sessionService.list(principal),

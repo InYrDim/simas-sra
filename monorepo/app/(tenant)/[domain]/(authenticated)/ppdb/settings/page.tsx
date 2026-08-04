@@ -8,7 +8,7 @@ import { academicYearStore } from "@/lib/academic/academic-year-data"
 import { createPpdbSessionService } from "@/lib/admissions/ppdb-session"
 import { ppdbSessionStore } from "@/lib/admissions/ppdb-session-data"
 import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data"
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access"
+import { enforceAcademicAccess } from "@/lib/master-data/tenant-master-data-route-access"
 import { ArrowLeft, ExternalLink } from "lucide-react"
 
 const sessionService = createPpdbSessionService({ store: ppdbSessionStore })
@@ -24,7 +24,7 @@ export default async function PPDBSettingsPage({
   searchParams: Promise<{ result?: string }>
 }) {
   const [{ domain }, raw] = await Promise.all([params, searchParams])
-  const principal = await enforceMasterDataAccess(domain, "read")
+  const principal = await enforceAcademicAccess(domain, "ppdb.sessions.load")
   const [availability, sessions, years] = await Promise.all([
     getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
     sessionService.list(principal),

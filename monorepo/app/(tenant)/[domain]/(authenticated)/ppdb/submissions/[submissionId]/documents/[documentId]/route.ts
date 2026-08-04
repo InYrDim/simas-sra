@@ -1,12 +1,13 @@
 import { createProtectedFileStorage } from "@/lib/platform/protected-file-storage";
 import { ppdbSubmissionStore } from "@/lib/admissions/ppdb-submission-data";
-import { enforceTenantFeatureAccess } from "@/lib/features/tenant-feature-route-access";
+import { enforceTenantFeatureAccess, enforceTenantOperation } from "@/lib/features/tenant-feature-route-access";
 
 export async function GET(
   request: Request,
   context: { params: Promise<{ domain: string; submissionId: string; documentId: string }> },
 ) {
   const { domain, submissionId, documentId } = await context.params;
+  await enforceTenantOperation(domain, "ppdb.documents.load");
   const principal = await enforceTenantFeatureAccess(domain, "ppdbRead", "read");
   const document = await ppdbSubmissionStore.findDocument(principal.tenantId, submissionId, documentId);
   if (!document) return Response.json({ code: "not-found" }, { status: 404 });

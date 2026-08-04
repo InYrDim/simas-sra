@@ -15,7 +15,7 @@ import { studentMasterDataStore } from "@/lib/master-data/student-master-data-da
 import { createSubjectCatalogService } from "@/lib/academic/subject-catalog";
 import { subjectCatalogStore } from "@/lib/academic/subject-catalog-data";
 import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { enforceQuizPageAccess } from "@/lib/quiz/quiz-route-access";
 import { ArrowLeft, CheckCircle, FileText } from "lucide-react";
 import { canAccessQuizSession } from "@/lib/quiz/quiz-assignment-access";
 
@@ -46,7 +46,7 @@ export default async function PenilaianPage({
   searchParams: Promise<{ result?: string }>;
 }) {
   const [{ domain, sessionId }, raw] = await Promise.all([params, searchParams]);
-  const principal = await enforceMasterDataAccess(domain, "read");
+  const principal = await enforceQuizPageAccess(domain, "quizzes.grades.load", sessionId);
   const writable = principal.capabilities.write;
 
   const [availability, sessions, years, groups, subjects, students] = await Promise.all([

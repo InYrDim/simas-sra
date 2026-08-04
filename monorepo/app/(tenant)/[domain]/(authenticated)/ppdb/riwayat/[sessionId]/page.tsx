@@ -10,7 +10,7 @@ import { ppdbSessionStore } from "@/lib/admissions/ppdb-session-data"
 import { createPpdbSubmissionService } from "@/lib/admissions/ppdb-submission"
 import { ppdbSubmissionStore } from "@/lib/admissions/ppdb-submission-data"
 import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data"
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access"
+import { enforceAcademicAccess } from "@/lib/master-data/tenant-master-data-route-access"
 
 const sessionService = createPpdbSessionService({ store: ppdbSessionStore })
 const submissionService = createPpdbSubmissionService({ store: ppdbSubmissionStore })
@@ -24,7 +24,7 @@ export default async function PPDBHistoryDetailPage({
   searchParams: Promise<{ result?: string }>
 }) {
   const [{ domain, sessionId }, raw] = await Promise.all([params, searchParams])
-  const principal = await enforceMasterDataAccess(domain, "read")
+  const principal = await enforceAcademicAccess(domain, "ppdb.submissions.load")
   const [availability, sessions, years, submissions] = await Promise.all([
     getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
     sessionService.list(principal),

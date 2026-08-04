@@ -17,7 +17,7 @@ import { studentMasterDataStore } from "@/lib/master-data/student-master-data-da
 import { createSubjectCatalogService } from "@/lib/academic/subject-catalog";
 import { subjectCatalogStore } from "@/lib/academic/subject-catalog-data";
 import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
-import { enforceMasterDataAccess } from "@/lib/master-data/tenant-master-data-route-access";
+import { enforceQuizPageAccess } from "@/lib/quiz/quiz-route-access";
 import { ArrowLeft, CheckCircle, FileText, PlayCircle, PlusCircle, Trash2 } from "lucide-react";
 
 const sessionService = createQuizSessionService({ store: quizSessionStore });
@@ -59,7 +59,7 @@ export default async function QuizSessionDetailPage({
   searchParams: Promise<{ result?: string }>;
 }) {
   const [{ domain, sessionId }, raw] = await Promise.all([params, searchParams]);
-  const principal = await enforceMasterDataAccess(domain, "read");
+  const principal = await enforceQuizPageAccess(domain, "quizzes.questions.load", sessionId);
   const writable = principal.capabilities.write;
 
   const [availability, sessions, years, groups, subjects] = await Promise.all([
