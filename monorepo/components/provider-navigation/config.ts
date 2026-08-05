@@ -14,7 +14,17 @@ import type { ProviderNavItem } from "./types";
 
 export const providerNavItems: readonly ProviderNavItem[] = [
   { title: "Ringkasan", href: "/provider", icon: ChartNoAxesCombined, group: "main", availability: "available" },
-  { title: "Tenant", href: "/provider/tenants", icon: Building2, group: "main", availability: "available" },
+  { 
+    title: "Tenant", 
+    href: "/provider/tenants", 
+    icon: Building2, 
+    group: "main", 
+    availability: "available",
+    subItems: [
+      { title: "Kelola Tenant", href: "/provider/tenants", availability: "available", exactMatch: true },
+      { title: "Trial", href: "/provider/tenants/trial", availability: "available" }
+    ]
+  },
   { title: "Fitur", href: "/provider/features", icon: Shapes, group: "main", availability: "available" },
   { title: "Billing", href: "/provider/billing", icon: CreditCard, group: "main", availability: "empty-state" },
   { title: "Impersonasi", href: "/provider/impersonation", icon: LogIn, group: "operations", availability: "empty-state" },

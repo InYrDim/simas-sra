@@ -51,7 +51,7 @@ export const tenant = mysqlTable(
       "tenant_onboarding_trial_state_check",
       sql`(
         (${table.onboardingCompletedAt} IS NULL AND ${table.trialStartedAt} IS NULL AND ${table.trialEndsAt} IS NULL)
-        OR (${table.onboardingCompletedAt} IS NOT NULL AND ${table.trialStartedAt} = ${table.onboardingCompletedAt} AND ${table.trialEndsAt} = DATE_ADD(${table.trialStartedAt}, INTERVAL 1 MONTH))
+        OR (${table.onboardingCompletedAt} IS NOT NULL AND ${table.trialStartedAt} = ${table.onboardingCompletedAt} AND ${table.trialEndsAt} IS NOT NULL AND ${table.trialEndsAt} > ${table.trialStartedAt})
       )`,
     ),
     check(
