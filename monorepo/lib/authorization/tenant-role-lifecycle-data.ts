@@ -5,7 +5,6 @@ import {
   tenantRolePermission,
   tenantRoleAssignment,
   tenant,
-  user,
   schoolAdminAuthority,
 } from "@/db/schema";
 import {
@@ -213,15 +212,6 @@ export function createTenantRoleLifecycleDataRepository(
     async isSchoolAdmin(tenantId, userId) {
       assertIdentifier(tenantId);
       assertIdentifier(userId);
-      const [account] = await database
-        .select({ legacyRole: user.tenantRole })
-        .from(user)
-        .where(eq(user.id, userId))
-        .limit(1)
-        .for("share");
-        
-      if (account?.legacyRole === "school-admin") return true;
-
       const [authority] = await database
         .select({ id: schoolAdminAuthority.id })
         .from(schoolAdminAuthority)

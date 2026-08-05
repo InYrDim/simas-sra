@@ -39,7 +39,8 @@ const principal = { kind: "authenticated-user" as const, userId: PROVIDER.userId
 const tenantPrincipal = { kind: "authenticated-user" as const, userId: TENANT_USER.userId };
 const SECRET = "test-proof-secret-01";
 
-type StoredAuthority = Omit<LifecycleAuthorityRow, "legacyRole" | "accountLifecycle"> & { createdAt: Date };
+type StoredAuthority = Omit<LifecycleAuthorityRow, "accountLifecycle"> & { createdAt: Date };
+type StoredUser = LifecycleUserRow & { email: string; tenantRole: string | null };
 type StoredProof = LifecycleProofRow & { idempotencyKey: string; createdAt: Date };
 
 function duplicateKey(): Error {
@@ -53,7 +54,7 @@ function duplicateKey(): Error {
  */
 class FakeLifecycleRepository implements SchoolAdminLifecycleRepository {
   tenantExists = true;
-  users = new Map<string, LifecycleUserRow & { email: string }>();
+  users = new Map<string, StoredUser>();
   authorities = new Map<string, StoredAuthority>();
   proofs = new Map<string, StoredProof>();
   lifecycle = new Map<string, "pending-activation" | "active" | "inactive">();
@@ -69,7 +70,6 @@ class FakeLifecycleRepository implements SchoolAdminLifecycleRepository {
         return {
           id: row.id,
           tenantId: row.tenantId,
-          tenantRole: row.tenantRole,
           providerAdmin: row.providerAdmin,
           applicant: row.applicant,
         };
@@ -90,7 +90,6 @@ class FakeLifecycleRepository implements SchoolAdminLifecycleRepository {
         version: row.version,
         grantedAt: row.grantedAt,
         disabledAt: row.disabledAt,
-        legacyRole: this.users.get(row.userId)?.tenantRole ?? null,
         accountLifecycle: this.lifecycle.get(row.userId) ?? null,
       }));
   }
@@ -324,6 +323,7 @@ function eventsByCorrelation(
 test("account-control proof never grants authority; only the separate grant command does", async () => {
   const { controlled, repository, service } = fixture();
   seedTenant(repository);
+  repository.users.set("incumbent-1", { ...repository.users.get("incumbent-1")!, tenantRole: null });
   seedUser(repository, { id: "nominee-1", tenantId: "tenant-1", tenantRole: "staff", email: "nominee@tenant-1.test" });
 
   const nomination = await service.nominateSchoolAdmin({

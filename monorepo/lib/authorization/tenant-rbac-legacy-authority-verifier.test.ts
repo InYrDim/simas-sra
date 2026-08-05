@@ -11,6 +11,20 @@ test("forbidden-reference verifier excludes compatibility migration code", () =>
   assert.deepEqual(findings, [{ file: "lib/authorization/tenant-authorization-data.ts", line: 1, reference: "user\\.tenantRole\\b" }]);
 });
 
+test("verifier permits only exact compatibility projection references", () => {
+  const findings = findForbiddenLegacyAuthorityReferences([
+    { path: "lib/authorization/school-admin-lifecycle-data.ts", content: "eq(user.tenantRole, \"school-admin\")" },
+    { path: "lib/provider/provider-application-data.ts", content: "isNull(user.tenantRole)" },
+    { path: "scripts/clean-legacy-backfill-test-data.ts", content: "UPDATE `user` SET tenant_id=NULL, tenant_role=NULL" },
+    { path: "lib/provider/provider-application-data.ts", content: "return user.tenantRole;" },
+  ]);
+  assert.deepEqual(findings, [{
+    file: "lib/provider/provider-application-data.ts",
+    line: 1,
+    reference: "user\\.tenantRole\\b",
+  }]);
+});
+
 test("verifier reports every runtime legacy authority reference", () => {
   const findings = findForbiddenLegacyAuthorityReferences([
     { path: "app/route.ts", content: "const role = account.legacyRole;\nconst same = user.tenantRole;" },

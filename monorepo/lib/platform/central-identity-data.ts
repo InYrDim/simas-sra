@@ -1,7 +1,7 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { applicant, providerAdmin, schoolAdminAuthority, simasApplication, temporaryCredentialActivation, tenant, user } from "@/db/schema";
+import { applicant, providerAdmin, schoolAdminAuthority, simasApplication, temporaryCredentialActivation, tenant, tenantRole, tenantRoleAssignment, user } from "@/db/schema";
 import { resolveCentralIdentity, type CentralIdentity } from "@/lib/platform/central-identity";
 
 export async function getCentralIdentity(userId: string): Promise<CentralIdentity> {
@@ -9,7 +9,6 @@ export async function getCentralIdentity(userId: string): Promise<CentralIdentit
     .select({
       userId: user.id,
       tenantId: user.tenantId,
-      tenantRole: user.tenantRole,
       tenantDomain: tenant.domain,
       providerAdminUserId: providerAdmin.userId,
       applicantUserId: applicant.userId,
@@ -26,15 +25,32 @@ export async function getCentralIdentity(userId: string): Promise<CentralIdentit
     .limit(1);
 
   if (!row) return { kind: "invalid", reason: "no-identity-path" };
-  const authorities = await db
-    .select({
-      id: schoolAdminAuthority.id,
-      tenantId: schoolAdminAuthority.tenantId,
-      userId: schoolAdminAuthority.userId,
-      authorityState: schoolAdminAuthority.authorityState,
-    })
-    .from(schoolAdminAuthority)
-    .where(eq(schoolAdminAuthority.userId, userId));
+  const [authorities, activeRoleAssignments] = await Promise.all([
+    db
+      .select({
+        id: schoolAdminAuthority.id,
+        tenantId: schoolAdminAuthority.tenantId,
+        userId: schoolAdminAuthority.userId,
+        authorityState: schoolAdminAuthority.authorityState,
+      })
+      .from(schoolAdminAuthority)
+      .where(eq(schoolAdminAuthority.userId, userId)),
+    row.tenantId
+      ? db
+          .select({ id: tenantRoleAssignment.id })
+          .from(tenantRoleAssignment)
+          .innerJoin(tenantRole, and(
+            eq(tenantRole.id, tenantRoleAssignment.roleId),
+            eq(tenantRole.tenantId, tenantRoleAssignment.tenantId),
+            eq(tenantRole.lifecycle, "active"),
+          ))
+          .where(and(
+            eq(tenantRoleAssignment.userId, userId),
+            eq(tenantRoleAssignment.tenantId, row.tenantId),
+            eq(tenantRoleAssignment.state, "active"),
+          ))
+      : Promise.resolve([]),
+  ]);
   const identity = resolveCentralIdentity({
     providerAdmin: row.providerAdminUserId !== null,
     applicant: row.applicantUserId !== null,
@@ -42,7 +58,7 @@ export async function getCentralIdentity(userId: string): Promise<CentralIdentit
       userId: row.userId,
       tenantId: row.tenantId,
       domain: row.tenantDomain,
-      role: row.tenantRole,
+      activeRoleAssignmentIds: activeRoleAssignments.map((assignment) => assignment.id),
       schoolAdminAuthorities: authorities,
     } : null,
     activation: row.passwordChangeRequired === null ? null : { passwordChangeRequired: row.passwordChangeRequired },

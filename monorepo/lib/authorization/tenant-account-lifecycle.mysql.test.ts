@@ -68,8 +68,12 @@ async function setup(connection: mysql.Connection) {
   await connection.execute("INSERT INTO `provider_admin` (`user_id`,`created_at`) VALUES (?,NOW(3))", [ids.provider]);
   await connection.execute("INSERT INTO `applicant` (`user_id`,`created_at`) VALUES (?,NOW(3))", [ids.applicant]);
   await connection.execute(
-    "INSERT INTO `school_admin_authority` (`id`,`tenant_id`,`user_id`,`authority_state`,`version`,`granted_at`,`created_at`,`updated_at`) VALUES (?,?,?,'active',1,NOW(3),NOW(3),NOW(3))",
-    [randomUUID(), ids.tenant, ids.schoolAdminTarget],
+    "INSERT INTO `school_admin_authority` (`id`,`tenant_id`,`user_id`,`authority_state`,`version`,`granted_at`,`created_at`,`updated_at`) VALUES (?,?,?,'active',1,NOW(3),NOW(3),NOW(3)), (?,?,?,'active',1,NOW(3),NOW(3),NOW(3)), (?,?,?,'active',1,NOW(3),NOW(3),NOW(3))",
+    [
+      randomUUID(), ids.tenant, ids.admin,
+      randomUUID(), ids.tenantB, ids.adminB,
+      randomUUID(), ids.tenant, ids.schoolAdminTarget,
+    ],
   );
   await connection.execute(
     "INSERT INTO `tenant_role` (`id`,`tenant_id`,`name`,`normalized_name`,`lifecycle`,`origin`,`version`,`created_at`,`updated_at`) VALUES (?,?,'Role A','role a','active','scratch',1,NOW(3),NOW(3)), (?,?,'Role B','role b','active','scratch',1,NOW(3),NOW(3))",
@@ -222,10 +226,19 @@ mysqlTest("MySQL account lifecycle races, replay, isolation, rollback, and outbo
   assert.equal((await row(connection, "SELECT `state` FROM `tenant_role_assignment` WHERE `id`=?", [ids.assignmentA])).state, "active");
   assert.equal((await row(connection, "SELECT `state` FROM `tenant_role_assignment` WHERE `id`=?", [ids.assignmentB])).state, "suspended");
 
-  const schoolAdmin = await service.create({ principal: principal(ids.admin), tenantId: ids.tenant, name: "Admin Target", email: `${randomUUID()}@test.invalid`, deliveryChannel: "administrative", ...commandIds() });
-  await connection.execute("UPDATE `user` SET `tenant_role`='school-admin' WHERE `id`=?", [schoolAdmin.targetUserId]);
-  await connection.execute("UPDATE `tenant_account_security` SET `lifecycle`='active',`activated_at`=NOW(3) WHERE `user_id`=?", [schoolAdmin.targetUserId]);
-  await expectDenied(service.deactivate({ principal: principal(ids.admin), tenantId: ids.tenant, targetUserId: schoolAdmin.targetUserId, expectedVersion: schoolAdmin.version, reason: "Reject", ...commandIds() }));
+  const legacyOnlyAdmin = await service.create({ principal: principal(ids.admin), tenantId: ids.tenant, name: "Legacy-only Admin", email: `${randomUUID()}@test.invalid`, deliveryChannel: "administrative", ...commandIds() });
+  await connection.execute("UPDATE `user` SET `tenant_role`='school-admin' WHERE `id`=?", [legacyOnlyAdmin.targetUserId]);
+  await connection.execute("UPDATE `tenant_account_security` SET `lifecycle`='active',`activated_at`=NOW(3) WHERE `user_id`=?", [legacyOnlyAdmin.targetUserId]);
+  const legacyOnlyDeactivated = await service.deactivate({ principal: principal(ids.admin), tenantId: ids.tenant, targetUserId: legacyOnlyAdmin.targetUserId, expectedVersion: legacyOnlyAdmin.version, reason: "Legacy projection is non-authoritative", ...commandIds() });
+  assert.equal(legacyOnlyDeactivated.status, "deactivated");
+
+  const canonicalAdmin = await service.create({ principal: principal(ids.admin), tenantId: ids.tenant, name: "Canonical Admin", email: `${randomUUID()}@test.invalid`, deliveryChannel: "administrative", ...commandIds() });
+  await connection.execute("UPDATE `tenant_account_security` SET `lifecycle`='active',`activated_at`=NOW(3) WHERE `user_id`=?", [canonicalAdmin.targetUserId]);
+  await connection.execute(
+    "INSERT INTO `school_admin_authority` (`id`,`tenant_id`,`user_id`,`authority_state`,`version`,`granted_at`,`created_at`,`updated_at`) VALUES (?,?,?,'active',1,NOW(3),NOW(3),NOW(3))",
+    [randomUUID(), ids.tenant, canonicalAdmin.targetUserId],
+  );
+  await expectDenied(service.deactivate({ principal: principal(ids.admin), tenantId: ids.tenant, targetUserId: canonicalAdmin.targetUserId, expectedVersion: canonicalAdmin.version, reason: "Reject", ...commandIds() }));
   await expectDenied(service.deactivate({ principal: principal(ids.admin), tenantId: ids.tenant, targetUserId: ids.adminB, expectedVersion: 1, reason: "Foreign id", ...commandIds() }));
 
   const deliveryAccount = await service.create({ principal: principal(ids.admin), tenantId: ids.tenant, name: "Delivery", email: `${randomUUID()}@test.invalid`, deliveryChannel: "email", ...commandIds() });

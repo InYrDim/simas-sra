@@ -66,21 +66,12 @@ export function createTenantRoleAssignmentDataRepository(
     async isSchoolAdmin(tenantId, userId) {
       assertIdentifier(tenantId);
       assertIdentifier(userId);
-      const [account] = await database
-        .select({ legacyRole: user.tenantRole })
-        .from(user)
-        .where(and(eq(user.tenantId, tenantId), eq(user.id, userId)))
-        .limit(1)
-        .for("share");
-      if (!account) return false;
-      if (account.legacyRole === "school-admin") return true;
       const [authority] = await database
         .select({ id: schoolAdminAuthority.id })
         .from(schoolAdminAuthority)
         .where(and(
           eq(schoolAdminAuthority.tenantId, tenantId),
           eq(schoolAdminAuthority.userId, userId),
-          eq(schoolAdminAuthority.authorityState, "active"),
           eq(schoolAdminAuthority.authorityState, "active"),
         ))
         .limit(1)
@@ -97,7 +88,6 @@ export function createTenantRoleAssignmentDataRepository(
           tenantId: user.tenantId,
           name: user.name,
           email: user.email,
-          legacyRole: user.tenantRole,
           lifecycle: tenantAccountSecurity.lifecycle,
           assignmentVersion: tenantAccountSecurity.assignmentVersion,
         })
@@ -117,6 +107,7 @@ export function createTenantRoleAssignmentDataRepository(
         .where(and(
           eq(schoolAdminAuthority.tenantId, tenantId),
           eq(schoolAdminAuthority.userId, userId),
+          eq(schoolAdminAuthority.authorityState, "active"),
         ))
         .limit(1)
         .for("share");
@@ -127,7 +118,7 @@ export function createTenantRoleAssignmentDataRepository(
         email: account.email,
         lifecycle: account.lifecycle,
         assignmentVersion: account.assignmentVersion,
-        schoolAdmin: account.legacyRole === "school-admin" || authority !== undefined,
+        schoolAdmin: authority !== undefined,
       };
     },
 
@@ -329,7 +320,6 @@ export async function listEligibleAssignmentAccounts(input: Readonly<{
       userId: user.id,
       name: user.name,
       email: user.email,
-      legacyRole: user.tenantRole,
       lifecycle: tenantAccountSecurity.lifecycle,
       assignmentVersion: tenantAccountSecurity.assignmentVersion,
     })
@@ -341,9 +331,7 @@ export async function listEligibleAssignmentAccounts(input: Readonly<{
     .where(and(...conditions))
     .orderBy(asc(user.name), asc(user.id))
     .limit(limit);
-  const userIds = accounts
-    .filter((account) => account.legacyRole !== "school-admin")
-    .map((account) => account.userId);
+  const userIds = accounts.map((account) => account.userId);
   if (userIds.length === 0) return [];
   const [authorities, assignments] = await Promise.all([
     db.select({ userId: schoolAdminAuthority.userId })
@@ -369,7 +357,7 @@ export async function listEligibleAssignmentAccounts(input: Readonly<{
     rolesByUser.set(assignment.userId, roleIds);
   }
   return accounts
-    .filter((account) => account.legacyRole !== "school-admin" && !schoolAdmins.has(account.userId))
+    .filter((account) => !schoolAdmins.has(account.userId))
     .map((account) => ({
       userId: account.userId,
       name: account.name,

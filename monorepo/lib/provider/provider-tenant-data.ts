@@ -23,7 +23,6 @@ function tenantListConditions(query: TenantListQuery, now: Date): SQL[] {
         inner join ${user} admin_user
           on admin_user.id = authority.user_id
           and admin_user.tenant_id = authority.tenant_id
-          and admin_user.tenant_role = 'school-admin'
         left join ${tenantAccountSecurity} account_security
           on account_security.user_id = admin_user.id
           and account_security.tenant_id = authority.tenant_id
@@ -85,7 +84,6 @@ export async function listProviderTenants(query: TenantListQuery, now: Date = ne
     .innerJoin(user, and(
       eq(user.id, schoolAdminAuthority.userId),
       eq(user.tenantId, schoolAdminAuthority.tenantId),
-      eq(user.tenantRole, "school-admin"),
     ))
     .leftJoin(tenantAccountSecurity, and(
       eq(tenantAccountSecurity.userId, user.id),
@@ -151,7 +149,6 @@ export async function getProviderTenantDetail(tenantId: string) {
       authorityId: schoolAdminAuthority.id,
       authorityVersion: schoolAdminAuthority.version,
       authorityState: schoolAdminAuthority.authorityState,
-      legacyRole: user.tenantRole,
       accountLifecycle: tenantAccountSecurity.lifecycle,
       schoolAdminUserId: user.id,
       schoolAdminName: user.name,

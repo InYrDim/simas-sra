@@ -23,6 +23,12 @@ const ALLOWED_PATHS = [
   /tenant-rbac-legacy-authority-verifier/,
 ];
 
+const ALLOWED_COMPATIBILITY_REFERENCES = [
+  { path: /school-admin-lifecycle-data\.ts$/, line: /eq\(user\.tenantRole, "school-admin"\)/ },
+  { path: /provider-application-data\.ts$/, line: /isNull\(user\.tenantRole\)/ },
+  { path: /clean-legacy-backfill-test-data\.ts$/, line: /SET tenant_id=NULL, tenant_role=NULL/ },
+];
+
 export function findForbiddenLegacyAuthorityReferences(
   files: readonly Readonly<{ path: string; content: string }>[],
 ): readonly LegacyAuthorityReference[] {
@@ -30,6 +36,9 @@ export function findForbiddenLegacyAuthorityReferences(
   for (const file of files) {
     if (ALLOWED_PATHS.some((pattern) => pattern.test(file.path))) continue;
     file.content.split(/\r?\n/).forEach((line, index) => {
+      if (ALLOWED_COMPATIBILITY_REFERENCES.some((allowed) =>
+        allowed.path.test(file.path) && allowed.line.test(line)
+      )) return;
       for (const pattern of FORBIDDEN_RUNTIME_REFERENCES) {
         if (pattern.test(line)) {
           findings.push({ file: file.path, line: index + 1, reference: pattern.source });

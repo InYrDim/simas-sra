@@ -254,7 +254,7 @@ export function createApplicationApprovalStore(options: Readonly<{
               || application.ownerUserId !== binding.userId) return null;
 
             const [owner] = await tx
-              .select({ id: user.id, tenantId: user.tenantId, tenantRole: user.tenantRole })
+              .select({ id: user.id, tenantId: user.tenantId })
               .from(user)
               .where(eq(user.id, binding.userId))
               .limit(1)
@@ -268,14 +268,24 @@ export function createApplicationApprovalStore(options: Readonly<{
                 .where(eq(applicant.userId, owner.id))
                 .limit(1)
                 .for("update");
-              if (!activeApplicant || owner.tenantId || owner.tenantRole) return null;
+              if (!activeApplicant || owner.tenantId) return null;
               await tx.select({ id: account.id }).from(account)
                 .where(eq(account.userId, owner.id)).orderBy(account.id).for("update");
               await tx.select({ id: session.id }).from(session)
                 .where(eq(session.userId, owner.id)).orderBy(session.id).for("update");
-            } else if (application.status === "approved"
-              && (owner.tenantId !== application.approvedTenantId || owner.tenantRole !== "school-admin")) {
-              return null;
+            } else if (application.status === "approved") {
+              if (!owner.tenantId || owner.tenantId !== application.approvedTenantId) return null;
+              const [activeAuthority] = await tx
+                .select({ id: schoolAdminAuthority.id })
+                .from(schoolAdminAuthority)
+                .where(and(
+                  eq(schoolAdminAuthority.userId, owner.id),
+                  eq(schoolAdminAuthority.tenantId, owner.tenantId),
+                  eq(schoolAdminAuthority.authorityState, "active"),
+                ))
+                .limit(1)
+                .for("update");
+              if (!activeAuthority) return null;
             }
 
             return {

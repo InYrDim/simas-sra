@@ -23,7 +23,7 @@ export async function getMasterDataAccess(
 
   const [[membership], [requestedTenant], authorities] = await Promise.all([
     db
-      .select({ userId: user.id, tenantId: user.tenantId, tenantRole: user.tenantRole })
+      .select({ userId: user.id, tenantId: user.tenantId })
       .from(user)
       .where(eq(user.id, session.user.id))
       .limit(1),

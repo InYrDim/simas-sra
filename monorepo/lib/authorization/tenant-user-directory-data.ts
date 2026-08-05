@@ -18,9 +18,7 @@ export async function listTenantUserDirectory(
       id: user.id,
       name: user.name,
       ...(access.contact ? { email: user.email } : {}),
-      ...(access.sensitive
-        ? { tenantRole: user.tenantRole, emailVerified: user.emailVerified }
-        : {}),
+      ...(access.sensitive ? { emailVerified: user.emailVerified } : {}),
     })
     .from(user)
     .where(eq(user.tenantId, tenantId))

@@ -10,7 +10,6 @@ const row = {
   id: "user-1",
   name: "Ayu",
   email: "ayu@example.test",
-  tenantRole: "guru",
   emailVerified: true,
 };
 
@@ -31,7 +30,6 @@ test("contact and sensitive directory projections are independently additive", (
   assert.deepEqual(projectTenantUserDirectoryRow(row, { contact: false, sensitive: true }), {
     id: "user-1",
     name: "Ayu",
-    tenantRole: "guru",
     emailVerified: true,
   });
 });

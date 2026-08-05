@@ -1,7 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { applicant, simasApplication, tenant, user } from "@/db/schema";
+import { applicant, schoolAdminAuthority, simasApplication, tenant, user } from "@/db/schema";
 import type { ApplicantPortalStore } from "@/lib/applicants/applicant-portal";
 
 export const applicantPortalStore: ApplicantPortalStore = {
@@ -17,11 +17,15 @@ export const applicantPortalStore: ApplicantPortalStore = {
     }).from(tenant)
       .innerJoin(simasApplication, eq(tenant.sourceApplicationId, simasApplication.id))
       .innerJoin(user, eq(user.tenantId, tenant.id))
+      .innerJoin(schoolAdminAuthority, and(
+        eq(schoolAdminAuthority.tenantId, tenant.id),
+        eq(schoolAdminAuthority.userId, user.id),
+        eq(schoolAdminAuthority.authorityState, "active"),
+      ))
       .where(and(
         eq(simasApplication.ownerUserId, userId),
         eq(simasApplication.status, "approved"),
         eq(user.id, userId),
-        eq(user.tenantRole, "school-admin"),
       ))
       .limit(1);
     return row ?? null;

@@ -58,18 +58,18 @@ export default async function UsersPage({ params }: { params: Promise<{ domain: 
               <TableRow>
                 <TableHead>Nama</TableHead>
                 {access.contact ? <TableHead>Email</TableHead> : null}
-                {access.sensitive ? <TableHead>Role lama</TableHead> : null}
+
                 {access.sensitive ? <TableHead>Status email</TableHead> : null}
               </TableRow>
             </TableHeader>
             <TableBody>
               {users.length === 0 ? (
-                <TableRow><TableCell colSpan={1 + Number(access.contact) + (access.sensitive ? 2 : 0)} className="h-28 text-center text-muted-foreground">Belum ada pengguna.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={1 + Number(access.contact) + Number(access.sensitive)} className="h-28 text-center text-muted-foreground">Belum ada pengguna.</TableCell></TableRow>
               ) : users.map((user) => (
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">{user.name}</TableCell>
                   {access.contact ? <TableCell>{user.email}</TableCell> : null}
-                  {access.sensitive ? <TableCell>{user.tenantRole?.replaceAll("-", " ") ?? "Tanpa role lama"}</TableCell> : null}
+
                   {access.sensitive ? <TableCell><Badge variant={user.emailVerified ? "default" : "secondary"}>{user.emailVerified ? "Terverifikasi" : "Belum terverifikasi"}</Badge></TableCell> : null}
                 </TableRow>
               ))}

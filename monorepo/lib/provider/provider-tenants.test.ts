@@ -7,20 +7,20 @@ test("tenant search treats SQL wildcard characters literally", () => {
   assert.equal(literalLikePattern("100%_==school"), "%100=%=_====school%");
 });
 
-test("Provider Tenant roster preserves 1..n dedicated authorities and counts only usable compatibility rows", () => {
+test("Provider Tenant roster preserves 1..n dedicated authorities and counts only active accounts", () => {
   const roster = projectProviderSchoolAdminRoster([
-    { authorityId: "a", authorityState: "active", legacyRole: "school-admin", schoolAdminUserId: "admin-a" },
-    { authorityId: "b", authorityState: "active", legacyRole: "school-admin", schoolAdminUserId: "admin-b" },
-    { authorityId: "c", authorityState: "disabled", legacyRole: null, schoolAdminUserId: "admin-c" },
-    { authorityId: "d", authorityState: "none", legacyRole: null, schoolAdminUserId: "admin-d" },
-    { authorityId: "e", authorityState: "active", legacyRole: "school-admin", accountLifecycle: "inactive", schoolAdminUserId: "admin-e" },
+    { authorityId: "a", authorityState: "active", schoolAdminUserId: "admin-a" },
+    { authorityId: "b", authorityState: "active", schoolAdminUserId: "admin-b" },
+    { authorityId: "c", authorityState: "disabled", schoolAdminUserId: "admin-c" },
+    { authorityId: "d", authorityState: "none", schoolAdminUserId: "admin-d" },
+    { authorityId: "e", authorityState: "active", accountLifecycle: "inactive", schoolAdminUserId: "admin-e" },
   ]);
   assert.equal(roster.schoolAdmins.length, 5);
   assert.deepEqual(roster.activeSchoolAdmins.map((admin) => admin.schoolAdminUserId), ["admin-a", "admin-b"]);
   assert.equal(roster.activeSchoolAdminCount, 2);
   assert.equal(roster.coverage, "managed");
   assert.equal(projectProviderSchoolAdminRoster([
-    { authorityId: "c", authorityState: "disabled", legacyRole: null, schoolAdminUserId: "admin-c" },
+    { authorityId: "c", authorityState: "disabled", schoolAdminUserId: "admin-c" },
   ]).coverage, "reconciliation-required");
 });
 

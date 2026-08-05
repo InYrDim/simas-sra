@@ -62,7 +62,6 @@ function toLifecycleAccount(row: Readonly<{
   lifecycle: "pending-activation" | "active" | "inactive";
   version: number;
   assignmentVersion: number;
-  legacyRole: string | null;
   authorityId: string | null;
   linkedPersonId: string | null;
 }>): TenantLifecycleAccount {
@@ -74,7 +73,7 @@ function toLifecycleAccount(row: Readonly<{
     lifecycle: row.lifecycle,
     version: row.version,
     assignmentVersion: row.assignmentVersion,
-    schoolAdmin: row.legacyRole === "school-admin" || row.authorityId !== null,
+    schoolAdmin: row.authorityId !== null,
     linkedPersonId: row.linkedPersonId,
   };
 }
@@ -94,7 +93,6 @@ export function createTenantAccountLifecycleDataRepository(
         lifecycle: tenantAccountSecurity.lifecycle,
         version: tenantAccountSecurity.version,
         assignmentVersion: tenantAccountSecurity.assignmentVersion,
-        legacyRole: user.tenantRole,
         authorityId: schoolAdminAuthority.id,
         linkedPersonId: schoolPerson.id,
       })
@@ -106,6 +104,7 @@ export function createTenantAccountLifecycleDataRepository(
       .leftJoin(schoolAdminAuthority, and(
         eq(schoolAdminAuthority.tenantId, tenantAccountSecurity.tenantId),
         eq(schoolAdminAuthority.userId, tenantAccountSecurity.userId),
+        eq(schoolAdminAuthority.authorityState, "active"),
       ))
       .leftJoin(schoolPerson, and(
         eq(schoolPerson.tenantId, tenantAccountSecurity.tenantId),
@@ -136,16 +135,16 @@ export function createTenantAccountLifecycleDataRepository(
       assertIdentifier(tenantId);
       assertIdentifier(userId);
       const [row] = await database
-        .select({ legacyRole: user.tenantRole, authorityState: schoolAdminAuthority.authorityState })
-        .from(user)
-        .leftJoin(schoolAdminAuthority, and(
+        .select({ id: schoolAdminAuthority.id })
+        .from(schoolAdminAuthority)
+        .where(and(
           eq(schoolAdminAuthority.tenantId, tenantId),
-          eq(schoolAdminAuthority.userId, user.id),
+          eq(schoolAdminAuthority.userId, userId),
+          eq(schoolAdminAuthority.authorityState, "active"),
         ))
-        .where(and(eq(user.tenantId, tenantId), eq(user.id, userId)))
         .limit(1)
         .for("share");
-      return row?.legacyRole === "school-admin" || row?.authorityState === "active";
+      return row !== undefined;
     },
 
     async findIdentityByEmail(email) {
@@ -497,17 +496,19 @@ export async function listTenantLifecycleAccounts(input: Readonly<{
       lifecycle: tenantAccountSecurity.lifecycle,
       version: tenantAccountSecurity.version,
       assignmentVersion: tenantAccountSecurity.assignmentVersion,
-      legacyRole: user.tenantRole,
       authorityId: schoolAdminAuthority.id,
       linkedPersonId: schoolPerson.id,
     })
     .from(tenantAccountSecurity)
     .innerJoin(user, and(eq(user.tenantId, tenantAccountSecurity.tenantId), eq(user.id, tenantAccountSecurity.userId)))
-    .leftJoin(schoolAdminAuthority, and(eq(schoolAdminAuthority.tenantId, tenantAccountSecurity.tenantId), eq(schoolAdminAuthority.userId, tenantAccountSecurity.userId)))
+    .leftJoin(schoolAdminAuthority, and(
+      eq(schoolAdminAuthority.tenantId, tenantAccountSecurity.tenantId),
+      eq(schoolAdminAuthority.userId, tenantAccountSecurity.userId),
+      eq(schoolAdminAuthority.authorityState, "active"),
+    ))
     .leftJoin(schoolPerson, and(eq(schoolPerson.tenantId, tenantAccountSecurity.tenantId), eq(schoolPerson.accountUserId, tenantAccountSecurity.userId)))
     .where(and(
       eq(tenantAccountSecurity.tenantId, input.tenantId),
-      or(isNull(user.tenantRole), eq(user.tenantRole, "pimpinan"), eq(user.tenantRole, "staff"), eq(user.tenantRole, "guru"), eq(user.tenantRole, "siswa"), eq(user.tenantRole, "guest")),
       isNull(schoolAdminAuthority.id),
       input.lifecycle ? eq(tenantAccountSecurity.lifecycle, input.lifecycle) : undefined,
       query ? or(like(user.name, `%${query}%`), like(user.email, `%${query}%`)) : undefined,

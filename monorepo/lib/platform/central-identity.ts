@@ -1,5 +1,3 @@
-import { resolveSchoolAdminAuthority } from "@/lib/authorization/school-admin-authority";
-
 export type CentralIdentitySnapshot = {
   providerAdmin: boolean;
   applicant: boolean;
@@ -7,7 +5,7 @@ export type CentralIdentitySnapshot = {
     userId: string;
     tenantId: string;
     domain: string | null;
-    role: string | null;
+    activeRoleAssignmentIds: readonly string[];
     schoolAdminAuthorities: readonly { id: string; tenantId: string; userId: string; authorityState: string }[];
   } | null;
   activation: { passwordChangeRequired: boolean } | null;
@@ -20,8 +18,6 @@ export type CentralIdentity =
   | { kind: "tenant-member"; tenantId: string; domain: string; passwordChangeRequired: boolean; promotedApplicant: boolean }
   | { kind: "invalid"; reason: "no-identity-path" | "multiple-identity-paths" | "tenant-missing" | "tenant-authority-missing" | "tenant-authority-ambiguous" };
 
-const recognizedNonAdminRoles = new Set(["pimpinan", "staff", "guru", "siswa", "guest"]);
-
 export function resolveCentralIdentity(snapshot: CentralIdentitySnapshot): CentralIdentity {
   const pathCount = Number(snapshot.providerAdmin) + Number(snapshot.applicant) + Number(snapshot.tenantMembership !== null);
   if (pathCount === 0) return { kind: "invalid", reason: "no-identity-path" };
@@ -31,18 +27,15 @@ export function resolveCentralIdentity(snapshot: CentralIdentitySnapshot): Centr
   if (snapshot.applicant) return { kind: "applicant", passwordChangeRequired };
   const membership = snapshot.tenantMembership;
   if (!membership?.domain) return { kind: "invalid", reason: "tenant-missing" };
-  const schoolAdmin = resolveSchoolAdminAuthority({
-    userId: membership.userId,
-    tenantId: membership.tenantId,
-    legacyRole: membership.role,
-    tenantExists: true,
-    providerAdmin: snapshot.providerAdmin,
-    applicant: snapshot.applicant,
-    authorities: membership.schoolAdminAuthorities,
-  });
-  if (schoolAdmin.ambiguous) return { kind: "invalid", reason: "tenant-authority-ambiguous" };
-  const recognizedNonAdminRole = membership.role !== null && recognizedNonAdminRoles.has(membership.role);
-  if (!recognizedNonAdminRole && !schoolAdmin.dedicatedActive) {
+  const sameTenantAuthorities = membership.schoolAdminAuthorities.filter((authority) =>
+    authority.userId === membership.userId && authority.tenantId === membership.tenantId);
+  const authorityAmbiguous = sameTenantAuthorities.length !== membership.schoolAdminAuthorities.length
+    || sameTenantAuthorities.length > 1
+    || sameTenantAuthorities.some((authority) => !["none", "active", "disabled"].includes(authority.authorityState));
+  if (authorityAmbiguous) return { kind: "invalid", reason: "tenant-authority-ambiguous" };
+  const dedicatedSchoolAdmin = sameTenantAuthorities.length === 1
+    && sameTenantAuthorities[0]?.authorityState === "active";
+  if (!dedicatedSchoolAdmin && membership.activeRoleAssignmentIds.length === 0) {
     return { kind: "invalid", reason: "tenant-authority-missing" };
   }
   return {

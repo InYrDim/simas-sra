@@ -22,7 +22,6 @@ export const temporaryCredentialActivationStore: TemporaryCredentialActivationSt
       .select({
         userId: user.id,
         tenantId: user.tenantId,
-        tenantRole: user.tenantRole,
         passwordChangeRequired: temporaryCredentialActivation.passwordChangeRequired,
       })
       .from(user)
@@ -36,7 +35,7 @@ export const temporaryCredentialActivationStore: TemporaryCredentialActivationSt
       .where(eq(user.id, userId))
       .limit(1);
 
-    if (!principal || !principal.tenantId || principal.tenantRole !== "school-admin") return null;
+    if (!principal || !principal.tenantId) return null;
     const authorities = await db
       .select({ state: schoolAdminAuthority.authorityState })
       .from(schoolAdminAuthority)
@@ -44,12 +43,14 @@ export const temporaryCredentialActivationStore: TemporaryCredentialActivationSt
         eq(schoolAdminAuthority.userId, principal.userId),
         eq(schoolAdminAuthority.tenantId, principal.tenantId),
       ));
+    const schoolAdminAuthorityStates = authorities.map((authority) => authority.state);
+    if (!schoolAdminAuthorityStates.includes("active")) return null;
     return {
       userId: principal.userId,
       tenantId: principal.tenantId,
       tenantRole: "school-admin" as const,
       passwordChangeRequired: principal.passwordChangeRequired ?? false,
-      schoolAdminAuthorityStates: authorities.map((authority) => authority.state),
+      schoolAdminAuthorityStates,
     };
   },
 

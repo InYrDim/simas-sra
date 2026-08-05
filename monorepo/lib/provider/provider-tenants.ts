@@ -3,7 +3,6 @@ import { projectTenantUsageStage, type TenantUsageStage } from "@/lib/tenancy/te
 export type ProviderSchoolAdminRosterEntry = Readonly<{
   authorityId: string;
   authorityState: string;
-  legacyRole: string | null;
   accountLifecycle?: string | null;
   schoolAdminUserId: string;
 }>;
@@ -11,7 +10,6 @@ export type ProviderSchoolAdminRosterEntry = Readonly<{
 export function projectProviderSchoolAdminRoster<T extends ProviderSchoolAdminRosterEntry>(rows: readonly T[]) {
   const active = rows.filter((row) =>
     row.authorityState === "active"
-    && row.legacyRole === "school-admin"
     && (row.accountLifecycle === undefined || row.accountLifecycle === null || row.accountLifecycle === "active"));
   return {
     schoolAdmins: [...rows],

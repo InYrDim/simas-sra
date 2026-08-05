@@ -8,7 +8,7 @@ const membership = {
   userId: "school-admin-1",
   tenantId: "tenant-1",
   domain: "sman-1",
-  role: "school-admin",
+  activeRoleAssignmentIds: [],
   schoolAdminAuthorities: [{
     id: "authority-1",
     tenantId: "tenant-1",
@@ -28,11 +28,28 @@ test("zero paths, multiple paths, a missing Tenant, and missing authority are in
   assert.deepEqual(resolveCentralIdentity(base), { kind: "invalid", reason: "no-identity-path" });
   assert.deepEqual(resolveCentralIdentity({ ...base, applicant: true, providerAdmin: true }), { kind: "invalid", reason: "multiple-identity-paths" });
   assert.deepEqual(resolveCentralIdentity({ ...base, tenantMembership: { ...membership, domain: null } }), { kind: "invalid", reason: "tenant-missing" });
-  assert.deepEqual(resolveCentralIdentity({ ...base, tenantMembership: { ...membership, role: null, schoolAdminAuthorities: [] } }), { kind: "invalid", reason: "tenant-authority-missing" });
+  assert.deepEqual(resolveCentralIdentity({ ...base, tenantMembership: { ...membership, activeRoleAssignmentIds: [], schoolAdminAuthorities: [] } }), { kind: "invalid", reason: "tenant-authority-missing" });
   assert.deepEqual(resolveCentralIdentity({ ...base, tenantMembership: { ...membership, schoolAdminAuthorities: [
     ...membership.schoolAdminAuthorities,
     { ...membership.schoolAdminAuthorities[0], id: "authority-2" },
   ] } }), { kind: "invalid", reason: "tenant-authority-ambiguous" });
+});
+
+test("an active RBAC assignment establishes non-admin Tenant identity", () => {
+  assert.deepEqual(resolveCentralIdentity({
+    ...base,
+    tenantMembership: {
+      ...membership,
+      activeRoleAssignmentIds: ["assignment-1"],
+      schoolAdminAuthorities: [],
+    },
+  }), {
+    kind: "tenant-member",
+    tenantId: "tenant-1",
+    domain: "sman-1",
+    passwordChangeRequired: false,
+    promotedApplicant: false,
+  });
 });
 
 test("destination policy handles every identity and required activation", () => {

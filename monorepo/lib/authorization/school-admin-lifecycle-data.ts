@@ -79,7 +79,7 @@ export function createSchoolAdminLifecycleDataRepository(
         throw new SecurityCommandError("invalid-command");
       }
       const [account] = await database
-        .select({ id: user.id, tenantId: user.tenantId, tenantRole: user.tenantRole })
+        .select({ id: user.id, tenantId: user.tenantId })
         .from(user)
         .where(eq(user.email, email))
         .limit(1)
@@ -98,7 +98,6 @@ export function createSchoolAdminLifecycleDataRepository(
       const row: LifecycleUserRow = {
         id: account.id,
         tenantId: account.tenantId,
-        tenantRole: account.tenantRole,
         providerAdmin: provider !== undefined,
         applicant: applicantRow !== undefined,
       };
@@ -116,7 +115,6 @@ export function createSchoolAdminLifecycleDataRepository(
           version: schoolAdminAuthority.version,
           grantedAt: schoolAdminAuthority.grantedAt,
           disabledAt: schoolAdminAuthority.disabledAt,
-          legacyRole: user.tenantRole,
           accountLifecycle: tenantAccountSecurity.lifecycle,
         })
         .from(schoolAdminAuthority)

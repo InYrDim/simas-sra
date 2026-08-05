@@ -76,7 +76,7 @@ function assertIdentifier(value: string): void {
   }
 }
 
-/** A School Admin authority row joined with the account's legacy role and lifecycle. */
+/** A School Admin authority row joined with the account lifecycle. */
 export type LifecycleAuthorityRow = Readonly<{
   id: string;
   tenantId: string;
@@ -85,7 +85,6 @@ export type LifecycleAuthorityRow = Readonly<{
   version: number;
   grantedAt: Date | null;
   disabledAt: Date | null;
-  legacyRole: string | null;
   accountLifecycle: string | null;
 }>;
 
@@ -105,7 +104,6 @@ export type LifecycleProofRow = Readonly<{
 export type LifecycleUserRow = Readonly<{
   id: string;
   tenantId: string | null;
-  tenantRole: string | null;
   providerAdmin: boolean;
   applicant: boolean;
 }>;
@@ -359,7 +357,6 @@ export type SchoolAdminReactivateResult = Readonly<{
 function usableActiveRows(rows: readonly LifecycleAuthorityRow[]): LifecycleAuthorityRow[] {
   return rows.filter((row) =>
     row.authorityState === "active"
-    && row.legacyRole === "school-admin"
     && (row.accountLifecycle === null || row.accountLifecycle === "active"));
 }
 
@@ -460,8 +457,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
           let incumbentUserId: string | null = null;
           if (input.incumbentAuthorityId !== undefined) {
             const incumbent = roster.find((row) => row.id === input.incumbentAuthorityId);
-            if (!incumbent || incumbent.userId === candidate.id || incumbent.authorityState !== "active"
-              || incumbent.legacyRole !== "school-admin") {
+            if (!incumbent || incumbent.userId === candidate.id || incumbent.authorityState !== "active") {
               throw new SecurityCommandError("context-denied");
             }
             incumbentUserId = incumbent.userId;
@@ -843,7 +839,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
           if (!(await repo.lockTenant(input.tenantId))) throw new SecurityCommandError("context-denied");
           const roster = await repo.listAuthorities(input.tenantId);
           const target = roster.find((row) => row.id === input.authorityId);
-          if (!target || target.authorityState !== "active" || target.legacyRole !== "school-admin") {
+          if (!target || target.authorityState !== "active") {
             throw new SecurityCommandError("context-denied");
           }
           if (target.version !== input.expectedVersion) throw new SecurityCommandError("stale-version");
@@ -949,7 +945,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
           const incumbent = roster.find((row) => row.id === input.incumbentAuthorityId);
           if (!successor || successor.authorityState !== "none") throw new SecurityCommandError("context-denied");
           if (successor.version !== input.successorExpectedVersion) throw new SecurityCommandError("stale-version");
-          if (!incumbent || incumbent.authorityState !== "active" || incumbent.legacyRole !== "school-admin") {
+          if (!incumbent || incumbent.authorityState !== "active") {
             throw new SecurityCommandError("context-denied");
           }
           if (incumbent.version !== input.incumbentExpectedVersion) throw new SecurityCommandError("stale-version");

@@ -6,6 +6,7 @@ import { and, eq } from "drizzle-orm";
 
 import { closeDatabasePool, db } from "@/db";
 import {
+  schoolAdminAuthority,
   schoolPerson,
   staffProfile,
   staffServicePeriod,
@@ -53,9 +54,18 @@ async function main() {
   const [school] = await db.select({ id: tenant.id, name: tenant.name }).from(tenant).where(eq(tenant.domain, domain)).limit(1);
   if (!school) throw new Error(`Tenant dengan domain "${domain}" tidak ditemukan`);
 
-  const actorConditions = [eq(user.tenantId, school.id), eq(user.tenantRole, "school-admin" as const)];
+  const actorConditions = [
+    eq(user.tenantId, school.id),
+    eq(schoolAdminAuthority.tenantId, school.id),
+    eq(schoolAdminAuthority.authorityState, "active" as const),
+  ];
   if (actorEmail) actorConditions.push(eq(user.email, actorEmail));
-  const [actor] = await db.select({ id: user.id, email: user.email }).from(user).where(and(...actorConditions)).limit(1);
+  const [actor] = await db
+    .select({ id: user.id, email: user.email })
+    .from(user)
+    .innerJoin(schoolAdminAuthority, eq(schoolAdminAuthority.userId, user.id))
+    .where(and(...actorConditions))
+    .limit(1);
   if (!actor) {
     throw new Error(actorEmail ? `School admin "${actorEmail}" tidak ditemukan pada tenant "${domain}"` : `Tenant "${domain}" belum memiliki school admin`);
   }

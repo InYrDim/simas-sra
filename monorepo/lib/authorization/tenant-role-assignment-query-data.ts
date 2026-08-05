@@ -86,7 +86,6 @@ export async function getAssignmentAccountAccess(
       userId: user.id,
       name: user.name,
       email: user.email,
-      legacyRole: user.tenantRole,
       lifecycle: tenantAccountSecurity.lifecycle,
       assignmentVersion: tenantAccountSecurity.assignmentVersion,
       settings: tenant.settings,
@@ -99,7 +98,7 @@ export async function getAssignmentAccountAccess(
     .innerJoin(tenant, eq(tenant.id, user.tenantId))
     .where(and(eq(user.tenantId, tenantId), eq(user.id, userId)))
     .limit(1);
-  if (!account || account.legacyRole === "school-admin") return null;
+  if (!account) return null;
   const [authority] = await db
     .select({ id: schoolAdminAuthority.id })
     .from(schoolAdminAuthority)

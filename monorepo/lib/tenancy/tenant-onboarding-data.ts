@@ -3,7 +3,7 @@ import "server-only";
 import { and, eq } from "drizzle-orm";
 
 import { db } from "@/db";
-import { temporaryCredentialActivation, tenant, user } from "@/db/schema";
+import { schoolAdminAuthority, temporaryCredentialActivation, tenant, user } from "@/db/schema";
 import type { TenantOnboardingStore } from "@/lib/tenancy/tenant-onboarding";
 
 export const tenantOnboardingStore: TenantOnboardingStore = {
@@ -13,7 +13,6 @@ export const tenantOnboardingStore: TenantOnboardingStore = {
         const [principal] = await databaseTransaction
           .select({
             tenantId: tenant.id,
-            tenantRole: user.tenantRole,
             temporaryCredentialActivationUserId: temporaryCredentialActivation.userId,
             firstAuthenticatedAt: temporaryCredentialActivation.firstAuthenticatedAt,
             passwordChangeRequired: temporaryCredentialActivation.passwordChangeRequired,
@@ -31,13 +30,18 @@ export const tenantOnboardingStore: TenantOnboardingStore = {
             ),
           )
           .innerJoin(tenant, eq(tenant.id, user.tenantId))
+          .innerJoin(schoolAdminAuthority, and(
+            eq(schoolAdminAuthority.userId, user.id),
+            eq(schoolAdminAuthority.tenantId, tenant.id),
+            eq(schoolAdminAuthority.authorityState, "active"),
+          ))
           .where(eq(user.id, userId))
           .limit(1)
           .for("update");
-        if (!principal || !principal.tenantRole) return null;
+        if (!principal) return null;
         return {
           ...principal,
-          tenantRole: principal.tenantRole,
+          tenantRole: "school-admin" as const,
           hasTemporaryCredentialActivation: principal.temporaryCredentialActivationUserId !== null,
           passwordChangeRequired: principal.passwordChangeRequired ?? false,
         };
