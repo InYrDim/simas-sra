@@ -19,10 +19,12 @@ export function TrialDurationDialog({
   tenantId,
   schoolName,
   currentEndsAt,
+  isEnded,
 }: {
   tenantId: string;
   schoolName: string;
   currentEndsAt: Date | null;
+  isEnded?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -42,12 +44,12 @@ export function TrialDurationDialog({
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger render={<Button variant="outline" size="sm" />}>
-        Ubah Durasi
+        {isEnded ? "Aktifkan Kembali" : "Ubah Durasi"}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">
         <form action={handleSubmit}>
           <DialogHeader>
-            <DialogTitle>Ubah Durasi Trial</DialogTitle>
+            <DialogTitle>{isEnded ? "Aktifkan Kembali Trial" : "Ubah Durasi Trial"}</DialogTitle>
             <DialogDescription>
               Tentukan perpanjangan atau tanggal baru untuk trial <strong>{schoolName}</strong>.
             </DialogDescription>

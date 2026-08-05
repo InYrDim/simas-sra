@@ -43,6 +43,8 @@ function tenantListConditions(query: TenantListQuery, now: Date): SQL[] {
     conditions.push(sql`${tenant.trialEndsAt} > ${now} and ${tenant.trialEndsAt} <= ${endingSoonAt}`);
   } else if (query.stage === "expired") {
     conditions.push(sql`${tenant.trialEndsAt} <= ${now}`);
+  } else if (query.stage === "all-trial") {
+    conditions.push(sql`${tenant.onboardingCompletedAt} is not null and ${tenant.trialEndsAt} is not null`);
   }
   return conditions;
 }

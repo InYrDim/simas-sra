@@ -7,6 +7,7 @@ import { listProviderTenants } from "@/lib/provider/provider-tenant-data";
 import { normalizeTenantListQuery } from "@/lib/provider/provider-tenants";
 import { cn } from "@/lib/utils";
 import { TrialDurationDialog } from "./trial-duration-dialog";
+import { TerminateTrialButton } from "./terminate-trial-button";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -24,7 +25,7 @@ export default async function ProviderTenantsTrialPage({
     page: valueOf(params.page),
     search: valueOf(params.search),
     sort: valueOf(params.sort),
-    stage: "in-trial",
+    stage: "all-trial",
   });
   
   const result = await listProviderTenants(query);
@@ -78,7 +79,14 @@ export default async function ProviderTenantsTrialPage({
                         tenantId={tenant.id}
                         schoolName={tenant.schoolName}
                         currentEndsAt={tenant.trialEndsAt}
+                        isEnded={daysLeft <= 0}
                       />
+                      {daysLeft > 0 && (
+                        <TerminateTrialButton
+                          tenantId={tenant.id}
+                          schoolName={tenant.schoolName}
+                        />
+                      )}
                     </TableCell>
                   </TableRow>
                 );

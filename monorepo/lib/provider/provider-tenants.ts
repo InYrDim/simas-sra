@@ -32,7 +32,7 @@ export type TenantListQuery = Readonly<{
   page: number;
   search?: string;
   sort: TenantListSort;
-  stage: TenantUsageStage | "all";
+  stage: TenantUsageStage | "all" | "all-trial";
 }>;
 
 const sorts: readonly TenantListSort[] = ["newest", "oldest", "school-asc", "school-desc"];
@@ -51,7 +51,7 @@ export function normalizeTenantListQuery(input: Readonly<Record<string, string |
   const requestedPage = Number(input.page);
   const search = input.search?.trim() || undefined;
   const sort = sorts.includes(input.sort as TenantListSort) ? input.sort as TenantListSort : "newest";
-  const stage = stages.includes(input.stage as TenantUsageStage) ? input.stage as TenantUsageStage : "all";
+  const stage = input.stage === "all-trial" ? "all-trial" : stages.includes(input.stage as TenantUsageStage) ? input.stage as TenantUsageStage : "all";
 
   return {
     page: Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1,
