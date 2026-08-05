@@ -17,7 +17,7 @@ import {
   openSecurityAuditLegalHold,
   releaseSecurityAuditLegalHold,
   saveSecurityAuditRetentionPolicy,
-} from "@/lib/authorization/security-audit-retention-data";
+} from "@/lib/authorization/security-audit-retention-db
 
 const databaseUrl = process.env.DATABASE_URL;
 const mysqlTest = databaseUrl ? test : test.skip;
@@ -32,6 +32,7 @@ mysqlTest("persists policy, legal hold, and certificates without rewriting the a
   const context = { kind: "provider" as const, contextId: randomUUID(), providerContextId: "" };
   context.providerContextId = context.contextId;
   const userId = randomUUID();
+  const principal = { kind: "authenticated-user" as const, userId };
   const commandId = randomUUID();
   const eventId = randomUUID();
   const certificateIds = [randomUUID(), randomUUID(), randomUUID()];
@@ -79,22 +80,31 @@ mysqlTest("persists policy, legal hold, and certificates without rewriting the a
       [event.id, context.contextId, context.providerContextId, event.eventKey, event.eventType, userId, commandId, event.correlationId, event.requestId, event.reason, JSON.stringify(event.metadata), event.canonicalPayloadDigest, event.previousHash, event.eventHash, event.occurredAt],
     );
 
-    await saveSecurityAuditRetentionPolicy({ context, retentionDays: 7, version: 1, updatedAt: occurredAt });
-    const holdId = await openSecurityAuditLegalHold({ context, caseId: "case-retention-31", reason: "Incident evidence", id: randomUUID(), createdAt: occurredAt });
-    const held = await issueSecurityAuditRetentionCertificate({ context, now: new Date("2026-01-20T00:00:00.000Z"), id: certificateIds[0] });
+    await saveSecurityAuditRetentionPolicy({ principal, context, retentionDays: 7, version: 1, updatedAt: occurredAt });
+    const holdId = await openSecurityAuditLegalHold({ principal, context, caseId: "case-retention-31", reason: "Incident evidence", id: randomUUID(), createdAt: occurredAt });
+    const held = await issueSecurityAuditRetentionCertificate({ principal, context, now: new Date("2026-01-20T00:00:00.000Z"), id: certificateIds[0] });
     assert.equal(held.legalHold, true);
     assert.equal(held.retainedCount, 1);
     assert.equal(held.minimizedCount, 0);
     assert.equal(held.eventWatermark, eventHash);
 
-    assert.equal(await releaseSecurityAuditLegalHold({ context, caseId: "case-retention-31", releasedAt: new Date("2026-01-21T00:00:00.000Z") }), true);
-    const expired = await issueSecurityAuditRetentionCertificate({ context, now: new Date("2026-01-20T00:00:00.000Z"), id: certificateIds[1] });
+    assert.equal(await releaseSecurityAuditLegalHold({ principal, context, caseId: "case-retention-31", releasedAt: new Date("2026-01-21T00:00:00.000Z") }), true);
+    const expired = await issueSecurityAuditRetentionCertificate({ principal, context, now: new Date("2026-01-20T00:00:00.000Z"), id: certificateIds[1] });
     assert.equal(expired.legalHold, false);
     assert.equal(expired.disposalEligibleCount, 1);
 
-    const minimized = await issueSecurityAuditRetentionCertificate({ context, tenantDeleted: true, now: new Date("2026-01-20T00:00:00.000Z"), id: certificateIds[2] });
-    assert.equal(minimized.minimizedCount, 1);
-    assert.equal(minimized.eventWatermark, eventHash);
+    const unchanged = await issueSecurityAuditRetentionCertificate({ principal, context, now: new Date("2026-01-20T00:00:00.000Z"), id: certificateIds[2] });
+    assert.equal(unchanged.minimizedCount, 0);
+    assert.equal(unchanged.eventWatermark, eventHash);
+    await assert.rejects(
+      issueSecurityAuditRetentionCertificate({
+        principal: { kind: "authenticated-user", userId: randomUUID() },
+        context,
+        now: new Date("2026-01-20T00:00:00.000Z"),
+        id: randomUUID(),
+      }),
+      /context-denied/,
+    );
     assert.notEqual(holdId, "");
 
     const [events] = await connection.execute<mysql.RowDataPacket[]>("SELECT `event_hash`,`canonical_payload_digest`,`sequence` FROM `security_audit_event` WHERE `id`=?", [eventId]);

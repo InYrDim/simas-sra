@@ -1150,7 +1150,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
         correlationId: input.correlationId,
         deriveContext: async () => tenantContext(input.tenantId),
         authorizeAndMutate: async ({ actor, transaction }) => {
-          if (actor.kind !== "provider-admin" && actor.kind !== "tenant-user") {
+          if (actor.kind !== "provider-admin") {
             throw new SecurityCommandError("context-denied");
           }
           const repo = dependencies.repository(transaction);

@@ -109,7 +109,9 @@ function isVisible(
   providerContextId?: string,
 ): boolean {
   if (scope === "provider") {
-    return event.context.kind === "provider" && event.context.providerContextId === providerContextId;
+    return event.context.kind === "provider"
+      && event.context.providerContextId === providerContextId
+      && !RESTRICTED_EVENT_PATTERN.test(event.eventType);
   }
   if (event.context.kind !== "tenant" || event.context.tenantId !== tenantId) return false;
   if (RESTRICTED_EVENT_PATTERN.test(event.eventType)) return false;
@@ -124,7 +126,6 @@ export function projectSecurityAuditEvents(
 ): readonly SecurityAuditProjection[] {
   if (input.scope === "self" && !input.userId) return [];
   const projected = events
-    .filter((event) => input.scope === "provider" || !RESTRICTED_EVENT_PATTERN.test(event.eventType))
     .filter((event) => isVisible(event, input.scope, input.tenantId, input.userId, input.providerContextId))
     .sort((left, right) => Number(left.sequence - right.sequence))
     .map((event) => ({

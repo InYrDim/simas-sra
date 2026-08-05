@@ -380,7 +380,6 @@ function actorEvidence(actor: SecurityActor): JsonValue {
     kind: actor.kind,
     userId: actor.userId,
     displayName: actor.displayName,
-    email: actor.email,
   };
   if (actor.kind === "tenant-user") evidence.tenantId = actor.tenantId;
   if (actor.kind === "support-recovery") evidence.recoveryCaseId = actor.recoveryCaseId;

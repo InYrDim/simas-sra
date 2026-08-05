@@ -553,6 +553,19 @@ test("recovery proof never reactivates authority; a separate reauthenticated com
   assert.equal(started.status, "recovery-started");
   assert.equal(started.proofState, "pending");
 
+  await assert.rejects(
+    service.completeRecoveryProof({
+      principal: tenantPrincipal,
+      tenantId: "tenant-1",
+      caseId: started.caseId,
+      expectedProofVersion: 1,
+      secret: SECRET,
+      idempotencyKey: "recovery-proof-tenant-user",
+      correlationId: "corr-5",
+    }),
+    (error: unknown) => error instanceof SecurityCommandError && error.code === "context-denied",
+  );
+
   const proof = await service.completeRecoveryProof({
     principal,
     tenantId: "tenant-1",

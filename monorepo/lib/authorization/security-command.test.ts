@@ -169,7 +169,6 @@ test("derives Tenant context from the locked actor and commits ordered atomic ef
       userId: actor.userId,
       tenantId: actor.tenantId,
       displayName: actor.displayName,
-      email: actor.email,
     },
     details: { fromVersion: 1, toVersion: 2 },
   });

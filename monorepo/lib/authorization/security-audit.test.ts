@@ -53,6 +53,7 @@ test("projects only the permitted partition and removes secrets and unnecessary 
     authorizeAndMutate: async () => ({ result: { ok: true }, auditEvents: drafts }),
   });
   const event = controlled.snapshot().auditEvents;
+  assert.doesNotMatch(JSON.stringify(event[0]?.metadata), /admin@example\.test/);
   const self = projectSecurityAuditEvents(event, { scope: "self", tenantId: "tenant-1", userId: "user-1" });
   assert.equal(self.length, 1);
   const tenant = projectSecurityAuditEvents(event, { scope: "tenant", tenantId: "tenant-1" });
@@ -65,6 +66,29 @@ test("projects only the permitted partition and removes secrets and unnecessary 
   assert.deepEqual(projectSecurityAuditEvents(event, { scope: "tenant", tenantId: "other-tenant" }), []);
   assert.deepEqual(projectSecurityAuditEvents([...event, { ...event[0]!, id: "restricted-event", sequence: BigInt(2), eventType: "tenant_role.legacy_migration_finding" }], { scope: "tenant", tenantId: "tenant-1" }), tenant);
   assert.deepEqual(projectSecurityAuditEvents([{ ...event[0]!, eventType: "school_admin.authority_disabled", targets: { userId: actor.userId } }], { scope: "self", tenantId: "tenant-1", userId: actor.userId }), []);
+
+  const providerContext = { kind: "provider" as const, contextId: "provider-1", providerContextId: "provider-1" };
+  const providerRestricted = {
+    ...event[0]!,
+    id: "provider-restricted",
+    context: providerContext,
+    eventType: "security.integrity.failure",
+    targets: {},
+  };
+  const providerVisible = {
+    ...providerRestricted,
+    id: "provider-visible",
+    eventType: "provider.lifecycle.updated",
+  };
+  assert.deepEqual(projectSecurityAuditEvents([providerRestricted], {
+    scope: "provider",
+    providerContextId: providerContext.providerContextId,
+  }), []);
+  assert.equal(projectSecurityAuditEvents([providerVisible], {
+    scope: "provider",
+    providerContextId: providerContext.providerContextId,
+  }).length, 1);
+
   const minimized = projectSecurityAuditEvents(event, { scope: "tenant", tenantId: "tenant-1", postTenantDeletion: true });
   assert.equal(minimized[0]?.targetUserId, null);
   assert.equal(minimized[0]?.actor.id, null);
