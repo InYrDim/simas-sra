@@ -67,6 +67,7 @@ function Button({
           {...props}
           disabled
           render={undefined}
+          nativeButton={true}
         />
       }
     />

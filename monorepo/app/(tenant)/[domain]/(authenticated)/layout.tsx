@@ -46,7 +46,7 @@ export default async function DashboardLayout({ children, params }: {
   const missing = gatedArea
     ? getMissingUrgentMasterData(domain, await getUrgentMasterDataPresence(tenant.id))
     : [];
-  const content = gatedArea && missing.length > 0
+  const content = gatedArea && missing.length > 0 && !principal.readOnly
     ? <MasterDataAccessBlocked area={gatedArea} missing={missing} domain={domain} canManageMasterData={permissions.some((permission) => permission.startsWith("school-profile.") || permission.startsWith("academic-years."))} />
     : children;
 

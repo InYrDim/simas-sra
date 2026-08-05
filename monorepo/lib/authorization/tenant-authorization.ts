@@ -119,6 +119,7 @@ export type TenantAuthorizationPrincipal = Readonly<{
   permissions: ReadonlySet<string>;
   rolloutEpoch: bigint;
   selfPersonId?: string | null;
+  readOnly: boolean;
 }>;
 
 export type TenantAuthorizationContextDecision = Readonly<{
@@ -442,6 +443,7 @@ export function createTenantAuthorizationEvaluator(dependencies: TenantAuthoriza
           permissions: effective?.permissions ?? new Set<string>(),
           rolloutEpoch: rollout?.epoch ?? BigInt(0),
           selfPersonId: account?.selfPersonId ?? null,
+          readOnly: tenant.operationalStatus === "suspended" || (tenant.trialEndsAt !== null && tenant.trialEndsAt.getTime() <= now().getTime()),
         };
 
         if (!rbacDenial && required && effective && !hasPermissions(operation, required, effective.permissions)) {

@@ -46,7 +46,7 @@ export async function enforceTenantMasterDataOperation(
     role: "school-admin",
     capabilities: {
       read: true,
-      write: result.principal.schoolAdmin || writePermission,
+      write: !result.principal.readOnly && (result.principal.schoolAdmin || writePermission),
       downloadTemplate: operation.id === "people-imports.template.download",
     },
     schoolAdmin: result.principal.schoolAdmin,
@@ -76,7 +76,7 @@ export async function enforceAcademicAccess(domain: string, operationId: string,
     role: "school-admin",
     capabilities: {
       read: true,
-      write: result.principal.schoolAdmin || writePermission,
+      write: !result.principal.readOnly && (result.principal.schoolAdmin || writePermission),
       downloadTemplate: false,
     },
     schoolAdmin: result.principal.schoolAdmin,

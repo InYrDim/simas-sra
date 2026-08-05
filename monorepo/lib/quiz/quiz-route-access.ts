@@ -54,7 +54,7 @@ export async function enforceQuizPageAccess(
     role: "school-admin",
     capabilities: {
       read: true,
-      write: principal.schoolAdmin || [...principal.permissions].some((permission) => quizWritePermissions.has(permission)),
+      write: !principal.readOnly && (principal.schoolAdmin || [...principal.permissions].some((permission) => quizWritePermissions.has(permission))),
       downloadTemplate: false,
     },
     schoolAdmin: principal.schoolAdmin,

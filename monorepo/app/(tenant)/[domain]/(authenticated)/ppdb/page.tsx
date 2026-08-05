@@ -26,7 +26,7 @@ export default async function PPDBDashboardPage({
   searchParams: Promise<{ q?: string; result?: string }>;
 }) {
   const [{ domain }, raw] = await Promise.all([params, searchParams]);
-  const principal = await enforceAcademicAccess(domain, "ppdb.submissions.load");
+  const principal = await enforceAcademicAccess(domain, "ppdb.submissions.load", ["ppdb.submissions.view"]);
   const [availability, sessions, years] = await Promise.all([
     getTenantFeatureAvailability(principal.tenantId, principal.capabilities),
     sessionService.list(principal),

@@ -59,7 +59,7 @@ export async function enforceTenantMasterDataOperation(
     role: "school-admin",
     capabilities: {
       read: true,
-      write: operation.operationalGate === "write" || principal.schoolAdmin,
+      write: !principal.readOnly && (operation.operationalGate === "write" || principal.schoolAdmin),
       downloadTemplate: false,
     },
     schoolAdmin: principal.schoolAdmin,

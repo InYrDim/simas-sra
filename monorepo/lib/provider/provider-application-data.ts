@@ -14,6 +14,7 @@ import {
   type SQL,
 } from "drizzle-orm";
 
+import { TENANT_FEATURES } from "@/config/tenant-features";
 import { db } from "@/db";
 import {
   account,
@@ -321,11 +322,14 @@ export function createApplicationApprovalStore(options: Readonly<{
               sourceApplicationId: values.applicationId,
               approvedAt: values.decidedAt,
               onboardingCompletedAt: null,
-              trialStartedAt: null,
-              trialEndsAt: null,
+              trialStartedAt: values.decidedAt,
+              trialEndsAt: new Date(values.decidedAt.getTime() + 14 * 24 * 60 * 60 * 1000),
               operationalStatus: "active",
               reconciliationStatus: "not_required",
               deletionWaitingDays: 30,
+              settings: {
+                features: Object.fromEntries(TENANT_FEATURES.map((f) => [f.key, true])),
+              },
             });
             await afterStep("tenant-created");
 
