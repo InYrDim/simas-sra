@@ -26,3 +26,15 @@ test("School Admin can log in to the Tenant dashboard", async ({ page }) => {
     page.getByRole("heading", { level: 2, name: "Ringkasan" }),
   ).toBeVisible();
 });
+
+test("logged-out visitors are sent to the Tenant login page instead of a 403", async ({ page }) => {
+  await page.goto(`http://${e2e.alpha.domain}.localhost:3100/dashboard`);
+
+  await expect(page).toHaveURL(
+    new RegExp(`^https?://${e2e.alpha.domain}\\.localhost(?::\\d+)?/login(?:[/?#]|$)`),
+    { timeout: 30_000 },
+  );
+  await expect(
+    page.getByRole("heading", { name: `Masuk ke ${e2e.alpha.name}` }),
+  ).toBeVisible();
+});

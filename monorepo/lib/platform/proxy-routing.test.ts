@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { resolveProxyRoute } from "@/lib/platform/proxy-routing";
+import { getTenantSubdomain, isProtectedTenantPage, resolveProxyRoute } from "@/lib/platform/proxy-routing";
 
 test("passes the configured production domain through as the main host", () => {
   assert.deepEqual(resolveProxyRoute("simas.biz.id", "/", "simas.biz.id"), {
@@ -136,4 +136,34 @@ test("does not treat similarly-prefixed paths as Provider routes", () => {
     kind: "rewrite",
     pathname: "/sekolah/providership",
   });
+});
+
+test("isProtectedTenantPage gates the authenticated route group only", () => {
+  assert.equal(isProtectedTenantPage("/sekolah/dashboard", "sekolah"), true);
+  assert.equal(isProtectedTenantPage("/sekolah/master/mapel", "sekolah"), true);
+  assert.equal(isProtectedTenantPage("/sekolah/ppdb", "sekolah"), true);
+  assert.equal(isProtectedTenantPage("/sekolah/ppdb/settings", "sekolah"), true);
+  assert.equal(isProtectedTenantPage("/sekolah/users", "sekolah"), true);
+});
+
+test("isProtectedTenantPage keeps public Tenant pages reachable without a session", () => {
+  assert.equal(isProtectedTenantPage("/sekolah", "sekolah"), false);
+  assert.equal(isProtectedTenantPage("/sekolah/", "sekolah"), false);
+  assert.equal(isProtectedTenantPage("/sekolah/login", "sekolah"), false);
+  assert.equal(isProtectedTenantPage("/sekolah/continue", "sekolah"), false);
+  assert.equal(isProtectedTenantPage("/sekolah/account-lifecycle/case-123", "sekolah"), false);
+});
+
+test("isProtectedTenantPage ignores non-Tenant rewrites and other domains", () => {
+  assert.equal(isProtectedTenantPage("/ppdb/sekolah/session-1/daftar", "sekolah"), false);
+  assert.equal(isProtectedTenantPage("/other/dashboard", "sekolah"), false);
+  assert.equal(isProtectedTenantPage("/", "sekolah"), false);
+});
+
+test("getTenantSubdomain resolves dev and production tenant hosts", () => {
+  assert.equal(getTenantSubdomain("sekolah.localhost:3100"), "sekolah");
+  assert.equal(getTenantSubdomain("sekolah.simas.test", "simas.test"), "sekolah");
+  assert.equal(getTenantSubdomain("localhost:3100"), null);
+  assert.equal(getTenantSubdomain("simas.test", "simas.test"), null);
+  assert.equal(getTenantSubdomain("www.simas.test", "simas.test"), null);
 });

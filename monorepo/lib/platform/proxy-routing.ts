@@ -6,7 +6,7 @@ export type ProxyRoute =
   | { kind: "redirect"; hostname: string; pathname: string }
   | { kind: "rewrite"; pathname: string };
 
-function getTenantSubdomain(host: string, appDomain?: string) {
+export function getTenantSubdomain(host: string, appDomain?: string) {
   const hostname = host.split(":", 1)[0].toLowerCase();
   const configuredDomain = appDomain?.split(":", 1)[0].toLowerCase().replace(/^\.+|\.+$/g, "");
 
@@ -63,6 +63,27 @@ function resolvePathBasedTenantRoute(host: string, pathname: string, appDomain?:
     hostname: `${segments[0]}.${rootDomain}`,
     pathname: `/${segments.slice(1).join("/")}`,
   };
+}
+
+/**
+ * Tenant paths that stay reachable without a session on the Tenant subdomain.
+ * Everything else under `/{tenantDomain}/...` lives in the `(authenticated)`
+ * route group and requires a session.
+ */
+export const TENANT_PUBLIC_PATH_SEGMENTS = new Set(["login", "continue", "account-lifecycle"]);
+
+/**
+ * True when a rewritten Tenant request targets the `(authenticated)` route group.
+ * `rewrittenPathname` is the internal prefixed path produced by `resolveProxyRoute`,
+ * e.g. `/sekolah/dashboard` for tenant `sekolah`.
+ */
+export function isProtectedTenantPage(rewrittenPathname: string, tenantDomain: string): boolean {
+  const prefix = `/${tenantDomain}`;
+  if (rewrittenPathname === prefix) return false;
+  if (!rewrittenPathname.startsWith(`${prefix}/`)) return false;
+  const first = rewrittenPathname.slice(prefix.length + 1).split("/", 1)[0];
+  if (!first) return false;
+  return !TENANT_PUBLIC_PATH_SEGMENTS.has(first);
 }
 
 export function resolveProxyRoute(host: string, pathname: string, appDomain?: string): ProxyRoute {

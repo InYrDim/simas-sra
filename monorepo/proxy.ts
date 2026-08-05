@@ -1,5 +1,6 @@
+import { auth } from "@/lib/platform/auth";
 import { resolveRawPublicIntent } from "@/lib/platform/central-identity";
-import { resolveProxyRoute, TENANT_PATHNAME_HEADER } from "@/lib/platform/proxy-routing";
+import { getTenantSubdomain, isProtectedTenantPage, resolveProxyRoute, TENANT_PATHNAME_HEADER } from "@/lib/platform/proxy-routing";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
@@ -37,7 +38,17 @@ function publicRequestUrl(req: NextRequest, pathname: string) {
   return destination;
 }
 
-export function proxy(req: NextRequest) {
+async function hasSession(req: NextRequest) {
+  try {
+    return (await auth.api.getSession({ headers: req.headers })) !== null;
+  } catch {
+    // Cannot verify the session; skip the login redirect and let the layout's
+    // fail-closed authorization keep enforcing (401/403) instead of guessing.
+    return true;
+  }
+}
+
+export async function proxy(req: NextRequest) {
   if (req.nextUrl.pathname === "/login" || req.nextUrl.pathname === "/register") {
     resolveRawPublicIntent(req.nextUrl.search);
   }
@@ -59,6 +70,12 @@ export function proxy(req: NextRequest) {
   }
 
   if (route.kind === "rewrite") {
+    const tenantDomain = getTenantSubdomain(req.headers.get("host") ?? "", process.env.APP_DOMAIN);
+    if (tenantDomain && isProtectedTenantPage(route.pathname, tenantDomain) && !(await hasSession(req))) {
+      const destination = publicRequestUrl(req, "/login");
+      destination.searchParams.set("continuation", route.pathname);
+      return NextResponse.redirect(destination);
+    }
     const requestHeaders = new Headers(req.headers);
     const publicOrigin = publicRequestOrigin(req);
     requestHeaders.set(TENANT_PATHNAME_HEADER, route.pathname);
