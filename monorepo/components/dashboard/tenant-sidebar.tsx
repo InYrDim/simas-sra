@@ -9,7 +9,7 @@ import {
   SidebarMenuItem,
   SidebarFooter
 } from "@/components/ui/sidebar"
-import { BookOpen, LogOut } from "lucide-react"
+import { BookOpen, LogOut, AlertCircle } from "lucide-react"
 import { TenantNavMenu } from "@/components/tenant-nav-menu"
 import { tenantMenuItems } from "@/components/tenant-nav-menu/config"
 import { authClient } from "@/lib/platform/auth-client"
@@ -21,11 +21,13 @@ export function TenantSidebar({
   domain,
   tenantName,
   features,
+  trialStarted,
 }: {
   permissions: readonly string[];
   domain: string;
   tenantName?: string;
   features: TenantFeatureSelection;
+  trialStarted?: boolean;
 }) {
   return (
     <div
@@ -62,7 +64,16 @@ export function TenantSidebar({
       </SidebarHeader>
 
       <SidebarContent>
-        <TenantNavMenu items={tenantMenuItems} permissions={permissions} domain={domain} features={features} />
+        {trialStarted !== false ? (
+          <TenantNavMenu items={tenantMenuItems} permissions={permissions} domain={domain} features={features} />
+        ) : (
+          <div className="flex flex-col items-center justify-center p-6 text-center text-sidebar-foreground/60 h-32 gap-3 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:h-auto">
+            <AlertCircle className="size-6 text-amber-500/80" />
+            <p className="text-sm font-medium group-data-[collapsible=icon]:hidden">
+              Selesaikan Onboarding untuk mengakses menu
+            </p>
+          </div>
+        )}
       </SidebarContent>
 
       <SidebarFooter className="border-t border-sidebar-border p-4">

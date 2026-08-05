@@ -7,7 +7,7 @@ import { tenant } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
 
 import { OnboardingForm } from "@/app/(tenant)/[domain]/(authenticated)/dashboard/onboarding-form";
-import { PocTrialAction } from "@/components/dashboard/poc-trial-action";
+
 import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
 import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
 
@@ -48,7 +48,25 @@ export default async function DashboardPage({
     <div className="flex flex-col gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="flex items-center justify-between">
         <h2 className="text-3xl font-bold tracking-tight">Ringkasan</h2>
-        <PocTrialAction domain={domain} />
+        {(() => {
+          let trialStatusText = "Menunggu onboarding";
+          if (tenantData.trialEndsAt) {
+            const now = new Date();
+            const isExpired = now > tenantData.trialEndsAt;
+            const daysLeft = Math.ceil((tenantData.trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+            
+            if (isExpired) {
+              trialStatusText = "Trial berakhir";
+            } else {
+              trialStatusText = `Sisa Trial: ${daysLeft} hari`;
+            }
+          }
+          return (
+            <div className="text-sm font-medium text-muted-foreground bg-muted/50 px-3 py-1 rounded-full border border-border/50">
+              {trialStatusText}
+            </div>
+          );
+        })()}
       </div>
       
       <SessionInfo />

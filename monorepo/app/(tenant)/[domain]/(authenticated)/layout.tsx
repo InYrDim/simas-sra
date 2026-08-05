@@ -31,7 +31,7 @@ export default async function DashboardLayout({ children, params }: {
   const layoutDecision = await evaluator.evaluate({ surface: "page", domain, operationId: "authenticated.layout" });
   const principal = enforceAuthorizedTenantOperation(layoutDecision, { domain, operationId: "authenticated.layout" });
   const [tenant] = await db
-    .select({ id: tenantTable.id, name: tenantTable.name })
+    .select({ id: tenantTable.id, name: tenantTable.name, onboardingCompletedAt: tenantTable.onboardingCompletedAt })
     .from(tenantTable)
     .where(and(eq(tenantTable.id, principal.tenantId), eq(tenantTable.domain, domain)))
     .limit(1);
@@ -51,7 +51,7 @@ export default async function DashboardLayout({ children, params }: {
     : children;
 
   return <SidebarProvider>
-    <TenantSidebar permissions={permissions} domain={domain} tenantName={tenant.name} features={features} />
+    <TenantSidebar permissions={permissions} domain={domain} tenantName={tenant.name} features={features} trialStarted={tenant.onboardingCompletedAt !== null} />
     <SidebarInset>
       <TrialBanner domain={domain} />
       <DashboardHeader domain={domain} />
