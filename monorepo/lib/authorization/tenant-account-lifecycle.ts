@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 
 import {
+  securityAuditEvidence,
   SecurityCommandError,
   type JsonValue,
   type OptimisticVersion,
@@ -179,7 +180,7 @@ export function createTenantAccountLifecycleService<TTransaction extends object>
           const result: IssueResult = { status: "resent", caseId: pending.id, expiresAt: pending.expiresAt.toISOString() };
           return {
             result,
-            auditEvents: [{ purpose: `${input.kind}-resent`, order: "summary", eventType: `tenant_account.${input.kind}_resent`, targets: { userId: account.userId }, metadata: { caseId: pending.id, deliveryChannel: pending.deliveryChannel } }],
+            auditEvents: [{ purpose: `${input.kind}-resent`, order: "summary", eventType: `tenant_account.${input.kind}_resent`, targets: { userId: account.userId }, evidence: securityAuditEvidence({ caseId: pending.id }), metadata: { deliveryChannel: pending.deliveryChannel } }],
             outbox: [{ purpose: `${input.kind}-delivery-${pending.id}`, eventType: "tenant_account.lifecycle_delivery_requested", payload: { caseId: pending.id, tenantId: input.tenantId, userId: account.userId, kind: input.kind, deliveryChannel: pending.deliveryChannel } }],
           };
         }
@@ -194,7 +195,7 @@ export function createTenantAccountLifecycleService<TTransaction extends object>
         const result: IssueResult = { status: "issued", caseId, expiresAt: expiresAt.toISOString(), ...(input.deliveryChannel === "temporary-credential" ? { secret } : {}) };
         return {
           result,
-          auditEvents: [{ purpose: `${input.kind}-issued`, order: "summary", eventType: `tenant_account.${input.kind}_issued`, targets: { userId: account.userId }, metadata: { caseId, deliveryChannel: input.deliveryChannel, expiresAt: expiresAt.toISOString() } }],
+          auditEvents: [{ purpose: `${input.kind}-issued`, order: "summary", eventType: `tenant_account.${input.kind}_issued`, targets: { userId: account.userId }, evidence: securityAuditEvidence({ before: null, after: { caseState: "pending" }, diff: { caseState: { before: null, after: "pending" } }, version: { before: null, after: 1 }, caseId }), metadata: { deliveryChannel: input.deliveryChannel, expiresAt: expiresAt.toISOString() } }],
           outbox: [{ purpose: `${input.kind}-delivery-${caseId}`, eventType: "tenant_account.lifecycle_delivery_requested", payload: { caseId, tenantId: input.tenantId, userId: account.userId, kind: input.kind, deliveryChannel: input.deliveryChannel } }],
         };
       },
@@ -234,7 +235,7 @@ export function createTenantAccountLifecycleService<TTransaction extends object>
         const lifecycle = input.operation === "deactivate" ? "inactive" : "active";
         if (!await repository.transitionLifecycle({ tenantId: input.tenantId, userId: account.userId, expectedVersion: input.expectedVersion, lifecycle, bumpAssignmentVersion: input.operation !== "activate", updatedAt: at })) throw new SecurityCommandError("stale-version");
         const status = input.operation === "deactivate" ? "deactivated" : input.operation === "reactivate" ? "reactivated" : "activated";
-        return { result: { status, targetUserId: account.userId, version: input.expectedVersion + 1, roleIds: affectedRoleIds }, versionTransitions: [{ resourceType: "tenant-account", resourceId: account.userId, expectedVersion: input.expectedVersion, toVersion: input.expectedVersion + 1 }], auditEvents: [{ purpose: status, order: "summary", eventType: `tenant_account.${status}`, targets: { userId: account.userId }, reason: normalizedReason, metadata: { roleIds: affectedRoleIds, revokedSessions } }] };
+        return { result: { status, targetUserId: account.userId, version: input.expectedVersion + 1, roleIds: affectedRoleIds }, versionTransitions: [{ resourceType: "tenant-account", resourceId: account.userId, expectedVersion: input.expectedVersion, toVersion: input.expectedVersion + 1 }], auditEvents: [{ purpose: status, order: "summary", eventType: `tenant_account.${status}`, targets: { userId: account.userId }, reason: normalizedReason, evidence: securityAuditEvidence({ before: { lifecycle: account.lifecycle }, after: { lifecycle }, diff: { lifecycle: { before: account.lifecycle, after: lifecycle } }, version: { before: input.expectedVersion, after: input.expectedVersion + 1 } }), metadata: { roleIds: affectedRoleIds, revokedSessions } }] };
       },
     })).result;
   }
@@ -263,9 +264,9 @@ export function createTenantAccountLifecycleService<TTransaction extends object>
               : generateSecret();
           const created = await repository.createAccount({ userId, accountId: createId(), tenantId: input.tenantId, name: normalizedName, email: normalizedEmail, lifecycle, initialCredential: secret, createdAt: at });
           if (input.personId) await repository.linkPerson(input.tenantId, input.personId, userId, 1, at);
-          if (input.deliveryChannel === "administrative") return { result: { status: "created", targetUserId: userId, version: created.version, caseId: null, secret }, auditEvents: [{ purpose: "account-created", order: "summary", eventType: "tenant_account.created", targets: { userId }, metadata: { lifecycle, linkedPersonId: input.personId ?? null } }] };
+          if (input.deliveryChannel === "administrative") return { result: { status: "created", targetUserId: userId, version: created.version, caseId: null, secret }, auditEvents: [{ purpose: "account-created", order: "summary", eventType: "tenant_account.created", targets: { userId }, evidence: securityAuditEvidence({ before: null, after: { lifecycle }, diff: { lifecycle: { before: null, after: lifecycle } }, version: { before: null, after: created.version } }), metadata: { lifecycle, linkedPersonId: input.personId ?? null } }] };
           await repository.createCase({ id: caseId!, tenantId: input.tenantId, userId, kind: "activation", state: "pending", deliveryChannel: input.deliveryChannel, secretDigest: digestLifecycleSecret({ purpose: "activation", tenantId: input.tenantId, userId, expiresAt, secret }), expiresAt, consumedAt: null, deliveryAttempts: 0, version: 1, idempotencyKey: input.idempotencyKey, createdAt: at, updatedAt: at });
-          return { result: { status: "created", targetUserId: userId, version: created.version, caseId, ...(input.deliveryChannel === "temporary-credential" ? { secret } : {}) }, auditEvents: [{ purpose: "account-created", order: "summary", eventType: "tenant_account.created", targets: { userId }, metadata: { lifecycle, linkedPersonId: input.personId ?? null, caseId } }], outbox: [{ purpose: `activation-delivery-${caseId}`, eventType: "tenant_account.lifecycle_delivery_requested", payload: { caseId, tenantId: input.tenantId, userId, kind: "activation", deliveryChannel: input.deliveryChannel } }] };
+          return { result: { status: "created", targetUserId: userId, version: created.version, caseId, ...(input.deliveryChannel === "temporary-credential" ? { secret } : {}) }, auditEvents: [{ purpose: "account-created", order: "summary", eventType: "tenant_account.created", targets: { userId }, evidence: securityAuditEvidence({ before: null, after: { lifecycle }, diff: { lifecycle: { before: null, after: lifecycle } }, version: { before: null, after: created.version }, caseId }), metadata: { lifecycle, linkedPersonId: input.personId ?? null } }], outbox: [{ purpose: `activation-delivery-${caseId}`, eventType: "tenant_account.lifecycle_delivery_requested", payload: { caseId, tenantId: input.tenantId, userId, kind: "activation", deliveryChannel: input.deliveryChannel } }] };
         },
       })).result;
     },
@@ -332,7 +333,7 @@ export function createConsumeLifecycleCaseCommand<TTransaction extends object>(d
         const status = lifecycleCase.kind === "activation" ? "activated" : "recovered";
         return {
           result: { status, tenantId: input.tenantId, userId: lifecycleCase.userId },
-          auditEvents: [{ purpose: `lifecycle-${status}`, order: "summary", eventType: `tenant_account.${status}`, targets: { userId: lifecycleCase.userId }, metadata: { caseId: input.caseId } }],
+          auditEvents: [{ purpose: `lifecycle-${status}`, order: "summary", eventType: `tenant_account.${status}`, targets: { userId: lifecycleCase.userId }, evidence: securityAuditEvidence({ before: { caseState: "pending" }, after: { caseState: "completed" }, diff: { caseState: { before: "pending", after: "completed" } }, version: { before: lifecycleCase.version, after: lifecycleCase.version + 1 }, caseId: input.caseId }), metadata: {} }],
         };
       },
     })).result;

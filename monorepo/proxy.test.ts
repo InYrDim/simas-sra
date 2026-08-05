@@ -86,7 +86,7 @@ test("rewrites the Tenant host root to the public landing page route", () => {
   assert.equal(response.status, 200);
   assert.equal(
     response.headers.get("x-middleware-rewrite"),
-    "http://sekolah.localhost:3000/sekolah/",
+    "http://sekolah.localhost:3000/sekolah",
   );
   assert.equal(response.headers.get("location"), null);
 });

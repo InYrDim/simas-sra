@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import {
   SecurityCommandError,
+  securityAuditEvidence,
   type JsonValue,
   type OptimisticVersion,
   type SecurityActor,
@@ -279,12 +280,12 @@ export function createTenantRoleAssignmentService<TTransaction extends object>(d
           }
 
           const existingAssignments = await repository.listAssignments(input.tenantId, input.targetUserId);
-          const currentRoleIds = new Set(
-            existingAssignments
-              .filter((assignment) => assignment.state === "active")
-              .map((assignment) => assignment.roleId),
-          );
-          if (target.lifecycle !== "active" && roleIds.some((roleId) => !currentRoleIds.has(roleId))) {
+          const currentRoleIds = existingAssignments
+            .filter((assignment) => assignment.state === "active")
+            .map((assignment) => assignment.roleId)
+            .sort();
+          const currentRoleIdSet = new Set(currentRoleIds);
+          if (target.lifecycle !== "active" && roleIds.some((roleId) => !currentRoleIdSet.has(roleId))) {
             throw new SecurityCommandError("invalid-command");
           }
           const allRoles = await repository.listActiveRoles(input.tenantId);
@@ -307,12 +308,21 @@ export function createTenantRoleAssignmentService<TTransaction extends object>(d
             eventType: TENANT_ROLE_ASSIGNMENT_EVENT_TYPES.REPLACED,
             targets: { userId: input.targetUserId },
             ...(reason ? { reason } : {}),
-            metadata: {
-              assignmentVersionBefore: input.expectedAssignmentVersion,
-              assignmentVersionAfter: input.expectedAssignmentVersion + 1,
-              roleIds,
-              zeroAccess,
-            },
+            evidence: securityAuditEvidence({
+              before: { roleIds: currentRoleIds },
+              after: { roleIds },
+              diff: {
+                roleIds: {
+                  added: roleIds.filter((roleId) => !currentRoleIdSet.has(roleId)),
+                  removed: currentRoleIds.filter((roleId) => !roleIds.includes(roleId)),
+                },
+              },
+              version: {
+                before: input.expectedAssignmentVersion,
+                after: input.expectedAssignmentVersion + 1,
+              },
+            }),
+            metadata: { zeroAccess },
           }];
           for (const assignment of replacement.assignments) {
             if (assignment.transition === "unchanged") continue;
@@ -330,6 +340,11 @@ export function createTenantRoleAssignmentService<TTransaction extends object>(d
                 assignmentId: assignment.assignmentId,
               },
               ...(reason ? { reason } : {}),
+              evidence: securityAuditEvidence({
+                before: assignment.transition === "suspended" ? { state: "active" } : null,
+                after: assignment.transition === "suspended" ? { state: "suspended" } : { state: "active" },
+                diff: { state: { transition: assignment.transition } },
+              }),
               metadata: { transition: assignment.transition },
             });
           }
@@ -340,6 +355,14 @@ export function createTenantRoleAssignmentService<TTransaction extends object>(d
               eventType: TENANT_ROLE_ASSIGNMENT_EVENT_TYPES.ZERO_ACCESS,
               targets: { userId: input.targetUserId },
               reason: reason!,
+              evidence: securityAuditEvidence({
+                after: { roleIds: [] },
+                diff: { zeroAccess: { before: false, after: true } },
+                version: {
+                  before: input.expectedAssignmentVersion,
+                  after: input.expectedAssignmentVersion + 1,
+                },
+              }),
               metadata: { surface: "Akses belum diberikan" },
             });
           }

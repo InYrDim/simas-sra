@@ -8,6 +8,7 @@ import mysql from "mysql2/promise";
 
 import { closeDatabasePool } from "@/db";
 import {
+  securityAuditEvidence,
   securityAuditEventHash,
   securityAuditEventPayloadDigest,
 } from "@/lib/authorization/security-command";
@@ -17,7 +18,7 @@ import {
   openSecurityAuditLegalHold,
   releaseSecurityAuditLegalHold,
   saveSecurityAuditRetentionPolicy,
-} from "@/lib/authorization/security-audit-retention-db
+} from "@/lib/authorization/security-audit-retention-db";
 
 const databaseUrl = process.env.DATABASE_URL;
 const mysqlTest = databaseUrl ? test : test.skip;
@@ -52,6 +53,7 @@ mysqlTest("persists policy, legal hold, and certificates without rewriting the a
     correlationId: randomUUID(),
     requestId: randomUUID(),
     reason: "retention integration test",
+    evidence: securityAuditEvidence(),
     metadata: {},
     previousHash,
     eventHash: "",

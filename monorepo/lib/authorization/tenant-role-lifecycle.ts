@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import {
   SecurityCommandError,
+  securityAuditEvidence,
   type JsonValue,
   type OptimisticVersion,
   type SecurityActor,
@@ -358,11 +359,23 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
               eventType: TENANT_ROLE_EVENT_TYPES.CREATED,
               targets: { roleId },
               reason,
+              evidence: securityAuditEvidence({
+                after: {
+                  name,
+                  lifecycle: "draft",
+                  permissions: [...input.permissions].sort(),
+                },
+                diff: {
+                  created: {
+                    name,
+                    lifecycle: "draft",
+                    permissions: [...input.permissions].sort(),
+                  },
+                },
+                version: { after: 1 },
+              }),
               metadata: {
-                name,
                 origin: input.origin,
-                lifecycle: "draft",
-                permissions: input.permissions,
                 riskLevel: computeRisk(input.permissions),
               },
             }],
@@ -413,7 +426,13 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
               eventType: TENANT_ROLE_EVENT_TYPES.RENAMED,
               targets: { roleId: input.roleId },
               reason,
-              metadata: { nameBefore: role!.name, nameAfter: newName },
+              evidence: securityAuditEvidence({
+                before: { name: role!.name },
+                after: { name: newName },
+                diff: { name: { before: role!.name, after: newName } },
+                version: { before: input.expectedVersion, after: input.expectedVersion + 1 },
+              }),
+              metadata: {},
             }],
           };
         },
@@ -471,9 +490,18 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
               eventType: TENANT_ROLE_EVENT_TYPES.PERMISSIONS_EDITED,
               targets: { roleId: input.roleId },
               reason,
+              evidence: securityAuditEvidence({
+                before: { permissions: [...role!.permissions].sort() },
+                after: { permissions: [...newPermissions].sort() },
+                diff: {
+                  permissions: {
+                    added: [...input.addedPermissions].sort(),
+                    removed: [...input.removedPermissions].sort(),
+                  },
+                },
+                version: { before: input.expectedVersion, after: input.expectedVersion + 1 },
+              }),
               metadata: {
-                addedPermissions: input.addedPermissions,
-                removedPermissions: input.removedPermissions,
                 riskLevelBefore: computeRisk(role!.permissions),
                 riskLevelAfter: computeRisk(newPermissions),
               },
@@ -522,7 +550,13 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
               eventType: TENANT_ROLE_EVENT_TYPES.ACTIVATED,
               targets: { roleId: input.roleId },
               reason,
-              metadata: { lifecycleBefore: role!.lifecycle, lifecycleAfter: "active" },
+              evidence: securityAuditEvidence({
+                before: { lifecycle: role!.lifecycle },
+                after: { lifecycle: "active" },
+                diff: { lifecycle: { before: role!.lifecycle, after: "active" } },
+                version: { before: input.expectedVersion, after: input.expectedVersion + 1 },
+              }),
+              metadata: {},
             }],
           };
         },
@@ -571,7 +605,13 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
               eventType: TENANT_ROLE_EVENT_TYPES.DRAFTED,
               targets: { roleId: input.roleId },
               reason,
-              metadata: { lifecycleBefore: role!.lifecycle, lifecycleAfter: "draft" },
+              evidence: securityAuditEvidence({
+                before: { lifecycle: role!.lifecycle },
+                after: { lifecycle: "draft" },
+                diff: { lifecycle: { before: role!.lifecycle, after: "draft" } },
+                version: { before: input.expectedVersion, after: input.expectedVersion + 1 },
+              }),
+              metadata: {},
             }],
           };
         },
@@ -620,7 +660,13 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
               eventType: TENANT_ROLE_EVENT_TYPES.ARCHIVED,
               targets: { roleId: input.roleId },
               reason,
-              metadata: { lifecycleBefore: role!.lifecycle, lifecycleAfter: "archived" },
+              evidence: securityAuditEvidence({
+                before: { lifecycle: role!.lifecycle },
+                after: { lifecycle: "archived" },
+                diff: { lifecycle: { before: role!.lifecycle, after: "archived" } },
+                version: { before: input.expectedVersion, after: input.expectedVersion + 1 },
+              }),
+              metadata: {},
             }],
           };
         },
@@ -666,7 +712,13 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
               eventType: TENANT_ROLE_EVENT_TYPES.RESTORED,
               targets: { roleId: input.roleId },
               reason,
-              metadata: { lifecycleBefore: role!.lifecycle, lifecycleAfter: "draft" },
+              evidence: securityAuditEvidence({
+                before: { lifecycle: role!.lifecycle },
+                after: { lifecycle: "draft" },
+                diff: { lifecycle: { before: role!.lifecycle, after: "draft" } },
+                version: { before: input.expectedVersion, after: input.expectedVersion + 1 },
+              }),
+              metadata: {},
             }],
           };
         },

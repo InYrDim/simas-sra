@@ -453,17 +453,17 @@ test("replacement cutover atomically grants the successor, disables only the inc
   const types = cutoverEvents.map((event) => event.eventType).sort();
   assert.deepEqual(types, [...cutoverTypes].sort());
   for (const event of events) {
-    const details = (event.metadata as { details?: { caseId?: string } }).details ?? {};
-    assert.equal(details.caseId, nomination.caseId);
+    assert.equal(event.evidence.caseId, nomination.caseId);
   }
   const parent = cutoverEvents.find((event) =>
     event.eventType === SCHOOL_ADMIN_EVENT_TYPES.REPLACEMENT_CUTOVER_COMPLETED);
   assert.ok(parent);
-  const parentDetails = (parent.metadata as { details?: Record<string, unknown> }).details ?? {};
+  const parentDetails = parent.metadata as Record<string, unknown>;
   assert.equal(parentDetails.successorAuthorityId, nomination.authorityId);
   assert.equal(parentDetails.incumbentAuthorityId, "authority-incumbent");
-  assert.equal(parentDetails.successorAuthorityStateAfter, "active");
-  assert.equal(parentDetails.incumbentAuthorityStateAfter, "disabled");
+  const parentAfter = parent.evidence.after as Record<string, unknown>;
+  assert.equal(parentAfter.successorAuthorityState, "active");
+  assert.equal(parentAfter.incumbentAuthorityState, "disabled");
 });
 
 test("disable is blocked when the target is the last active School Admin", async () => {

@@ -733,8 +733,9 @@ function StudentForm({
           </Label>
         ) : null}
         <p className="text-sm text-muted-foreground">
-          Siswa baru selalu berstatus Aktif. Pembuatan ini tidak membuat atau
-          menautkan Akun Pengguna.
+          {record
+            ? "Status tidak dapat diubah melalui edit biasa. Gunakan tindakan Ubah status Siswa."
+            : "Siswa baru selalu berstatus Aktif. Pembuatan ini tidak membuat atau menautkan Akun Pengguna."}
         </p>
       </fieldset>
       <div className="flex justify-end">

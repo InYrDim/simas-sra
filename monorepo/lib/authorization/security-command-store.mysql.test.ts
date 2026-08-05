@@ -13,6 +13,7 @@ import { tenantRole } from "@/db/schema";
 import {
   createSecurityCommandService,
   requireOptimisticUpdate,
+  securityAuditEvidence,
   type SecurityAuditEventDraft,
 } from "@/lib/authorization/security-command";
 import {
@@ -95,6 +96,7 @@ function securityCommand(
           order: "parent",
           eventType: "tenant_role.renamed",
           targets: { roleId: input.roleId },
+          evidence: securityAuditEvidence(),
           metadata: { fromVersion: input.expectedVersion, toVersion: input.expectedVersion + 1 },
         }],
         outbox: [{
@@ -162,6 +164,7 @@ mysqlTest("real MySQL commits, replays, serializes hash heads, and rolls back ev
           order: "child",
           eventType: "tenant_role.permissions_changed",
           targets: { roleId: ids.roleA },
+          evidence: securityAuditEvidence(),
           metadata: { affectedCount: 0 },
         },
         {
@@ -169,6 +172,7 @@ mysqlTest("real MySQL commits, replays, serializes hash heads, and rolls back ev
           order: "parent",
           eventType: "tenant_role.renamed",
           targets: { roleId: ids.roleA },
+          evidence: securityAuditEvidence(),
           metadata: { fromVersion: 1, toVersion: 2 },
         },
       ],

@@ -250,7 +250,7 @@ test("the equivalence matrix proves zero legacy deny / RBAC allow outcomes", () 
   assert.ok(result.tuples.length > 0);
   assert.match(result.contractDigest, /^[a-f0-9]{64}$/);
   assert.equal(result.registryVersion, "tenant-permissions@2");
-  assert.equal(result.operationMapVersion, "tenant-operations@2");
+  assert.equal(result.operationMapVersion, "tenant-operations@4");
   const byRole = new Map(
     [...LEGACY_NON_ADMIN_ROLES].sort().map((roleName) => [roleName, result.tuples.filter((tuple) => tuple.legacyAllowed)]),
   );

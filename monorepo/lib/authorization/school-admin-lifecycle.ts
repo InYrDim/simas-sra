@@ -1,6 +1,7 @@
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 
 import {
+  securityAuditEvidence,
   SecurityCommandError,
   type JsonValue,
   type OptimisticVersion,
@@ -366,6 +367,48 @@ function tenantContext(tenantId: string): SecurityContext {
   return { kind: "tenant", contextId: tenantId, tenantId };
 }
 
+function schoolAdminAudit(metadata: Readonly<Record<string, JsonValue>>): Readonly<{
+  evidence: ReturnType<typeof securityAuditEvidence>;
+  metadata: Readonly<Record<string, JsonValue>>;
+}> {
+  const before: Record<string, JsonValue> = {};
+  const after: Record<string, JsonValue> = {};
+  const diff: Record<string, JsonValue> = {};
+  const eventMetadata: Record<string, JsonValue> = {};
+  const versionFields: string[] = [];
+
+  for (const key of Object.keys(metadata).sort()) {
+    if (key === "caseId" || key.endsWith("After")) continue;
+    if (key.endsWith("Before")) {
+      const field = key.slice(0, -"Before".length);
+      const afterKey = `${field}After`;
+      if (Object.hasOwn(metadata, afterKey)) {
+        before[field] = metadata[key];
+        after[field] = metadata[afterKey];
+        diff[field] = { before: metadata[key], after: metadata[afterKey] };
+        if (field.endsWith("Version")) versionFields.push(field);
+        continue;
+      }
+    }
+    eventMetadata[key] = metadata[key];
+  }
+
+  const versionField = versionFields.length === 1 ? versionFields[0] : null;
+  return {
+    evidence: securityAuditEvidence({
+      before: Object.keys(before).length === 0 ? null : before,
+      after: Object.keys(after).length === 0 ? null : after,
+      diff: Object.keys(diff).length === 0 ? null : diff,
+      version: versionField === null ? undefined : {
+        before: before[versionField] as number,
+        after: after[versionField] as number,
+      },
+      caseId: typeof metadata.caseId === "string" ? metadata.caseId : null,
+    }),
+    metadata: eventMetadata,
+  };
+}
+
 export function createSchoolAdminLifecycleService<TTransaction extends object>(dependencies: Readonly<{
   execute: SchoolAdminLifecycleExecutor<TTransaction>;
   repository: (transaction: SecurityCommandStoreTransaction & TTransaction) => SchoolAdminLifecycleRepository;
@@ -457,7 +500,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
               eventType: SCHOOL_ADMIN_EVENT_TYPES.NOMINATION_CREATED,
               targets: { userId: candidate.id, schoolAdminAuthorityId: authorityId, schoolAdminProofId: proofId },
               reason,
-              metadata: {
+              ...schoolAdminAudit({
                 caseId: input.caseId,
                 kind: "nomination",
                 incumbentAuthorityId: input.incumbentAuthorityId ?? null,
@@ -470,7 +513,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
                 activeCountBefore: activeBefore,
                 activeCountAfter: activeBefore,
                 replacement: input.incumbentAuthorityId !== undefined,
-              },
+              }),
             }],
           };
         },
@@ -538,7 +581,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
               eventType: SCHOOL_ADMIN_EVENT_TYPES.PROOF_SECRET_ROTATED,
               targets: { userId: authority.userId, schoolAdminAuthorityId: authority.id, schoolAdminProofId: proof.id },
               reason,
-              metadata: {
+              ...schoolAdminAudit({
                 caseId: input.caseId,
                 kind: proof.kind,
                 authorityStateBefore: authority.authorityState,
@@ -548,7 +591,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
                 proofVersionBefore: proof.version,
                 proofVersionAfter: proof.version + 1,
                 proofExpiresAt: expiresAt.toISOString(),
-              },
+              }),
             }],
           };
         },
@@ -629,7 +672,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
               order: "summary",
               eventType: SCHOOL_ADMIN_EVENT_TYPES.ACCOUNT_CONTROL_PROOF_COMPLETED,
               targets: { userId: authority.userId, schoolAdminAuthorityId: authority.id, schoolAdminProofId: proof.id },
-              metadata: {
+              ...schoolAdminAudit({
                 caseId: input.caseId,
                 kind: "nomination",
                 authorityStateBefore: "none",
@@ -641,7 +684,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
                 activeCountBefore: activeCount,
                 activeCountAfter: activeCount,
                 revocationCount: 0,
-              },
+              }),
             }],
           };
         },
@@ -755,7 +798,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
               eventType: SCHOOL_ADMIN_EVENT_TYPES.AUTHORITY_GRANTED,
               targets: { userId: authority.userId, schoolAdminAuthorityId: authority.id, schoolAdminProofId: proof.id },
               reason,
-              metadata: {
+              ...schoolAdminAudit({
                 caseId: input.caseId,
                 kind: "nomination",
                 authorityStateBefore: "none",
@@ -769,7 +812,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
                 activeCountBefore: activeBefore,
                 activeCountAfter: activeBefore + 1,
                 revocationCount: obsolete.length,
-              },
+              }),
             }],
           };
         },
@@ -838,7 +881,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
               eventType: SCHOOL_ADMIN_EVENT_TYPES.AUTHORITY_DISABLED,
               targets: { userId: target.userId, schoolAdminAuthorityId: target.id },
               reason,
-              metadata: {
+              ...schoolAdminAudit({
                 caseId: null,
                 authorityStateBefore: "active",
                 authorityStateAfter: "disabled",
@@ -847,7 +890,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
                 activeCountBefore: activeRows.length,
                 activeCountAfter: activeRows.length - 1,
                 revocationCount: revoked,
-              },
+              }),
             }],
           };
         },
@@ -963,7 +1006,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
               eventType: SCHOOL_ADMIN_EVENT_TYPES.REPLACEMENT_CUTOVER_COMPLETED,
               targets: { schoolAdminProofId: proof.id },
               reason,
-              metadata: {
+              ...schoolAdminAudit({
                 caseId: input.caseId,
                 kind: "replacement",
                 successorAuthorityId: successor.id,
@@ -985,14 +1028,14 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
                 activeCountBefore: activeBefore,
                 activeCountAfter: activeBefore,
                 revocationCount: revoked,
-              },
+              }),
             },
             {
               purpose: "successor-authority-granted",
               order: "child",
               eventType: SCHOOL_ADMIN_EVENT_TYPES.AUTHORITY_GRANTED,
               targets: { userId: successor.userId, schoolAdminAuthorityId: successor.id, schoolAdminProofId: proof.id },
-              metadata: {
+              ...schoolAdminAudit({
                 caseId: input.caseId,
                 kind: "replacement",
                 authorityStateBefore: "none",
@@ -1001,14 +1044,14 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
                 authorityVersionAfter: successor.version + 1,
                 activeCountBefore: activeBefore,
                 activeCountAfter: activeBefore,
-              },
+              }),
             },
             {
               purpose: "incumbent-authority-disabled",
               order: "child",
               eventType: SCHOOL_ADMIN_EVENT_TYPES.AUTHORITY_DISABLED,
               targets: { userId: incumbent.userId, schoolAdminAuthorityId: incumbent.id },
-              metadata: {
+              ...schoolAdminAudit({
                 caseId: input.caseId,
                 kind: "replacement",
                 authorityStateBefore: "active",
@@ -1018,7 +1061,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
                 activeCountBefore: activeBefore,
                 activeCountAfter: activeBefore,
                 revocationCount: revoked,
-              },
+              }),
             },
           ];
           return {
@@ -1114,7 +1157,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
               eventType: SCHOOL_ADMIN_EVENT_TYPES.RECOVERY_STARTED,
               targets: { userId: authority.userId, schoolAdminAuthorityId: authority.id, schoolAdminProofId: proofId },
               reason,
-              metadata: {
+              ...schoolAdminAudit({
                 caseId,
                 kind: "recovery",
                 authorityStateBefore: "disabled",
@@ -1124,7 +1167,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
                 proofExpiresAt: expiresAt.toISOString(),
                 activeCountBefore: activeBefore,
                 activeCountAfter: activeBefore,
-              },
+              }),
             }],
           };
         },
@@ -1205,7 +1248,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
               order: "summary",
               eventType: SCHOOL_ADMIN_EVENT_TYPES.RECOVERY_PROOF_COMPLETED,
               targets: { userId: authority.userId, schoolAdminAuthorityId: authority.id, schoolAdminProofId: proof.id },
-              metadata: {
+              ...schoolAdminAudit({
                 caseId: input.caseId,
                 kind: "recovery",
                 authorityStateBefore: "disabled",
@@ -1217,7 +1260,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
                 activeCountBefore: activeCount,
                 activeCountAfter: activeCount,
                 revocationCount: 0,
-              },
+              }),
             }],
           };
         },
@@ -1319,7 +1362,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
               eventType: SCHOOL_ADMIN_EVENT_TYPES.AUTHORITY_REACTIVATED,
               targets: { userId: authority.userId, schoolAdminAuthorityId: authority.id, schoolAdminProofId: proof.id },
               reason,
-              metadata: {
+              ...schoolAdminAudit({
                 caseId: input.caseId,
                 kind: "recovery",
                 authorityStateBefore: "disabled",
@@ -1333,7 +1376,7 @@ export function createSchoolAdminLifecycleService<TTransaction extends object>(d
                 activeCountBefore: activeBefore,
                 activeCountAfter: activeBefore + 1,
                 revocationCount: 0,
-              },
+              }),
             }],
           };
         },

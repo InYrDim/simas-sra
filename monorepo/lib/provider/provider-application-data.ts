@@ -27,7 +27,7 @@ import {
   transactionalOutbox,
   user,
 } from "@/db/schema";
-import { createSecurityCommandService, SecurityCommandError } from "@/lib/authorization/security-command";
+import { createSecurityCommandService, securityAuditEvidence, SecurityCommandError } from "@/lib/authorization/security-command";
 import { securityCommandStore, type MySqlSecurityCommandTransaction } from "@/lib/authorization/security-command-store";
 import { outboxEventIdentity } from "@/lib/platform/outbox-event-identity";
 import {
@@ -414,6 +414,15 @@ export function createApplicationApprovalStore(options: Readonly<{
               purpose: "application-approved-school-admin-granted",
               order: "summary",
               eventType: "school_admin.authority_granted",
+              evidence: securityAuditEvidence(value.ok ? {
+                before: { applicationStatus: "pending", schoolAdminAuthorityState: null },
+                after: { applicationStatus: value.status, schoolAdminAuthorityState: "active", tenantId: value.tenantId ?? null },
+                diff: {
+                  applicationStatus: { before: "pending", after: value.status },
+                  schoolAdminAuthorityState: { before: null, after: "active" },
+                  tenantId: { before: null, after: value.tenantId ?? null },
+                },
+              } : {}),
               metadata: {
                 applicationId: command.applicationId,
                 tenantId: value.ok ? value.tenantId ?? null : null,

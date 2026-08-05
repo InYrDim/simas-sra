@@ -221,8 +221,9 @@ export function expandLegacyOperationTuples(): readonly {
 /**
  * Mirrors the centralized evaluator's permission-level RBAC decision for one
  * concrete requested permission list against a frozen effective set. Contextual
- * gates that require live context (assigned/self) or School Admin are not
- * satisfiable by a frozen non-admin role, so they deny here.
+ * gates that require assigned context or School Admin are not satisfiable by a
+ * frozen non-admin role. Self context is treated as satisfied because each
+ * equivalence tuple models the same-user path proven by the live evaluator.
  */
 export function rbacAllowsForFrozenPermissions(
   operation: TenantOperationDefinition,
@@ -236,7 +237,11 @@ export function rbacAllowsForFrozenPermissions(
     : requested.every((key) => effective.has(key));
   if (!has) return false;
   if (operation.contextualPolicy === "school-admin-only") return false;
-  if (operation.contextualPolicy !== "tenant-wide" && operation.contextualPolicy !== "none") return false;
+  if (
+    operation.contextualPolicy !== "tenant-wide"
+    && operation.contextualPolicy !== "none"
+    && operation.contextualPolicy !== "self"
+  ) return false;
   return true;
 }
 

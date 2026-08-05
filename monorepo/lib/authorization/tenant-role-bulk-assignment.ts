@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import {
   SecurityCommandError,
+  securityAuditEvidence,
   type SecurityCommandMutation,
   type SecurityContext,
   type SecurityPrincipal,
@@ -287,9 +288,16 @@ export function createTenantRoleBulkAssignmentService<TTransaction extends objec
               order: "parent",
               eventType: TENANT_ROLE_ASSIGNMENT_EVENT_TYPES.REPLACED,
               reason,
+              evidence: securityAuditEvidence({
+                after: {
+                  roleIds,
+                  targetUserIds: prepared.targets.map((target) => target.account.userId),
+                },
+                diff: { operation: input.operation, roleIds },
+                batchId: input.idempotencyKey,
+              }),
               metadata: {
                 operation: input.operation,
-                roleIds,
                 targetCount: prepared.targets.length,
                 zeroRoleCount: prepared.targets.filter((target) => target.outcome.outcome === "zero-role").length,
               },
@@ -301,11 +309,24 @@ export function createTenantRoleBulkAssignmentService<TTransaction extends objec
                 : TENANT_ROLE_ASSIGNMENT_EVENT_TYPES.REPLACED,
               targets: { userId: target.account.userId },
               reason,
-              metadata: {
-                outcome: target.outcome.outcome,
-                currentRoleIds: target.outcome.currentRoleIds,
-                nextRoleIds: target.outcome.nextRoleIds,
-              },
+              evidence: securityAuditEvidence({
+                before: { roleIds: target.outcome.currentRoleIds },
+                after: { roleIds: target.outcome.nextRoleIds },
+                diff: {
+                  roleIds: {
+                    added: target.outcome.nextRoleIds.filter((roleId) => !target.outcome.currentRoleIds.includes(roleId)),
+                    removed: target.outcome.currentRoleIds.filter((roleId) => !target.outcome.nextRoleIds.includes(roleId)),
+                  },
+                },
+                version: {
+                  before: target.account.assignmentVersion,
+                  after: target.outcome.outcome === "unchanged"
+                    ? target.account.assignmentVersion
+                    : target.account.assignmentVersion + 1,
+                },
+                batchId: input.idempotencyKey,
+              }),
+              metadata: { outcome: target.outcome.outcome },
             }))],
           };
         },

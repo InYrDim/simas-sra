@@ -7,7 +7,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { securityAuditEvent, securityAuditHead, securityReconciliationFinding } from "@/db/schema";
 import type { PersistedSecurityAuditEvent } from "@/lib/authorization/security-command-store";
-import type { SecurityActor, SecurityContext, JsonValue } from "@/lib/authorization/security-command";
+import type { SecurityActor, SecurityAuditEvidence, SecurityContext, JsonValue } from "@/lib/authorization/security-command";
 import type { SecurityAuditIntegrityFinding, SecurityAuditIntegrityResult } from "@/lib/authorization/security-audit";
 import { verifySecurityAuditChain } from "@/lib/authorization/security-audit";
 
@@ -49,7 +49,39 @@ function contextFromRow(row: typeof securityAuditEvent.$inferSelect): SecurityCo
     : { kind: "provider", contextId: row.contextId, providerContextId: row.providerContextId ?? row.contextId };
 }
 
+type StoredAuditEnvelope = Readonly<{
+  actor?: ActorEvidence;
+  evidence?: SecurityAuditEvidence;
+  details?: JsonValue;
+}>;
+
+const EMPTY_VERSION = { before: null, after: null } as const;
+
+function legacyEvidence(metadata: unknown): SecurityAuditEvidence {
+  const root = metadata && typeof metadata === "object" ? metadata as StoredAuditEnvelope : {};
+  const details = root.details && typeof root.details === "object" && !Array.isArray(root.details)
+    ? root.details as Record<string, JsonValue>
+    : {};
+  const beforeVersion = typeof details.versionBefore === "number" ? details.versionBefore
+    : typeof details.authorityVersionBefore === "number" ? details.authorityVersionBefore
+    : null;
+  const afterVersion = typeof details.versionAfter === "number" ? details.versionAfter
+    : typeof details.authorityVersionAfter === "number" ? details.authorityVersionAfter
+    : null;
+  return {
+    before: details.before ?? null,
+    after: details.after ?? null,
+    diff: details.diff ?? null,
+    version: beforeVersion === null && afterVersion === null ? EMPTY_VERSION : { before: beforeVersion, after: afterVersion },
+    caseId: typeof details.caseId === "string" ? details.caseId : null,
+    batchId: typeof details.batchId === "string" ? details.batchId
+      : typeof details.migrationRunId === "string" ? details.migrationRunId
+      : null,
+  };
+}
+
 function toPersistedEvent(row: typeof securityAuditEvent.$inferSelect): PersistedSecurityAuditEvent {
+  const stored = row.metadata && typeof row.metadata === "object" ? row.metadata as StoredAuditEnvelope : {};
   return {
     id: row.id,
     context: contextFromRow(row),
@@ -70,7 +102,8 @@ function toPersistedEvent(row: typeof securityAuditEvent.$inferSelect): Persiste
     correlationId: row.correlationId,
     ...(row.requestId ? { requestId: row.requestId } : {}),
     ...(row.reason ? { reason: row.reason } : {}),
-    metadata: row.metadata as JsonValue,
+    evidence: row.schemaVersion === 1 ? legacyEvidence(row.metadata) : stored.evidence ?? legacyEvidence(row.metadata),
+    metadata: row.schemaVersion === 1 ? row.metadata as JsonValue : stored.details ?? {},
     canonicalPayloadDigest: row.canonicalPayloadDigest,
     previousHash: row.previousHash,
     eventHash: row.eventHash,

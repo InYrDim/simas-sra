@@ -430,13 +430,13 @@ mysqlTest("MySQL persists the full canonical School Admin lifecycle with an atom
         assert.equal(event.actor_tenant_user_id, ids.nominee);
       }
     }
-    assert.equal((events[0].metadata as { details: { caseId: string } }).details.caseId, caseId);
-    assert.equal((events[1].metadata as { details: { caseId: string } }).details.caseId, caseId);
-    assert.equal((events[2].metadata as { details: { caseId: string } }).details.caseId, caseId);
-    assert.equal((events[3].metadata as { details: { caseId: string | null } }).details.caseId, null);
+    assert.equal((events[0].metadata as { evidence: { caseId: string } }).evidence.caseId, caseId);
+    assert.equal((events[1].metadata as { evidence: { caseId: string } }).evidence.caseId, caseId);
+    assert.equal((events[2].metadata as { evidence: { caseId: string } }).evidence.caseId, caseId);
+    assert.equal((events[3].metadata as { evidence: { caseId: string | null } }).evidence.caseId, null);
     assert.equal((events[3].metadata as { details: { revocationCount: number } }).details.revocationCount, 1);
     for (const event of events.slice(4)) {
-      assert.equal((event.metadata as { details: { caseId: string } }).details.caseId, recovery.caseId);
+      assert.equal((event.metadata as { evidence: { caseId: string } }).evidence.caseId, recovery.caseId);
     }
   });
 });
@@ -511,7 +511,7 @@ mysqlTest("MySQL replacement cutover atomically swaps the selected incumbent and
     assert.deepEqual(cutoverEvents.map((event) => event.event_type).sort(), [...cutoverTypes].sort());
     for (const event of cutoverEvents) {
       assert.equal(event.correlation_id, cutoverCorrelation);
-      assert.equal((event.metadata as { details: { caseId: string } }).details.caseId, caseId);
+      assert.equal((event.metadata as { evidence: { caseId: string } }).evidence.caseId, caseId);
     }
     const parent = cutoverEvents.find(
       (event) => event.event_type === "school_admin.replacement_cutover_completed",
@@ -519,27 +519,25 @@ mysqlTest("MySQL replacement cutover atomically swaps the selected incumbent and
     assert.ok(parent);
     assert.equal(parent.target_school_admin_authority_id, null);
     assert.equal(parent.target_school_admin_proof_id, nomination.proofId);
-    const parentDetails = (parent.metadata as {
+    const parentEnvelope = parent.metadata as {
+      evidence: { after: { successorAuthorityState: string; incumbentAuthorityState: string; activeCount: number } };
       details: {
-        caseId: string;
         successorAuthorityId: string;
         successorUserId: string;
         incumbentAuthorityId: string;
         incumbentUserId: string;
-        successorAuthorityStateAfter: string;
-        incumbentAuthorityStateAfter: string;
         revocationCount: number;
-        activeCountAfter: number;
       };
-    }).details;
+    };
+    const parentDetails = parentEnvelope.details;
     assert.equal(parentDetails.successorAuthorityId, nomination.authorityId);
     assert.equal(parentDetails.successorUserId, ids.nominee);
     assert.equal(parentDetails.incumbentAuthorityId, ids.incumbentAuthority);
     assert.equal(parentDetails.incumbentUserId, ids.incumbent);
-    assert.equal(parentDetails.successorAuthorityStateAfter, "active");
-    assert.equal(parentDetails.incumbentAuthorityStateAfter, "disabled");
+    assert.equal(parentEnvelope.evidence.after.successorAuthorityState, "active");
+    assert.equal(parentEnvelope.evidence.after.incumbentAuthorityState, "disabled");
     assert.equal(parentDetails.revocationCount, 1);
-    assert.equal(parentDetails.activeCountAfter, 2);
+    assert.equal(parentEnvelope.evidence.after.activeCount, 2);
   });
 });
 

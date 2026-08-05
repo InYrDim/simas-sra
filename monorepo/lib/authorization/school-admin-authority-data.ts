@@ -21,6 +21,7 @@ import {
 } from "@/lib/authorization/school-admin-authority";
 import {
   createSecurityCommandService,
+  securityAuditEvidence,
   SecurityCommandError,
   type SecurityPrincipal,
 } from "@/lib/authorization/security-command";
@@ -147,7 +148,8 @@ export async function projectSchoolAdminCompatibility(input: Readonly<{
             order: "summary",
             eventType: "school_admin.compatibility_projected",
             targets: { userId: plan.userId, schoolAdminAuthorityId: authorityId },
-            metadata: { migrationKey: SCHOOL_ADMIN_PROJECTION_MIGRATION_KEY },
+            evidence: securityAuditEvidence({ before: null, after: { authorityState: "active" }, diff: { authorityState: { before: null, after: "active" } }, version: { before: null, after: 1 }, batchId: SCHOOL_ADMIN_PROJECTION_MIGRATION_KEY }),
+            metadata: {},
           }],
         };
       }
@@ -185,7 +187,8 @@ export async function projectSchoolAdminCompatibility(input: Readonly<{
             order: "summary",
             eventType: "school_admin.compatibility_finding",
             targets: snapshot?.tenantId === input.tenantId ? { userId: input.userId } : undefined,
-            metadata: { migrationKey: SCHOOL_ADMIN_PROJECTION_MIGRATION_KEY, reasonCode: plan.code },
+            evidence: securityAuditEvidence({ batchId: SCHOOL_ADMIN_PROJECTION_MIGRATION_KEY }),
+            metadata: { reasonCode: plan.code },
           }],
         };
       }
@@ -203,7 +206,8 @@ export async function projectSchoolAdminCompatibility(input: Readonly<{
           eventType: "school_admin.compatibility_verified",
           targets: authorityId ? { userId: input.userId, schoolAdminAuthorityId: authorityId } : undefined,
           outcome: "annotated",
-          metadata: { migrationKey: SCHOOL_ADMIN_PROJECTION_MIGRATION_KEY },
+          evidence: securityAuditEvidence({ batchId: SCHOOL_ADMIN_PROJECTION_MIGRATION_KEY }),
+          metadata: {},
         }],
       };
     },
@@ -303,6 +307,7 @@ export async function disableSchoolAdminAuthority(input: Readonly<{
           eventType: "school_admin.authority_disabled",
           targets: { userId: input.userId, schoolAdminAuthorityId: target.authorityId },
           reason,
+          evidence: securityAuditEvidence({ before: { authorityState: "active" }, after: { authorityState: "disabled" }, diff: { authorityState: { before: "active", after: "disabled" } }, version: { before: target.version, after: target.version + 1 } }),
           metadata: { activeCountBefore: active.length, activeCountAfter: active.length - 1 },
         }],
       };
@@ -350,7 +355,8 @@ export async function recordGlobalSchoolAdminProjectionFinding(input: Readonly<{
           purpose: "compatibility-global-finding",
           order: "summary",
           eventType: "school_admin.compatibility_finding",
-          metadata: { migrationKey: SCHOOL_ADMIN_PROJECTION_MIGRATION_KEY, reasonCode: input.reasonCode },
+          evidence: securityAuditEvidence({ batchId: SCHOOL_ADMIN_PROJECTION_MIGRATION_KEY }),
+          metadata: { reasonCode: input.reasonCode },
         }],
       };
     },

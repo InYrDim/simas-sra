@@ -30,6 +30,7 @@ import {
 } from "@/lib/authorization/legacy-non-admin-backfill";
 import {
   createSecurityCommandService,
+  securityAuditEvidence,
   SecurityCommandError,
   type SecurityAuditEventDraft,
   type SecurityContext,
@@ -238,6 +239,18 @@ async function executePlan(
   now: Date,
 ): Promise<{ result: LegacyBackfillResult; auditEvents: readonly SecurityAuditEventDraft[] }> {
   const migrationKey = LEGACY_NON_ADMIN_BACKFILL_MIGRATION_KEY;
+  const evidenceFor = (result: LegacyBackfillResult) => securityAuditEvidence({
+    before: snapshot,
+    after: result,
+    diff: {
+      assignmentId: { before: null, after: result.assignmentId },
+      findingCode: { before: null, after: result.findingCode },
+      roleId: { before: null, after: result.roleId },
+      status: { before: null, after: result.status },
+    },
+    caseId: null,
+    batchId: runId,
+  });
   switch (plan.kind) {
     case "backfill-role": {
       const roleId = randomUUID();
@@ -281,14 +294,16 @@ async function executePlan(
         suspendedAt: null,
         updatedAt: now,
       });
+      const result: LegacyBackfillResult = { status: "backfilled", roleId, assignmentId, findingCode: null };
       return {
-        result: { status: "backfilled", roleId, assignmentId, findingCode: null },
+        result,
         auditEvents: [
           {
             purpose: "legacy-role-backfilled",
             order: "summary",
             eventType: "tenant_role.legacy_migration_backfilled",
             targets: { userId: plan.userId, roleId, assignmentId },
+            evidence: evidenceFor(result),
             metadata: {
               migrationKey,
               legacyRole: plan.legacyRole,
@@ -312,22 +327,25 @@ async function executePlan(
         suspendedAt: null,
         updatedAt: now,
       });
+      const result: LegacyBackfillResult = { status: "assigned", roleId: plan.roleId, assignmentId, findingCode: null };
       return {
-        result: { status: "assigned", roleId: plan.roleId, assignmentId, findingCode: null },
+        result,
         auditEvents: [
           {
             purpose: "legacy-role-assigned",
             order: "summary",
             eventType: "tenant_role.legacy_migration_assigned",
             targets: { userId: plan.userId, roleId: plan.roleId, assignmentId },
+            evidence: evidenceFor(result),
             metadata: { migrationKey, legacyRole: plan.legacyRole, migrationRunId: runId },
           },
         ],
       };
     }
     case "unchanged": {
+      const result: LegacyBackfillResult = { status: "unchanged", roleId: plan.roleId, assignmentId: null, findingCode: null };
       return {
-        result: { status: "unchanged", roleId: plan.roleId, assignmentId: null, findingCode: null },
+        result,
         auditEvents: [
           {
             purpose: "legacy-role-verified",
@@ -335,6 +353,7 @@ async function executePlan(
             eventType: "tenant_role.legacy_migration_verified",
             targets: { userId: plan.userId, roleId: plan.roleId },
             outcome: "annotated",
+            evidence: evidenceFor(result),
             metadata: { migrationKey, legacyRole: plan.legacyRole },
           },
         ],
@@ -342,14 +361,16 @@ async function executePlan(
     }
     case "not-non-admin":
     case "no-legacy-role": {
+      const result: LegacyBackfillResult = { status: "skipped", roleId: null, assignmentId: null, findingCode: null };
       return {
-        result: { status: "skipped", roleId: null, assignmentId: null, findingCode: null },
+        result,
         auditEvents: [
           {
             purpose: "legacy-role-skipped",
             order: "summary",
             eventType: "tenant_role.legacy_migration_skipped",
             outcome: "annotated",
+            evidence: evidenceFor(result),
             metadata: { migrationKey, reason: plan.kind },
           },
         ],
@@ -358,8 +379,9 @@ async function executePlan(
     case "finding": {
       await upsertFinding(database, plan, snapshot, userId, now);
       const tenantId = findingTenantId(plan, snapshot);
+      const result: LegacyBackfillResult = { status: "finding", roleId: null, assignmentId: null, findingCode: plan.code };
       return {
-        result: { status: "finding", roleId: null, assignmentId: null, findingCode: plan.code },
+        result,
         auditEvents: [
           {
             purpose: "legacy-role-finding",
@@ -367,6 +389,7 @@ async function executePlan(
             eventType: "tenant_role.legacy_migration_finding",
             targets: tenantId ? { userId } : undefined,
             outcome: "annotated",
+            evidence: evidenceFor(result),
             metadata: { migrationKey, reasonCode: plan.code, legacyRole: snapshot.legacyRole },
           },
         ],
@@ -414,6 +437,13 @@ export async function backfillLegacyNonAdminUser(input: Readonly<{
               order: "summary",
               eventType: "tenant_role.legacy_migration_skipped",
               outcome: "annotated",
+              evidence: securityAuditEvidence({
+                before: null,
+                after: { status: "skipped", roleId: null, assignmentId: null, findingCode: null },
+                diff: { status: { before: null, after: "skipped" } },
+                caseId: null,
+                batchId: input.runId,
+              }),
               metadata: { migrationKey: LEGACY_NON_ADMIN_BACKFILL_MIGRATION_KEY, reason: "user-missing" },
             },
           ],

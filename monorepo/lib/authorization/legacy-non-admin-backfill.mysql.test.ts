@@ -160,7 +160,7 @@ mysqlTest("MySQL backfills recognized legacy non-admin roles into frozen assignm
       assert.equal(role.origin, "legacy-migration");
       assert.ok(role.legacy_role);
       assert.ok(role.migration_run_id);
-      assert.equal(role.migration_version, "tenant-permissions@1");
+      assert.equal(role.migration_version, "tenant-permissions@2");
       assert.equal(role.migration_verification, "pending");
     }
 

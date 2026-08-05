@@ -57,20 +57,52 @@ export type SecurityVersionTransition = OptimisticVersion & Readonly<{
   toVersion: number;
 }>;
 
+export type AuditTargets = Readonly<{
+  userId?: string;
+  roleId?: string;
+  assignmentId?: string;
+  schoolAdminAuthorityId?: string;
+  schoolAdminProofId?: string;
+}>;
+
+export type SecurityAuditEvidence = Readonly<{
+  before: JsonValue | null;
+  after: JsonValue | null;
+  diff: JsonValue | null;
+  version: Readonly<{
+    before: number | null;
+    after: number | null;
+  }>;
+  caseId: string | null;
+  batchId: string | null;
+}>;
+
+export function securityAuditEvidence(
+  evidence: Partial<Omit<SecurityAuditEvidence, "version">> & Readonly<{
+    version?: Partial<SecurityAuditEvidence["version"]>;
+  }> = {},
+): SecurityAuditEvidence {
+  return {
+    before: evidence.before ?? null,
+    after: evidence.after ?? null,
+    diff: evidence.diff ?? null,
+    version: {
+      before: evidence.version?.before ?? null,
+      after: evidence.version?.after ?? null,
+    },
+    caseId: evidence.caseId ?? null,
+    batchId: evidence.batchId ?? null,
+  };
+}
+
 export type SecurityAuditEventDraft = Readonly<{
   purpose: string;
   order: "parent" | "summary" | "child" | "consequence";
-  schemaVersion?: number;
   eventType: string;
   outcome?: "succeeded" | "annotated";
-  targets?: Readonly<{
-    userId?: string;
-    roleId?: string;
-    assignmentId?: string;
-    schoolAdminAuthorityId?: string;
-    schoolAdminProofId?: string;
-  }>;
+  targets?: AuditTargets;
   reason?: string;
+  evidence: SecurityAuditEvidence;
   metadata: JsonValue;
 }>;
 
@@ -265,13 +297,19 @@ function orderAuditEvents(events: readonly SecurityAuditEventDraft[]): readonly 
     assertBoundedToken(event.eventType, 128);
     if (purposes.has(event.purpose)) throw new SecurityCommandError("integrity-failure");
     purposes.add(event.purpose);
-    if ((event.schemaVersion ?? 1) < 1 || !Number.isSafeInteger(event.schemaVersion ?? 1)) {
-      throw new SecurityCommandError("integrity-failure");
-    }
+
     if (event.reason !== undefined && (event.reason !== event.reason.trim() || event.reason.length < 1 || event.reason.length > 1000)) {
       throw new SecurityCommandError("invalid-command");
     }
+    assertJson(event.evidence);
     assertJson(event.metadata);
+    if (event.evidence.caseId !== null) assertIdentifier(event.evidence.caseId, 128);
+    if (event.evidence.batchId !== null) assertIdentifier(event.evidence.batchId, 128);
+    for (const version of [event.evidence.version.before, event.evidence.version.after]) {
+      if (version !== null && (!Number.isSafeInteger(version) || version < 0)) {
+        throw new SecurityCommandError("invalid-command");
+      }
+    }
     for (const identifier of Object.values(event.targets ?? {})) assertIdentifier(identifier, 36);
   }
   return [...events].sort((left, right) =>
@@ -326,15 +364,13 @@ function auditPayload(
   event: Omit<PersistedSecurityAuditEvent, "canonicalPayloadDigest" | "previousHash" | "eventHash">
     & Readonly<{ previousHashForDigest: string }>,
 ): JsonValue {
-  return {
-    actor: event.actor,
+  const common = {
     commandId: event.commandId,
     context: event.context,
     correlationId: event.correlationId,
     eventKey: event.eventKey,
     eventType: event.eventType,
     id: event.id,
-    metadata: event.metadata,
     occurredAt: event.occurredAt.toISOString(),
     outcome: event.outcome,
     previousHash: event.previousHashForDigest,
@@ -343,6 +379,15 @@ function auditPayload(
     schemaVersion: event.schemaVersion,
     sequence: event.sequence.toString(),
     targets: event.targets,
+  };
+  if (event.schemaVersion === 1) {
+    return { actor: event.actor, ...common, metadata: event.metadata };
+  }
+  return {
+    actor: actorEvidence(event.actor),
+    ...common,
+    evidence: event.evidence,
+    metadata: event.metadata,
   };
 }
 
@@ -368,13 +413,14 @@ export function securityAuditEventPayloadDigest(event: PersistedSecurityAuditEve
     correlationId: event.correlationId,
     requestId: event.requestId,
     reason: event.reason,
+    evidence: event.evidence,
     metadata: event.metadata,
     occurredAt: event.occurredAt,
     previousHashForDigest: event.previousHash,
   })));
 }
 
-function actorEvidence(actor: SecurityActor): JsonValue {
+export function actorEvidence(actor: SecurityActor): JsonValue {
   if (actor.kind === "system") return { kind: actor.kind, service: actor.service };
   const evidence: Record<string, JsonValue> = {
     kind: actor.kind,
@@ -405,7 +451,7 @@ function persistedEvents(input: Readonly<{
       context: input.context,
       sequence: input.head.nextSequence + BigInt(index),
       eventKey: eventIdentity(input.commandId, "audit", draft.purpose),
-      schemaVersion: draft.schemaVersion ?? 1,
+      schemaVersion: 2,
       eventType: draft.eventType,
       outcome: draft.outcome ?? "succeeded" as const,
       actor: input.actor,
@@ -414,10 +460,8 @@ function persistedEvents(input: Readonly<{
       correlationId: input.correlationId,
       requestId: input.requestId,
       reason: draft.reason,
-      metadata: {
-        actor: actorEvidence(input.actor),
-        details: draft.metadata,
-      },
+      evidence: draft.evidence,
+      metadata: draft.metadata,
       occurredAt: input.now,
       previousHashForDigest: previousHash,
     };

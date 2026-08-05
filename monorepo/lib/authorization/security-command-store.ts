@@ -12,10 +12,12 @@ import {
 } from "@/db/schema";
 import {
   actorColumns,
+  actorEvidence,
   contextColumns,
   SecurityCommandError,
   type JsonValue,
   type SecurityActor,
+  type SecurityAuditEvidence,
   type SecurityContext,
   type SecurityPrincipal,
 } from "@/lib/authorization/security-command";
@@ -63,6 +65,7 @@ export type PersistedSecurityAuditEvent = Readonly<{
   correlationId: string;
   requestId?: string;
   reason?: string;
+  evidence: SecurityAuditEvidence;
   metadata: JsonValue;
   canonicalPayloadDigest: string;
   previousHash: string;
@@ -367,7 +370,9 @@ export function createMySqlSecurityCommandStore(options: Readonly<{
                 correlationId: event.correlationId,
                 requestId: event.requestId ?? null,
                 reason: event.reason ?? null,
-                metadata: event.metadata,
+                metadata: event.schemaVersion === 1
+                  ? event.metadata
+                  : { actor: actorEvidence(event.actor), evidence: event.evidence, details: event.metadata },
                 canonicalPayloadDigest: event.canonicalPayloadDigest,
                 previousHash: event.previousHash,
                 eventHash: event.eventHash,

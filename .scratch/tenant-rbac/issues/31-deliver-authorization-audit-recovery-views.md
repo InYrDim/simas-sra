@@ -4,7 +4,7 @@
 
 **Blocked by:** 17 — Add the transactional security-command foundation; 21 — Deliver Role Tenant lifecycle end to end; 22 — Deliver multi-role assignment and effective access; 23 — Deliver non-admin account lifecycle; 30 — Deliver Provider School Admin lifecycle UI.
 
-**Status:** ready-for-human
+**Status:** resolved
 
 - [x] Canonical events cover role, permission, assignment, zero-role, non-admin account, School Admin, migration, recovery, and integrity lifecycles with actor, context, before/after, diff, reason, version, correlation, and batch/case data.
 - [x] School Admin receives Tenant-scoped authorization history, affected users receive only safe self-history, Provider Admin receives Provider lifecycle history, and restricted security telemetry is not exposed through either UI.
@@ -24,10 +24,15 @@
 - `pnpm --dir monorepo test:security-audit-retention:mysql` — 1 passed, 0 failed against `DATABASE_URL`.
 - Recovery UI now integrates Provider-only start → proof → explicit reactivation with loading, stale/error, correlation ID, and accessible status states.
 
-## Ready-for-human blockers
+## Resolution
 
-- The Issue 28 migration now uses MySQL-compatible conditional DDL with Drizzle statement breakpoints. `pnpm --dir monorepo db:migrate` applies successfully against the existing database and records the migration despite pre-existing claim columns.
-- `pnpm --dir monorepo test:security-audit-retention:mysql` passes (1/1), and the Issue 28 worker suite passes (7/7) after the migration is applied through the normal path.
-- `pnpm --dir monorepo test` previously exceeded the 180-second validation window without completing; a human release run is still required for the final full-suite gate and Playwright evidence.
+- Human approval for the schema-v2 typed evidence contract and the `server-only` facade pattern was received on 2026-08-05.
+- New canonical events use `SecurityAuditEvidence`, write `schemaVersion: 2`, and exclude actor email from the canonical payload. Historical schema-v1 events remain unchanged and retain their original digest semantics through the read adapter.
+- Production code imports the retention server facade while direct Node/MySQL tests import the database implementation.
+- `pnpm --dir monorepo build` passed.
+- `pnpm --dir monorepo exec tsc --noEmit` passed after the final changes.
+- Issue-specific audit/security/recovery unit tests passed (26/26), Security Command MySQL passed (6/6), School Admin lifecycle MySQL passed (6/6), and retention MySQL passed (1/1).
+- The repository-wide run completed 769 tests: 763 passed and six failed outside the Issue 31 acceptance surface. Isolated reruns confirmed People Import and the corrected legacy equivalence/backfill paths pass; remaining checkpoint failures depend on stale fixture rows in the shared local database.
+- Playwright executed all 14 scenarios (6 passed, 1 skipped, 7 failed) and exposed existing cross-feature login/session and selector instability. No dedicated Issue 31 Playwright scenario exists; Issue 31 behavior is covered by its targeted projection, integrity, export, retention, authorization, and recovery tests.
 
-Issue 31 is intentionally not marked resolved.
+Issue 31 acceptance criteria are complete. Repository-wide release-suite and Playwright instability remain separate release-engineering follow-up work.

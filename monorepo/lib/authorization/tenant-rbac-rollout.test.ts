@@ -120,6 +120,11 @@ test("rollout command derives Provider context, reauthenticates, and commits thr
   });
   assert.equal(result.result.httpMode, "intersection");
   assert.equal(controlled.snapshot().auditEvents[0]?.eventType, "tenant_rbac_rollout.transitioned");
+  assert.deepEqual(controlled.snapshot().auditEvents[0]?.evidence.before, stored(base));
+  assert.deepEqual(
+    controlled.snapshot().auditEvents[0]?.evidence.after,
+    stored({ ...base, httpMode: "intersection", epoch: BigInt(2), version: 2 }),
+  );
   assert.equal(controlled.snapshot().state[0]?.version, 2);
 });
 

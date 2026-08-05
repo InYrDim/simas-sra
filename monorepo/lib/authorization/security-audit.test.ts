@@ -4,7 +4,9 @@ import test from "node:test";
 import { createControlledSecurityCommandStore } from "@/lib/authorization/security-command-controlled-store";
 import {
   createSecurityCommandService,
+  securityAuditEvidence,
   securityAuditEventHash,
+  securityAuditEventPayloadDigest,
   type SecurityAuditEventDraft,
 } from "@/lib/authorization/security-command";
 import {
@@ -39,6 +41,7 @@ const drafts: readonly SecurityAuditEventDraft[] = [{
   eventType: "tenant_account.deactivated",
   targets: { userId: "target-1" },
   reason: "Akun dinonaktifkan",
+  evidence: securityAuditEvidence(),
   metadata: { exportFormula: "=HYPERLINK(\"https://evil.test\")", password: "must-not-leak" },
 }];
 
@@ -61,8 +64,8 @@ test("projects only the permitted partition and removes secrets and unnecessary 
   assert.equal(self[0]?.actor.id, null);
   assert.equal(tenant[0]?.actor.id, actor.userId);
   assert.doesNotMatch(JSON.stringify(self), /password|example\.test/);
-  assert.equal((self[0]?.metadata as { details?: { exportFormula?: string } }).details?.exportFormula, "'\=HYPERLINK(\"https://evil.test\")");
-  assert.equal((self[0]?.metadata as { details?: { password?: string } }).details?.password, undefined);
+  assert.equal((self[0]?.metadata as { exportFormula?: string }).exportFormula, "'\=HYPERLINK(\"https://evil.test\")");
+  assert.equal((self[0]?.metadata as { password?: string }).password, undefined);
   assert.deepEqual(projectSecurityAuditEvents(event, { scope: "tenant", tenantId: "other-tenant" }), []);
   assert.deepEqual(projectSecurityAuditEvents([...event, { ...event[0]!, id: "restricted-event", sequence: BigInt(2), eventType: "tenant_role.legacy_migration_finding" }], { scope: "tenant", tenantId: "tenant-1" }), tenant);
   assert.deepEqual(projectSecurityAuditEvents([{ ...event[0]!, eventType: "school_admin.authority_disabled", targets: { userId: actor.userId } }], { scope: "self", tenantId: "tenant-1", userId: actor.userId }), []);
@@ -96,6 +99,27 @@ test("projects only the permitted partition and removes secrets and unnecessary 
   assert.doesNotMatch(JSON.stringify(minimized), /user-1|target-1|Admin Sekolah|example\\.test/);
 });
 
+test("v2 canonical payload excludes actor email while v1 verification preserves it", async () => {
+  const { controlled, execute } = fixture();
+  await execute({
+    principal: { kind: "authenticated-user", userId: actor.userId },
+    idempotencyKey: "audit-schema-email-1",
+    commandName: "tenant.account.change",
+    payload: { targetUserId: "target-1" },
+    correlationId: "correlation-schema-email",
+    authorizeAndMutate: async () => ({ result: { ok: true }, auditEvents: drafts }),
+  });
+  const event = controlled.snapshot().auditEvents[0]!;
+  assert.equal(event.schemaVersion, 2);
+  const changedActor = { ...event, actor: { ...actor, email: "changed@example.test" } };
+  assert.equal(securityAuditEventPayloadDigest(changedActor), event.canonicalPayloadDigest);
+  const legacy = { ...event, schemaVersion: 1 };
+  assert.notEqual(
+    securityAuditEventPayloadDigest({ ...legacy, actor: changedActor.actor }),
+    securityAuditEventPayloadDigest(legacy),
+  );
+});
+
 test("verifies the anchored chain and detects payload, reorder, and deletion tampering", async () => {
   const { controlled, execute } = fixture();
   await execute({
@@ -106,7 +130,7 @@ test("verifies the anchored chain and detects payload, reorder, and deletion tam
     correlationId: "correlation-1",
     authorizeAndMutate: async () => ({ result: { ok: true }, auditEvents: [
       ...drafts,
-      { purpose: "follow-up", order: "consequence", eventType: "tenant_account.zero_role_entered", targets: { userId: "target-1" }, metadata: {} },
+      { purpose: "follow-up", order: "consequence", eventType: "tenant_account.zero_role_entered", targets: { userId: "target-1" }, evidence: securityAuditEvidence(), metadata: {} },
     ] }),
   });
   const snapshot = controlled.snapshot();
@@ -132,7 +156,7 @@ test("detects reordered, duplicated, forked, and unanchored events", async () =>
     correlationId: "correlation-tamper",
     authorizeAndMutate: async () => ({ result: { ok: true }, auditEvents: [
       ...drafts,
-      { purpose: "follow-up", order: "consequence", eventType: "tenant_account.zero_role_entered", targets: { userId: "target-1" }, metadata: {} },
+      { purpose: "follow-up", order: "consequence", eventType: "tenant_account.zero_role_entered", targets: { userId: "target-1" }, evidence: securityAuditEvidence(), metadata: {} },
     ] }),
   });
   const snapshot = controlled.snapshot();

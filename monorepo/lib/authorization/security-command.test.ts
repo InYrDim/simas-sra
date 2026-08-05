@@ -6,6 +6,7 @@ import {
   createSecurityCommandService,
   requireOptimisticUpdate,
   SecurityCommandError,
+  securityAuditEvidence,
   securityCommandFingerprint,
   type SecurityAuditEventDraft,
 } from "@/lib/authorization/security-command";
@@ -33,6 +34,7 @@ function auditEvents(): readonly SecurityAuditEventDraft[] {
       order: "child",
       eventType: "tenant_assignment.roles_replaced",
       targets: { assignmentId: "assignment-b" },
+      evidence: securityAuditEvidence(),
       metadata: { roleIds: ["role-b"] },
     },
     {
@@ -40,6 +42,7 @@ function auditEvents(): readonly SecurityAuditEventDraft[] {
       order: "consequence",
       eventType: "tenant_account.zero_role_entered",
       targets: { userId: "target-user" },
+      evidence: securityAuditEvidence(),
       metadata: {},
     },
     {
@@ -48,6 +51,7 @@ function auditEvents(): readonly SecurityAuditEventDraft[] {
       eventType: "tenant_account.deactivated",
       targets: { userId: "target-user" },
       reason: "Account no longer used",
+      evidence: securityAuditEvidence(),
       metadata: { fromVersion: 1, toVersion: 2 },
     },
     {
@@ -55,6 +59,7 @@ function auditEvents(): readonly SecurityAuditEventDraft[] {
       order: "child",
       eventType: "tenant_assignment.roles_replaced",
       targets: { assignmentId: "assignment-a" },
+      evidence: securityAuditEvidence(),
       metadata: { roleIds: ["role-a"] },
     },
     {
@@ -62,6 +67,7 @@ function auditEvents(): readonly SecurityAuditEventDraft[] {
       order: "summary",
       eventType: "tenant_assignment.suspension_summary",
       targets: { userId: "target-user" },
+      evidence: securityAuditEvidence(),
       metadata: { affectedCount: 2 },
     },
   ];
@@ -163,15 +169,8 @@ test("derives Tenant context from the locked actor and commits ordered atomic ef
   ]);
   assert.deepEqual(snapshot.auditEvents.map((event) => event.targets.assignmentId ?? null), [null, null, "assignment-a", "assignment-b", null]);
   assert.deepEqual(snapshot.auditEvents.map((event) => event.sequence), [1, 2, 3, 4, 5].map(BigInt));
-  assert.deepEqual(snapshot.auditEvents[0]?.metadata, {
-    actor: {
-      kind: "tenant-user",
-      userId: actor.userId,
-      tenantId: actor.tenantId,
-      displayName: actor.displayName,
-    },
-    details: { fromVersion: 1, toVersion: 2 },
-  });
+  assert.deepEqual(snapshot.auditEvents[0]?.metadata, { fromVersion: 1, toVersion: 2 });
+  assert.deepEqual(snapshot.auditEvents[0]?.evidence, securityAuditEvidence());
   assert.equal(snapshot.auditEvents[0]?.previousHash, "0".repeat(64));
   for (let index = 1; index < snapshot.auditEvents.length; index += 1) {
     assert.equal(snapshot.auditEvents[index]?.previousHash, snapshot.auditEvents[index - 1]?.eventHash);

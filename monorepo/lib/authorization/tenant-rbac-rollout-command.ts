@@ -3,6 +3,7 @@
 import {
   createSecurityCommandService,
   SecurityCommandError,
+  securityAuditEvidence,
   type SecurityPrincipal,
   type JsonValue,
 } from "@/lib/authorization/security-command";
@@ -134,7 +135,23 @@ export function createTenantRbacRolloutCommandService(options: Readonly<{
         return {
           result: { tenantId: input.tenantId, epoch: after.epoch.toString(), version: after.version, httpMode: after.httpMode, workerMode: after.workerMode },
           versionTransitions: [{ resourceType: "tenant-rbac-rollout", resourceId: input.tenantId, expectedVersion: current.version, toVersion: current.version + 1 }],
-          auditEvents: [{ purpose: "rollout-transition", order: "parent", eventType: "tenant_rbac_rollout.transitioned", reason: input.transition.reason, metadata: { tenantId: input.tenantId, fromVersion: current.version, toVersion: after.version, expectedEpoch: input.expectedEpoch.toString() } }],
+          auditEvents: [{
+            purpose: "rollout-transition",
+            order: "parent",
+            eventType: "tenant_rbac_rollout.transitioned",
+            reason: input.transition.reason,
+            evidence: securityAuditEvidence({
+              before: storedState(before) as unknown as JsonValue,
+              after: storedState(after) as unknown as JsonValue,
+              diff: {
+                httpMode: { before: before.httpMode, after: after.httpMode },
+                workerMode: { before: before.workerMode, after: after.workerMode },
+                epoch: { before: before.epoch.toString(), after: after.epoch.toString() },
+              },
+              version: { before: current.version, after: after.version },
+            }),
+            metadata: { tenantId: input.tenantId },
+          }],
         };
       },
     });

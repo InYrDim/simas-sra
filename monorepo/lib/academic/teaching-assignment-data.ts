@@ -2,7 +2,12 @@ import { and, eq, gt, gte, isNull, lte, or, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import { academicYear, classGroup, schoolPerson, subject, teacherProfile, teachingAssignment, teachingAssignmentEvent, tenant, tenantAccountSecurity, user } from "@/db/schema";
-import type { TeachingAssignmentEndpoint, TeachingAssignmentStore } from "@/lib/academic/teaching-assignment";
+import type {
+  TeachingAssignment,
+  TeachingAssignmentAudit,
+  TeachingAssignmentEndpoint,
+  TeachingAssignmentStore,
+} from "@/lib/academic/teaching-assignment";
 
 const levels = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
 
@@ -34,9 +39,9 @@ export const teachingAssignmentStore: TeachingAssignmentStore = {
       const transaction = {
         list: () => tx.select().from(teachingAssignment).where(eq(teachingAssignment.tenantId, tenantId)),
         endpoints: (input: Parameters<TeachingAssignmentStore["endpoints"]>[1]) => endpoints(tx, tenantId, input),
-        async insert(value: any) { if (value.tenantId !== tenantId) throw new Error("Cross-Tenant teaching assignment write denied"); await tx.insert(teachingAssignment).values(value); },
-        async update(value: any, expectedVersion: number) { const result = await tx.update(teachingAssignment).set({ teacherProfileId: value.teacherProfileId, subjectId: value.subjectId, classGroupId: value.classGroupId, academicYearId: value.academicYearId, startsOn: value.startsOn, endsOn: value.endsOn, status: value.status, reason: value.reason, version: value.version, updatedAt: value.updatedAt }).where(and(eq(teachingAssignment.tenantId, tenantId), eq(teachingAssignment.id, value.id), eq(teachingAssignment.version, expectedVersion))); return result[0].affectedRows === 1; },
-        async audit(value: any) { if (value.tenantId !== tenantId) throw new Error("Cross-Tenant teaching assignment audit denied"); await tx.insert(teachingAssignmentEvent).values(value); },
+        async insert(value: TeachingAssignment) { if (value.tenantId !== tenantId) throw new Error("Cross-Tenant teaching assignment write denied"); await tx.insert(teachingAssignment).values(value); },
+        async update(value: TeachingAssignment, expectedVersion: number) { const result = await tx.update(teachingAssignment).set({ teacherProfileId: value.teacherProfileId, subjectId: value.subjectId, classGroupId: value.classGroupId, academicYearId: value.academicYearId, startsOn: value.startsOn, endsOn: value.endsOn, status: value.status, reason: value.reason, version: value.version, updatedAt: value.updatedAt }).where(and(eq(teachingAssignment.tenantId, tenantId), eq(teachingAssignment.id, value.id), eq(teachingAssignment.version, expectedVersion))); return result[0].affectedRows === 1; },
+        async audit(value: TeachingAssignmentAudit) { if (value.tenantId !== tenantId) throw new Error("Cross-Tenant teaching assignment audit denied"); await tx.insert(teachingAssignmentEvent).values(value); },
         async lockScope(tuple: { teacherProfileId: string; subjectId: string; classGroupId: string; academicYearId: string }) { await tx.execute(sql`SELECT ${teachingAssignment.id} FROM ${teachingAssignment} WHERE ${teachingAssignment.tenantId} = ${tenantId} AND ${teachingAssignment.teacherProfileId} = ${tuple.teacherProfileId} AND ${teachingAssignment.subjectId} = ${tuple.subjectId} AND ${teachingAssignment.classGroupId} = ${tuple.classGroupId} AND ${teachingAssignment.academicYearId} = ${tuple.academicYearId} FOR UPDATE`); },
       };
       return work(transaction);

@@ -13,6 +13,7 @@ import {
   createApplicationApprovalStore,
   type ApprovalTransactionStep,
 } from "@/lib/provider/provider-application-data";
+import { OPERATION_MAP_VERSION } from "@/lib/authorization/tenant-rbac-contract";
 import { resolveCentralDestination } from "@/lib/platform/central-identity";
 import { getCentralIdentity } from "@/lib/platform/central-identity-data";
 import { createApproveSimasApplicationCommand } from "@/lib/provider/provider-applications";
@@ -250,7 +251,7 @@ function assertApprovedIdentityState(state: PersistedApprovalState, fixture: App
     epoch: "1",
     resolverVersion: "tenant-authorization@1",
     registryVersion: "tenant-permissions@2",
-    operationMapVersion: "tenant-operations@3",
+    operationMapVersion: OPERATION_MAP_VERSION,
     version: 1,
   }]);
   assert.deepEqual(state.owner, { tenantId: approvedTenant.id, role: "school-admin" });

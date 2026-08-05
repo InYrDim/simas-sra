@@ -10,6 +10,7 @@ const mysqlTest = databaseUrl ? test : test.skip;
 
 mysqlTest("MySQL preview persistence binds Tenant ownership and claims one commit atomically", async () => {
   const connection = await mysql.createConnection(databaseUrl!);
+  let competing: mysql.Connection | null = null;
   const ids = { tenant: randomUUID(), actor: randomUUID(), provider: randomUUID(), binding: randomUUID(), application: randomUUID(), preview: randomUUID() };
   const npsn = String(Math.floor(10_000_000 + Math.random() * 90_000_000));
   try {
@@ -22,23 +23,29 @@ mysqlTest("MySQL preview persistence binds Tenant ownership and claims one commi
     await connection.execute("UPDATE user SET tenant_id=?,tenant_role='school-admin' WHERE id=?", [ids.tenant, ids.actor]);
     const tokenDigest = "a".repeat(64);
     await connection.execute("INSERT INTO academic_operation_preview (id,tenant_id,actor_user_id,operation_id,token_digest,intent_digest,normalized_intent,state,expires_at,version) VALUES (?,?,?,?,?,?,?,'pending',DATE_ADD(NOW(3),INTERVAL 1 MINUTE),1)", [ids.preview, ids.tenant, ids.actor, "class-groups.memberships.assign", tokenDigest, "b".repeat(64), JSON.stringify({ studentIds: ["student-a"] })]);
-    const competing = await mysql.createConnection(databaseUrl!);
+    competing = await mysql.createConnection(databaseUrl!);
     const claims = await Promise.all([
       connection.execute("UPDATE academic_operation_preview SET idempotency_key='commit-a',version=2 WHERE id=? AND version=1 AND idempotency_key IS NULL", [ids.preview]),
       competing.execute("UPDATE academic_operation_preview SET idempotency_key='commit-b',version=2 WHERE id=? AND version=1 AND idempotency_key IS NULL", [ids.preview]),
     ]);
     await competing.end();
+    competing = null;
     assert.equal(claims.filter(([result]) => !Array.isArray(result) && result.affectedRows === 1).length, 1);
     const [rows] = await connection.execute<mysql.RowDataPacket[]>("SELECT tenant_id,actor_user_id,version FROM academic_operation_preview WHERE token_digest=?", [tokenDigest]);
     assert.deepEqual({ tenantId: rows[0]?.tenant_id, actorUserId: rows[0]?.actor_user_id, version: rows[0]?.version }, { tenantId: ids.tenant, actorUserId: ids.actor, version: 2 });
   } finally {
-    await connection.execute("DELETE FROM academic_operation_preview WHERE tenant_id=?", [ids.tenant]);
-    await connection.execute("UPDATE user SET tenant_id=NULL,tenant_role=NULL WHERE id=?", [ids.actor]);
-    await connection.execute("DELETE FROM tenant WHERE id=?", [ids.tenant]);
-    await connection.execute("DELETE FROM simas_application WHERE id=?", [ids.application]);
-    await connection.execute("DELETE FROM applicant_school_binding WHERE id=?", [ids.binding]);
-    await connection.execute("DELETE FROM provider_admin WHERE user_id=?", [ids.provider]);
-    await connection.execute("DELETE FROM user WHERE id IN (?,?)", [ids.actor, ids.provider]);
-    await connection.end();
+    if (competing) await competing.end().catch(() => undefined);
+    try {
+      await connection.execute("DELETE FROM academic_operation_preview WHERE tenant_id=?", [ids.tenant]);
+      await connection.execute("UPDATE user SET tenant_id=NULL,tenant_role=NULL WHERE id=?", [ids.actor]);
+      await connection.execute("UPDATE simas_application SET status='pending',decided_at=NULL,decided_by_provider_admin_id=NULL,approved_tenant_id=NULL WHERE id=?", [ids.application]);
+      await connection.execute("DELETE FROM tenant WHERE id=?", [ids.tenant]);
+      await connection.execute("DELETE FROM simas_application WHERE id=?", [ids.application]);
+      await connection.execute("DELETE FROM applicant_school_binding WHERE id=?", [ids.binding]);
+      await connection.execute("DELETE FROM provider_admin WHERE user_id=?", [ids.provider]);
+      await connection.execute("DELETE FROM user WHERE id IN (?,?)", [ids.actor, ids.provider]);
+    } finally {
+      await connection.end();
+    }
   }
 });

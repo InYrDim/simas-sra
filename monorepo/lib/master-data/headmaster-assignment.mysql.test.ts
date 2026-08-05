@@ -67,8 +67,9 @@ mysqlTest("MySQL serializes concurrent headmaster replacement, isolates Tenants,
     assert.equal(rows.length, 3); assert.equal(rows.filter((row) => row.ended_at === null).length, 1);
     const [audits] = await a.connection.query<mysql.RowDataPacket[]>("SELECT `operation` FROM `headmaster_assignment_audit` WHERE `tenant_id`=? ORDER BY `effective_date`", [a.ids.tenant]);
     assert.deepEqual(audits.map((row) => row.operation), ["assigned", "replaced", "replaced"]);
-    const currentTeacherId = rows.find((row) => row.ended_at === null)!.teacher_id as string;
-    const currentRecord = (await teachers.list(a.principal)).find((record) => record.teacher.id === currentTeacherId)!;
+    const currentTeacherId = String(rows.find((row) => row.ended_at === null)!.teacher_id);
+    const currentRecord = [first.record, second.record].find((record) => record.teacher.id === currentTeacherId);
+    assert.ok(currentRecord);
     assert.equal((await teachers.transition(a.principal, currentTeacherId, { toStatus: "ended", effectiveDate: "2025-04-01", reason: "Berakhir", expectedVersion: currentRecord.teacher.version })).ok, true);
     const denied = await teachers.archive(a.principal, currentTeacherId, { reason: "Arsip", expectedVersion: currentRecord.teacher.version + 1 });
     assert.equal(denied.ok, false); if (!denied.ok) assert.equal(denied.code, "relationship-blocked");
