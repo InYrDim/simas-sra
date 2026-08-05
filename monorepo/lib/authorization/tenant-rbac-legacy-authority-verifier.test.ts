@@ -17,12 +17,20 @@ test("verifier permits only exact compatibility projection references", () => {
     { path: "lib/provider/provider-application-data.ts", content: "isNull(user.tenantRole)" },
     { path: "scripts/clean-legacy-backfill-test-data.ts", content: "UPDATE `user` SET tenant_id=NULL, tenant_role=NULL" },
     { path: "lib/provider/provider-application-data.ts", content: "return user.tenantRole;" },
+    { path: "lib/provider/provider-application-data.ts", content: "isNull(user.tenantRole); return user.tenantRole;" },
   ]);
-  assert.deepEqual(findings, [{
-    file: "lib/provider/provider-application-data.ts",
-    line: 1,
-    reference: "user\\.tenantRole\\b",
-  }]);
+  assert.deepEqual(findings, [
+    {
+      file: "lib/provider/provider-application-data.ts",
+      line: 1,
+      reference: "user\\.tenantRole\\b",
+    },
+    {
+      file: "lib/provider/provider-application-data.ts",
+      line: 1,
+      reference: "user\\.tenantRole\\b",
+    },
+  ]);
 });
 
 test("verifier reports every runtime legacy authority reference", () => {

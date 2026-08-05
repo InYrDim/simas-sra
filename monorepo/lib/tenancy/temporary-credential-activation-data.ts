@@ -44,7 +44,7 @@ export const temporaryCredentialActivationStore: TemporaryCredentialActivationSt
         eq(schoolAdminAuthority.tenantId, principal.tenantId),
       ));
     const schoolAdminAuthorityStates = authorities.map((authority) => authority.state);
-    if (!schoolAdminAuthorityStates.includes("active")) return null;
+    if (schoolAdminAuthorityStates.length !== 1 || schoolAdminAuthorityStates[0] !== "active") return null;
     return {
       userId: principal.userId,
       tenantId: principal.tenantId,

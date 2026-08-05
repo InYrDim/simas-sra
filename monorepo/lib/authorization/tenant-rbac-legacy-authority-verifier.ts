@@ -24,9 +24,9 @@ const ALLOWED_PATHS = [
 ];
 
 const ALLOWED_COMPATIBILITY_REFERENCES = [
-  { path: /school-admin-lifecycle-data\.ts$/, line: /eq\(user\.tenantRole, "school-admin"\)/ },
-  { path: /provider-application-data\.ts$/, line: /isNull\(user\.tenantRole\)/ },
-  { path: /clean-legacy-backfill-test-data\.ts$/, line: /SET tenant_id=NULL, tenant_role=NULL/ },
+  { path: /school-admin-lifecycle-data\.ts$/, reference: /eq\(user\.tenantRole, "school-admin"\)/ },
+  { path: /provider-application-data\.ts$/, reference: /isNull\(user\.tenantRole\)/ },
+  { path: /clean-legacy-backfill-test-data\.ts$/, reference: /SET tenant_id=NULL, tenant_role=NULL/ },
 ];
 
 export function findForbiddenLegacyAuthorityReferences(
@@ -36,11 +36,14 @@ export function findForbiddenLegacyAuthorityReferences(
   for (const file of files) {
     if (ALLOWED_PATHS.some((pattern) => pattern.test(file.path))) continue;
     file.content.split(/\r?\n/).forEach((line, index) => {
-      if (ALLOWED_COMPATIBILITY_REFERENCES.some((allowed) =>
-        allowed.path.test(file.path) && allowed.line.test(line)
-      )) return;
+      const compatibilityReference = ALLOWED_COMPATIBILITY_REFERENCES.find((allowed) =>
+        allowed.path.test(file.path) && allowed.reference.test(line)
+      );
+      const inspectedLine = compatibilityReference
+        ? line.replace(compatibilityReference.reference, "")
+        : line;
       for (const pattern of FORBIDDEN_RUNTIME_REFERENCES) {
-        if (pattern.test(line)) {
+        if (pattern.test(inspectedLine)) {
           findings.push({ file: file.path, line: index + 1, reference: pattern.source });
           break;
         }
