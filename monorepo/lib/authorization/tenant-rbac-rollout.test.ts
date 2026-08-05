@@ -100,8 +100,11 @@ test("legacy rollback is forbidden after multi-role acceptance", () => {
 });
 
 test("rollout command derives Provider context, reauthenticates, and commits through security audit CAS", async () => {
+  const commandBase: RolloutState = { ...base, httpMode: "rbac", workerMode: "rbac", resolverVersion: "tenant-authorization@2", rollbackEligible: false, multiRoleAcceptedAt: now, legacyAuthorityDisabledAt: now };
+  const overlayBody = { deniedOperationIds: [], deniedPermissionKeys: [], denyMutations: true, policyVersion: "emergency@1" } as const;
+  const overlay = { ...overlayBody, overlayHash: emergencyOverlayDigest(overlayBody) };
   const provider = { kind: "provider-admin" as const, userId: "provider-1", displayName: "Provider", email: "provider@example.test" };
-  const controlled = createControlledSecurityCommandStore({ actors: { [provider.userId]: provider }, initialState: [{ id: "tenant-1", version: 1, value: stored(base) }] });
+  const controlled = createControlledSecurityCommandStore({ actors: { [provider.userId]: provider }, initialState: [{ id: "tenant-1", version: 1, value: stored(commandBase) }] });
   const executeSecurityCommand = createSecurityCommandService({ store: controlled.store, createId: ids(), now: () => now, reportSecuritySignal() {} });
   const service = createTenantRbacRolloutCommandService({
     executeSecurityCommand,
@@ -116,14 +119,14 @@ test("rollout command derives Provider context, reauthenticates, and commits thr
     expectedEpoch: BigInt(1),
     proofId: "reauth-proof-1",
     correlationId: "correlation-1",
-    transition: { surface: "http", toMode: "intersection", expectedEpoch: BigInt(1), reason: "internal canary" },
+    transition: { surface: "both", toMode: "rbac-emergency", expectedEpoch: BigInt(1), reason: "incident narrowing", emergencyOverlay: overlay },
   });
-  assert.equal(result.result.httpMode, "intersection");
+  assert.equal(result.result.httpMode, "rbac-emergency");
   assert.equal(controlled.snapshot().auditEvents[0]?.eventType, "tenant_rbac_rollout.transitioned");
-  assert.deepEqual(controlled.snapshot().auditEvents[0]?.evidence.before, stored(base));
+  assert.deepEqual(controlled.snapshot().auditEvents[0]?.evidence.before, stored(commandBase));
   assert.deepEqual(
     controlled.snapshot().auditEvents[0]?.evidence.after,
-    stored({ ...base, httpMode: "intersection", epoch: BigInt(2), version: 2 }),
+    stored({ ...commandBase, httpMode: "rbac-emergency", workerMode: "rbac-emergency", overlayHash: overlay.overlayHash, epoch: BigInt(2), version: 2 }),
   );
   assert.equal(controlled.snapshot().state[0]?.version, 2);
 });

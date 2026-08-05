@@ -20,7 +20,6 @@ import {
 } from "@/db/schema";
 import {
   createTenantAuthorizationEvaluator,
-  type TenantAuthorizationComparisonRecorder,
   type TenantAuthorizationRequest,
   type TenantAuthorizationStore,
 } from "@/lib/authorization/tenant-authorization";
@@ -33,7 +32,6 @@ export const tenantAuthorizationStore: TenantAuthorizationStore = {
         userId: user.id,
         tenantId: user.tenantId,
         selfPersonId: schoolPerson.id,
-        legacyRole: user.tenantRole,
         accountLifecycle: tenantAccountSecurity.lifecycle,
         providerAdminUserId: providerAdmin.userId,
         applicantUserId: applicant.userId,
@@ -61,7 +59,6 @@ export const tenantAuthorizationStore: TenantAuthorizationStore = {
       userId: row.userId,
       tenantId: row.tenantId,
       selfPersonId: row.selfPersonId ?? null,
-      legacyRole: row.legacyRole,
       accountLifecycle: row.accountLifecycle,
       providerAdmin: row.providerAdminUserId !== null,
       applicant: row.applicantUserId !== null,
@@ -165,17 +162,8 @@ export const tenantAuthorizationStore: TenantAuthorizationStore = {
   },
 };
 
-export const tenantAuthorizationComparisonRecorder: TenantAuthorizationComparisonRecorder = {
-  record(comparison) {
-    console.info({ event: "tenant_authorization_shadow_comparison", ...comparison });
-  },
-};
-
 export function createPersistedTenantAuthorizationEvaluator() {
-  return createTenantAuthorizationEvaluator({
-    store: tenantAuthorizationStore,
-    comparisonRecorder: tenantAuthorizationComparisonRecorder,
-  });
+  return createTenantAuthorizationEvaluator({ store: tenantAuthorizationStore });
 }
 
 type AuthenticatedTenantAuthorizationRequest = Omit<TenantAuthorizationRequest, "sessionUserId">;

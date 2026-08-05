@@ -246,10 +246,10 @@ function assertApprovedIdentityState(state: PersistedApprovalState, fixture: App
   const approvedTenant = state.tenants[0];
   assert.deepEqual(state.rollouts, [{
     tenantId: approvedTenant.id,
-    httpMode: "legacy",
-    workerMode: "legacy",
+    httpMode: "rbac",
+    workerMode: "rbac",
     epoch: "1",
-    resolverVersion: "tenant-authorization@1",
+    resolverVersion: "tenant-authorization@2",
     registryVersion: "tenant-permissions@2",
     operationMapVersion: OPERATION_MAP_VERSION,
     version: 1,

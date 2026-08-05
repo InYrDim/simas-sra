@@ -7,10 +7,9 @@ import {
   type OperationEntitlement,
   type TenantOperationDefinition,
 } from "@/lib/authorization/tenant-rbac-contract";
-import { resolveSchoolAdminAuthority } from "@/lib/authorization/school-admin-authority";
 import { isTenantFeatureEnabled, type TenantFeatureKey } from "@/lib/features/tenant-feature-policy";
 
-export const TENANT_AUTHORIZATION_RESOLVER_VERSION = "tenant-authorization@1";
+export const TENANT_AUTHORIZATION_RESOLVER_VERSION = "tenant-authorization@2";
 
 export type TenantAuthorizationSurface = "page" | "api" | "worker";
 export type TenantAuthorizationMode = "legacy" | "intersection" | "rbac" | "rbac-emergency";
@@ -63,11 +62,6 @@ export type TenantAuthorizationInternalDenial = Readonly<{
   operationId: string;
 }>;
 
-export type LegacyAuthorizationDecision = Readonly<{
-  allowed: boolean;
-  reason: string;
-}>;
-
 export type TenantAuthorizationRollout = Readonly<{
   httpMode: TenantAuthorizationMode;
   workerMode: TenantAuthorizationMode;
@@ -82,7 +76,6 @@ export type TenantAuthorizationAccount = Readonly<{
   userId: string;
   tenantId: string | null;
   selfPersonId?: string | null;
-  legacyRole: string | null;
   accountLifecycle: "pending-activation" | "active" | "inactive" | null;
   providerAdmin: boolean;
   applicant: boolean;
@@ -152,31 +145,6 @@ export type TenantAuthorizationRequest = Readonly<{
   invariant?: TenantAuthorizationInvariant;
 }>;
 
-export type TenantAuthorizationComparisonDirection =
-  | "match-allow"
-  | "match-deny"
-  | "legacy-only"
-  | "rbac-only";
-
-/** Deliberately excludes user, Tenant, domain, resource, correlation, and free-text reason data. */
-export type TenantAuthorizationShadowComparison = Readonly<{
-  direction: TenantAuthorizationComparisonDirection;
-  operationId: string;
-  surface: TenantAuthorizationSurface;
-  mode: TenantAuthorizationMode;
-  rolloutEpoch: string;
-  resolverVersion: string;
-  registryVersion: string;
-  operationMapVersion: string;
-  legacyAllowed: boolean;
-  rbacAllowed: boolean;
-  rbacDenialCode: TenantAuthorizationDenialCode | null;
-}>;
-
-export interface TenantAuthorizationComparisonRecorder {
-  record(comparison: TenantAuthorizationShadowComparison): Promise<void> | void;
-}
-
 export type TenantAuthorizationEmergencyPolicy = Readonly<{
   overlayHash: string;
   deniedOperationIds?: ReadonlySet<string>;
@@ -194,7 +162,6 @@ export type TenantAuthorizationResult =
       kind: "authorized";
       principal: TenantAuthorizationPrincipal;
       mode: TenantAuthorizationMode;
-      legacy: LegacyAuthorizationDecision;
       rbac: TenantAuthorizationDecision;
     }>
   | Readonly<{
@@ -202,18 +169,15 @@ export type TenantAuthorizationResult =
       external: TenantAuthorizationExternalDenial;
       internal: TenantAuthorizationInternalDenial;
       mode: TenantAuthorizationMode;
-      legacy: LegacyAuthorizationDecision;
       rbac: TenantAuthorizationDecision;
     }>;
 
 export type TenantAuthorizationEvaluatorDependencies = Readonly<{
   store: TenantAuthorizationStore;
-  comparisonRecorder?: TenantAuthorizationComparisonRecorder;
   emergencyPolicies?: readonly TenantAuthorizationEmergencyPolicy[];
   now?: () => Date;
 }>;
 
-const tenantRoles = new Set(["school-admin", "pimpinan", "staff", "guru", "siswa", "guest"]);
 const operations = new Map(tenantOperationMap.map((operation) => [operation.id, operation]));
 
 function denial(
@@ -233,7 +197,7 @@ function externalDenial(value: TenantAuthorizationInternalDenial): TenantAuthori
 }
 
 function modeFor(rollout: TenantAuthorizationRollout | null, surface: TenantAuthorizationSurface): TenantAuthorizationMode {
-  if (!rollout) return "legacy";
+  if (!rollout) return "rbac";
   return surface === "worker" ? rollout.workerMode : rollout.httpMode;
 }
 
@@ -286,25 +250,9 @@ function hasPermissions(
   return required.every((key) => effective.has(key));
 }
 
-function activeAuthority(
-  authority: TenantAuthorizationAuthority,
-  account: TenantAuthorizationAccount,
-  tenant: TenantAuthorizationTenant,
-) {
-  const schoolAdmin = resolveSchoolAdminAuthority({
-    userId: account.userId,
-    tenantId: account.tenantId,
-    legacyRole: account.legacyRole,
-    tenantExists: account.tenantId === tenant.id,
-    providerAdmin: account.providerAdmin,
-    applicant: account.applicant,
-    authorities: authority.schoolAdminAuthorityStates.map((authorityState, index) => ({
-      id: `authority-${index}`,
-      tenantId: tenant.id,
-      userId: account.userId,
-      authorityState,
-    })),
-  }).dedicatedActive;
+function activeAuthority(authority: TenantAuthorizationAuthority) {
+  const schoolAdmin = authority.schoolAdminAuthorityStates.length === 1
+    && authority.schoolAdminAuthorityStates[0] === "active";
   const roleIds = new Set<string>();
   const permissions = new Set<string>();
 
@@ -342,7 +290,7 @@ function rolloutDenial(
   emergencyPolicies: readonly TenantAuthorizationEmergencyPolicy[],
 ): TenantAuthorizationInternalDenial | null {
   if (!rollout) return denial(request.operationId, "rollout-missing", "rollout");
-  const supportedModes = new Set<TenantAuthorizationMode>(["legacy", "intersection", "rbac", "rbac-emergency"]);
+  const supportedModes = new Set<TenantAuthorizationMode>(["rbac", "rbac-emergency"]);
   if (
     !supportedModes.has(rollout.httpMode) ||
     !supportedModes.has(rollout.workerMode) ||
@@ -384,18 +332,7 @@ function emergencyDenies(
   );
 }
 
-function legacyRoleAllows(account: TenantAuthorizationAccount, operation: TenantOperationDefinition): boolean {
-  if (!account.legacyRole || !tenantRoles.has(account.legacyRole)) return false;
-  if (operation.classification === "placeholder") return true;
-  if (operation.classification !== "tenant-rbac" && operation.classification !== "system-policy") return false;
-  return operation.legacyAuthority.includes("tenantRole") || account.legacyRole === "school-admin";
-}
 
-function comparisonDirection(legacyAllowed: boolean, rbacAllowed: boolean): TenantAuthorizationComparisonDirection {
-  if (legacyAllowed && rbacAllowed) return "match-allow";
-  if (!legacyAllowed && !rbacAllowed) return "match-deny";
-  return legacyAllowed ? "legacy-only" : "rbac-only";
-}
 
 export function createTenantAuthorizationEvaluator(dependencies: TenantAuthorizationEvaluatorDependencies) {
   const accountMemo = new Map<string, Promise<TenantAuthorizationAccount | null>>();
@@ -440,16 +377,14 @@ export function createTenantAuthorizationEvaluator(dependencies: TenantAuthoriza
     let rollout: TenantAuthorizationRollout | null = null;
     let principal: TenantAuthorizationPrincipal | null = null;
     let rbacDenial: TenantAuthorizationInternalDenial | null = null;
-    let legacyDenial: TenantAuthorizationInternalDenial | null = null;
-    let legacyAllowed = false;
 
     try {
       if (!request.sessionUserId) {
-        rbacDenial = legacyDenial = denial(request.operationId, "no-session", "authentication");
+        rbacDenial = denial(request.operationId, "no-session", "authentication");
       }
 
       const account = request.sessionUserId ? await loadAccount(request.sessionUserId) : null;
-      if (!rbacDenial && !account) rbacDenial = legacyDenial = denial(request.operationId, "account-missing", "account");
+      if (!rbacDenial && !account) rbacDenial = denial(request.operationId, "account-missing", "account");
       if (
         !rbacDenial &&
         account?.accountLifecycle !== null &&
@@ -459,35 +394,31 @@ export function createTenantAuthorizationEvaluator(dependencies: TenantAuthoriza
         rbacDenial = denial(request.operationId, "account-inactive", "account");
       }
 
-      const tenant = !legacyDenial ? await loadTenant(request.domain) : null;
-      if (!legacyDenial && !tenant) rbacDenial = legacyDenial = denial(request.operationId, "tenant-missing", "tenant-resolution");
-      if (!legacyDenial && account && tenant && account.tenantId !== tenant.id) {
-        rbacDenial = legacyDenial = denial(request.operationId, "tenant-mismatch", "tenant-membership");
+      const tenant = !rbacDenial ? await loadTenant(request.domain) : null;
+      if (!rbacDenial && !tenant) rbacDenial = denial(request.operationId, "tenant-missing", "tenant-resolution");
+      if (!rbacDenial && account && tenant && account.tenantId !== tenant.id) {
+        rbacDenial = denial(request.operationId, "tenant-mismatch", "tenant-membership");
       }
-      if (!legacyDenial && account && (
-        account.providerAdmin
-        || account.applicant
-        || (account.legacyRole !== null && !tenantRoles.has(account.legacyRole))
-      )) {
-        rbacDenial = legacyDenial = denial(request.operationId, "identity-kind-rejected", "identity-kind");
+      if (!rbacDenial && account && (account.providerAdmin || account.applicant)) {
+        rbacDenial = denial(request.operationId, "identity-kind-rejected", "identity-kind");
       }
-      if (!legacyDenial && account && !account.activationComplete) {
-        rbacDenial = legacyDenial = denial(request.operationId, "activation-incomplete", "activation");
+      if (!rbacDenial && account && !account.activationComplete) {
+        rbacDenial = denial(request.operationId, "activation-incomplete", "activation");
       }
       if (!rbacDenial && account?.accountLifecycle === "pending-activation") {
         rbacDenial = denial(request.operationId, "activation-incomplete", "activation");
       }
 
-      if (!operation && !legacyDenial) {
-        rbacDenial = legacyDenial = denial(request.operationId, "unknown-operation", "permission-configuration");
+      if (!operation && !rbacDenial) {
+        rbacDenial = denial(request.operationId, "unknown-operation", "permission-configuration");
       }
       const stateProblem = operation && tenant ? tenantStateDenial(operation, tenant, now()) : null;
-      if (!legacyDenial && stateProblem) {
-        rbacDenial = legacyDenial = denial(request.operationId, stateProblem, "tenant-state");
+      if (!rbacDenial && stateProblem) {
+        rbacDenial = denial(request.operationId, stateProblem, "tenant-state");
       }
       const feature = operation ? entitlementFeature(operation) : null;
-      if (!legacyDenial && feature && tenant && !isTenantFeatureEnabled(tenant.settings, feature)) {
-        rbacDenial = legacyDenial = denial(request.operationId, "entitlement-disabled", "entitlement");
+      if (!rbacDenial && feature && tenant && !isTenantFeatureEnabled(tenant.settings, feature)) {
+        rbacDenial = denial(request.operationId, "entitlement-disabled", "entitlement");
       }
 
       const required: readonly string[] | null = operation ? requestedPermissions(operation, request.requestedPermissions) : null;
@@ -498,19 +429,11 @@ export function createTenantAuthorizationEvaluator(dependencies: TenantAuthoriza
         rbacDenial = denial(request.operationId, "unknown-permission", "permission-configuration");
       }
 
-      if (account && tenant && !legacyDenial) legacyAllowed = Boolean(operation && legacyRoleAllows(account, operation));
-      if (!legacyDenial && !legacyAllowed) legacyDenial = denial(request.operationId, "permission-denied", "effective-permission");
-
-      if (
-        account &&
-        tenant &&
-        operation &&
-        (!legacyDenial || legacyDenial.stage === "effective-permission")
-      ) {
+      if (!rbacDenial && account && tenant && operation) {
         rollout = await loadRollout(tenant.id);
         let effective: ReturnType<typeof activeAuthority> | null = null;
         try {
-          effective = activeAuthority(await loadAuthority(account.userId, tenant.id), account, tenant);
+          effective = activeAuthority(await loadAuthority(account.userId, tenant.id));
         } catch {
           rbacDenial = denial(request.operationId, "store-unavailable", "persistence");
         }
@@ -566,65 +489,14 @@ export function createTenantAuthorizationEvaluator(dependencies: TenantAuthoriza
     } catch {
       const unavailable = denial(request.operationId, "store-unavailable", "persistence");
       rbacDenial ??= unavailable;
-      legacyDenial ??= unavailable;
     }
 
     const mode = modeFor(rollout, request.surface);
-    const rbacAllowed = !rbacDenial;
-    const legacy: LegacyAuthorizationDecision = {
-      allowed: legacyAllowed && !legacyDenial,
-      reason: legacyDenial?.code ?? "allowed",
-    };
-    const rbac: TenantAuthorizationDecision = { allowed: rbacAllowed, denial: rbacDenial };
+    const rbac: TenantAuthorizationDecision = { allowed: !rbacDenial, denial: rbacDenial };
+    if (rbac.allowed && principal) return { kind: "authorized", principal, mode, rbac };
 
-    if (dependencies.comparisonRecorder) {
-      try {
-        await dependencies.comparisonRecorder.record({
-          direction: comparisonDirection(legacy.allowed, rbac.allowed),
-          operationId: request.operationId,
-          surface: request.surface,
-          mode,
-          rolloutEpoch: rollout?.epoch.toString() ?? "missing",
-          resolverVersion: rollout?.resolverVersion ?? "missing",
-          registryVersion: rollout?.registryVersion ?? "missing",
-          operationMapVersion: rollout?.operationMapVersion ?? "missing",
-          legacyAllowed: legacy.allowed,
-          rbacAllowed: rbac.allowed,
-          rbacDenialCode: rbac.denial?.code ?? null,
-        });
-      } catch {
-        // Comparison telemetry is deliberately non-authoritative.
-      }
-    }
-
-    const mutation = operation?.operationalGate === "write";
-    const mandatoryDenial = Boolean(
-      rbacDenial && (
-        (rbacDenial.code === "store-unavailable" && mutation) ||
-        (
-          ["rollout-missing", "rollout-version-unsupported", "rollout-epoch-stale", "emergency-policy-unsupported"].includes(rbacDenial.code) &&
-          (rbacDenial.code === "rollout-missing" || mutation || mode !== "legacy")
-        )
-      ),
-    );
-    const visibleAllowed = mandatoryDenial
-      ? false
-      : mode === "legacy"
-        ? legacy.allowed
-        : mode === "intersection"
-          ? legacy.allowed && rbac.allowed
-          : rbac.allowed;
-
-    if (visibleAllowed && principal) return { kind: "authorized", principal, mode, legacy, rbac };
-
-    const visibleDenial = mandatoryDenial
-      ? rbacDenial!
-      : mode === "legacy"
-        ? legacyDenial ?? denial(request.operationId, "permission-denied", "effective-permission")
-        : mode === "intersection"
-          ? legacyDenial ?? rbacDenial ?? denial(request.operationId, "permission-denied", "effective-permission")
-          : rbacDenial ?? denial(request.operationId, "permission-denied", "effective-permission");
-    return { kind: "denied", external: externalDenial(visibleDenial), internal: visibleDenial, mode, legacy, rbac };
+    const visibleDenial = rbacDenial ?? denial(request.operationId, "permission-denied", "effective-permission");
+    return { kind: "denied", external: externalDenial(visibleDenial), internal: visibleDenial, mode, rbac };
   }
 
   return Object.freeze({ evaluate });

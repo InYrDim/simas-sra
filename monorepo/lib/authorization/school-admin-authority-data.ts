@@ -247,7 +247,6 @@ export async function disableSchoolAdminAuthority(input: Readonly<{
           userId: schoolAdminAuthority.userId,
           state: schoolAdminAuthority.authorityState,
           version: schoolAdminAuthority.version,
-          legacyRole: user.tenantRole,
           accountLifecycle: tenantAccountSecurity.lifecycle,
         })
         .from(schoolAdminAuthority)
@@ -263,13 +262,12 @@ export async function disableSchoolAdminAuthority(input: Readonly<{
         .orderBy(schoolAdminAuthority.userId)
         .for("update");
       const target = roster.find((row) => row.userId === input.userId);
-      if (!target || target.state !== "active" || target.legacyRole !== "school-admin") {
+      if (!target || target.state !== "active") {
         throw new SecurityCommandError("context-denied");
       }
       if (target.version !== input.expectedVersion) throw new SecurityCommandError("stale-version");
       const active = roster.filter((row) =>
         row.state === "active"
-        && row.legacyRole === "school-admin"
         && (row.accountLifecycle === null || row.accountLifecycle === "active"));
       if (active.length <= 1) throw new SecurityCommandError("integrity-failure");
 

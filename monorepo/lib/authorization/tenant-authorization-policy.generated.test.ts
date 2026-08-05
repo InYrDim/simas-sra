@@ -47,11 +47,10 @@ function grantClosure(keys: readonly string[]): readonly string[] {
   return [...grants];
 }
 
-function account(legacyRole: string, lifecycle: TenantAuthorizationAccount["accountLifecycle"] = "active"): TenantAuthorizationAccount {
+function account(lifecycle: TenantAuthorizationAccount["accountLifecycle"] = "active"): TenantAuthorizationAccount {
   return {
     userId: "actor",
     tenantId: "tenant-a",
-    legacyRole,
     accountLifecycle: lifecycle,
     providerAdmin: false,
     applicant: false,
@@ -108,7 +107,7 @@ function requestFor(operation: TenantOperationDefinition) {
 for (const operation of generatedOperations) {
   test(`generated policy: School Admin resolves ${operation.id}`, async () => {
     const result = await createTenantAuthorizationEvaluator({
-      store: storeFor(account("school-admin"), {
+      store: storeFor(account(), {
         schoolAdminAuthorityStates: ["active"],
         assignments: [],
       }),
@@ -129,13 +128,13 @@ for (const operation of generatedOperations) {
       }],
     };
     const granted = await createTenantAuthorizationEvaluator({
-      store: storeFor(account("staff"), exactGrant),
+      store: storeFor(account(), exactGrant),
     }).evaluate(requestFor(operation));
     const schoolAdminOnly = operation.contextualPolicy === "school-admin-only" || operation.requiredPermissions.some((key) => key === "tenant.onboarding.complete");
     assert.equal(granted.rbac.allowed, !schoolAdminOnly, granted.rbac.denial?.code);
 
     const zeroRole = await createTenantAuthorizationEvaluator({
-      store: storeFor(account("staff"), { schoolAdminAuthorityStates: [], assignments: [] }),
+      store: storeFor(account(), { schoolAdminAuthorityStates: [], assignments: [] }),
     }).evaluate(requestFor(operation));
     assert.equal(zeroRole.rbac.allowed, false);
     assert.equal(zeroRole.rbac.denial?.code, "permission-denied");
@@ -171,7 +170,7 @@ test("generated denial matrix covers inactive accounts, invalid grants, read-onl
     };
 
     const inactive = await createTenantAuthorizationEvaluator({
-      store: storeFor(account("staff", "inactive"), grants),
+      store: storeFor(account("inactive"), grants),
     }).evaluate(request);
     assert.equal(inactive.rbac.denial?.code, "account-inactive", operation.id);
 
@@ -180,27 +179,27 @@ test("generated denial matrix covers inactive accounts, invalid grants, read-onl
       { ...grants, assignments: grants.assignments.map((assignment) => ({ ...assignment, roleLifecycle: "archived" })) },
     ]) {
       const invalidGrant = await createTenantAuthorizationEvaluator({
-        store: storeFor(account("staff"), invalidAuthority),
+        store: storeFor(account(), invalidAuthority),
       }).evaluate(request);
       assert.equal(invalidGrant.rbac.denial?.code, "permission-denied", operation.id);
     }
 
     const wrongTenant = await createTenantAuthorizationEvaluator({
-      store: storeFor({ ...account("staff"), tenantId: "tenant-b" }, grants),
+      store: storeFor({ ...account(), tenantId: "tenant-b" }, grants),
     }).evaluate(request);
     assert.equal(wrongTenant.rbac.denial?.code, "tenant-mismatch", operation.id);
     if (wrongTenant.kind === "denied") assert.equal(wrongTenant.external.kind, "not-found", operation.id);
 
     if (operation.operationalGate === "write") {
       const readOnly = await createTenantAuthorizationEvaluator({
-        store: storeFor(account("staff"), grants, { operationalStatus: "suspended" }),
+        store: storeFor(account(), grants, { operationalStatus: "suspended" }),
       }).evaluate(request);
       assert.equal(readOnly.rbac.denial?.code, "read-only", operation.id);
     }
 
     if (operation.entitlement !== "none") {
       const disabled = await createTenantAuthorizationEvaluator({
-        store: storeFor(account("staff"), grants, { settings: disabledSettings }),
+        store: storeFor(account(), grants, { settings: disabledSettings }),
       }).evaluate(request);
       assert.equal(disabled.rbac.denial?.code, "entitlement-disabled", operation.id);
     }
@@ -211,7 +210,7 @@ test("generated projection matrix requires every declared supplemental permissio
   for (const operation of generatedOperations.filter((candidate) => candidate.supplementalPermissions.length > 0 && candidate.permissionMode === "all")) {
     const permissions = operation.requiredPermissions.filter((key) => !operation.supplementalPermissions.includes(key));
     const result = await createTenantAuthorizationEvaluator({
-      store: storeFor(account("staff"), {
+      store: storeFor(account(), {
         schoolAdminAuthorityStates: [],
         assignments: [{
           assignmentId: "assignment",
@@ -231,7 +230,7 @@ test("generated contextual matrix fails closed without proof and accepts every d
   for (const operation of generatedOperations.filter((candidate) =>
     ["assigned", "self", "assigned-or-self"].includes(candidate.contextualPolicy),
   )) {
-    const store = storeFor(account("staff"), {
+    const store = storeFor(account(), {
       schoolAdminAuthorityStates: [],
       assignments: [{
         assignmentId: "assignment",

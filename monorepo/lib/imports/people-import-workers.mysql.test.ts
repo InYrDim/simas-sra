@@ -75,7 +75,7 @@ async function createFixture(connection: mysql.Connection, withExecutionRow = fa
   await connection.execute("INSERT INTO applicant_school_binding(id,user_id,canonical_npsn,created_at) VALUES (?,?,?,NOW(3))", [bindingId, adminId, npsn]);
   await connection.execute("INSERT INTO simas_application(id,school_name,npsn,education_level,address,contact_name,contact_position,contact_email,contact_whatsapp,status,submitted_at,owner_user_id,binding_id,attempt_number,idempotency_key,payload_hash) VALUES (?,'Worker Test',?,'SMA','A','K','O',?,'0812','pending',NOW(3),?,?,1,?,REPEAT('a',64))", [applicationId, npsn, `${applicationId}@test.invalid`, adminId, bindingId, id()]);
   await connection.execute("INSERT INTO tenant(id,name,domain,npsn,source_application_id,approved_at,operational_status,settings,created_at,updated_at) VALUES (?,'Worker Test',?,?,?,NOW(3),'active',?,NOW(3),NOW(3))", [tenantId, domain, npsn, applicationId, JSON.stringify({ features: { masterData: true, masterDataRead: true, masterDataWrite: true, masterDataImportValidation: true, masterDataImportExecution: true } })]);
-  await connection.execute("INSERT INTO tenant_rbac_rollout(tenant_id,http_mode,worker_mode,epoch,resolver_version,registry_version,operation_map_version,updated_at) VALUES (?,'legacy','legacy',1,'tenant-authorization@1','tenant-permissions@2','tenant-operations@4',NOW(3))", [tenantId]);
+  await connection.execute("INSERT INTO tenant_rbac_rollout(tenant_id,http_mode,worker_mode,epoch,resolver_version,registry_version,operation_map_version,updated_at) VALUES (?,'rbac','rbac',1,'tenant-authorization@2','tenant-permissions@2','tenant-operations@4',NOW(3))", [tenantId]);
   await connection.execute("UPDATE simas_application SET status='approved',decided_at=NOW(3),decided_by_provider_admin_id=?,approved_tenant_id=? WHERE id=?", [providerId, tenantId, applicationId]);
   await connection.execute("UPDATE user SET tenant_id=?,tenant_role='school-admin' WHERE id=?", [tenantId, adminId]);
   await connection.execute("INSERT INTO school_admin_authority(id,tenant_id,user_id,authority_state,version,granted_at,created_at,updated_at) VALUES (?,?,?,'active',1,NOW(3),NOW(3),NOW(3))", [id(), tenantId, adminId]);
@@ -149,7 +149,7 @@ mysqlTest("validation rejects stale process version and rollout epoch inside com
     if (!job) return;
     await connection.execute("UPDATE tenant_rbac_rollout SET resolver_version='unknown-worker-version' WHERE tenant_id=?", [fixture.tenantId]);
     await assert.rejects(() => peopleImportStore.completeValidation({ jobId: job.id, ...job, domain: fixture.domain, kind: "student", version: "1.0.0", rows: [] }), /authority-revoked/);
-    await connection.execute("UPDATE tenant_rbac_rollout SET resolver_version='tenant-authorization@1',epoch=epoch+1 WHERE tenant_id=?", [fixture.tenantId]);
+    await connection.execute("UPDATE tenant_rbac_rollout SET resolver_version='tenant-authorization@2',epoch=epoch+1 WHERE tenant_id=?", [fixture.tenantId]);
     await assert.rejects(() => peopleImportStore.completeValidation({ jobId: job.id, ...job, domain: fixture.domain, kind: "student", version: "1.0.0", rows: [] }), /authority-revoked/);
     const [revisions] = await connection.query<mysql.RowDataPacket[]>("SELECT COUNT(*) count FROM people_import_revision WHERE tenant_id=? AND batch_id=?", [fixture.tenantId, job.batchId]);
     assert.equal(Number(revisions[0].count), 0);
@@ -239,7 +239,7 @@ mysqlTest("execution rejects stale process version and epoch captured at claim t
     const second = await createFixture(connection, true);
     const secondClaim = await peopleImportExecutionStore.claimNext("epoch-worker");
     assert.ok(secondClaim);
-    await connection.execute("UPDATE tenant_rbac_rollout SET resolver_version='tenant-authorization@1',epoch=epoch+1 WHERE tenant_id=?", [second.tenantId]);
+    await connection.execute("UPDATE tenant_rbac_rollout SET resolver_version='tenant-authorization@2',epoch=epoch+1 WHERE tenant_id=?", [second.tenantId]);
     if (secondClaim) {
       await assert.rejects(() => peopleImportExecutionStore.executeRow(secondClaim), /authority-revoked/);
       await peopleImportExecutionStore.recordFailure(secondClaim, new Error("authority-revoked"));

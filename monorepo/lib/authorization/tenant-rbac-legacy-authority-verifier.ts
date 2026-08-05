@@ -19,11 +19,14 @@ const FORBIDDEN_RUNTIME_REFERENCES = [
 const ALLOWED_PATHS = [
   /legacy-non-admin-backfill/,
   /applicant-identity-migration/,
-  /school-admin-authority/,
+  /school-admin-authority\.ts$/,
   /tenant-rbac-legacy-authority-verifier/,
 ];
 
 const ALLOWED_COMPATIBILITY_REFERENCES = [
+  { path: /school-admin-authority-data\.ts$/, reference: /legacyRole: user\.tenantRole/ },
+  { path: /school-admin-authority-data\.ts$/, reference: /legacyRole: account\.legacyRole/ },
+  { path: /school-admin-authority-data\.ts$/, reference: /eq\(user\.tenantRole, "school-admin"\)/ },
   { path: /school-admin-lifecycle-data\.ts$/, reference: /eq\(user\.tenantRole, "school-admin"\)/ },
   { path: /provider-application-data\.ts$/, reference: /isNull\(user\.tenantRole\)/ },
   { path: /clean-legacy-backfill-test-data\.ts$/, reference: /SET tenant_id=NULL, tenant_role=NULL/ },

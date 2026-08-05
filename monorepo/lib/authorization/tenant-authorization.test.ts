@@ -7,7 +7,6 @@ import {
   type TenantAuthorizationAccount,
   type TenantAuthorizationAuthority,
   type TenantAuthorizationRollout,
-  type TenantAuthorizationShadowComparison,
   type TenantAuthorizationStore,
   type TenantAuthorizationTenant,
 } from "@/lib/authorization/tenant-authorization";
@@ -21,7 +20,6 @@ const allFeatures = {
 const activeAccount: TenantAuthorizationAccount = {
   userId: "user-1",
   tenantId: "tenant-1",
-  legacyRole: "staff",
   accountLifecycle: "active",
   providerAdmin: false,
   applicant: false,
@@ -34,9 +32,9 @@ const activeTenant: TenantAuthorizationTenant = {
   trialEndsAt: null,
   settings: allFeatures,
 };
-const legacyRollout: TenantAuthorizationRollout = {
-  httpMode: "legacy",
-  workerMode: "legacy",
+const rbacRollout: TenantAuthorizationRollout = {
+  httpMode: "rbac",
+  workerMode: "rbac",
   epoch: BigInt(7),
   resolverVersion: TENANT_AUTHORIZATION_RESOLVER_VERSION,
   registryVersion: PERMISSION_REGISTRY_VERSION,
@@ -67,7 +65,7 @@ function fixture(overrides: Partial<{
     account: activeAccount as TenantAuthorizationAccount | null,
     tenant: activeTenant as TenantAuthorizationTenant | null,
     authority: authority(),
-    rollout: legacyRollout as TenantAuthorizationRollout | null,
+    rollout: rbacRollout as TenantAuthorizationRollout | null,
     ...overrides,
   };
   const calls = { account: 0, tenant: 0, authority: 0, rollout: 0 };
@@ -87,53 +85,28 @@ const dashboardRequest = {
   surface: "page" as const,
 };
 
-test("shadow mode records an RBAC denial but preserves the legacy-visible allow", async () => {
-  const comparisons: TenantAuthorizationShadowComparison[] = [];
+test("RBAC denies an active account without authoritative assignments", async () => {
   const { store } = fixture();
-  const result = await createTenantAuthorizationEvaluator({
-    store,
-    comparisonRecorder: { record(value) { comparisons.push(value); } },
-  }).evaluate(dashboardRequest);
+  const result = await createTenantAuthorizationEvaluator({ store }).evaluate(dashboardRequest);
 
-  assert.equal(result.kind, "authorized");
-  assert.equal(result.legacy.allowed, true);
+  assert.equal(result.kind, "denied");
+  assert.equal(result.mode, "rbac");
   assert.equal(result.rbac.allowed, false);
   assert.equal(result.rbac.denial?.code, "permission-denied");
-  assert.deepEqual(comparisons, [{
-    direction: "legacy-only",
-    operationId: "tenant.dashboard.load",
-    surface: "page",
-    mode: "legacy",
-    rolloutEpoch: "7",
-    resolverVersion: TENANT_AUTHORIZATION_RESOLVER_VERSION,
-    registryVersion: PERMISSION_REGISTRY_VERSION,
-    operationMapVersion: OPERATION_MAP_VERSION,
-    legacyAllowed: true,
-    rbacAllowed: false,
-    rbacDenialCode: "permission-denied",
-  }]);
-  assert.equal(JSON.stringify(comparisons).includes("user-1"), false);
-  assert.equal(JSON.stringify(comparisons).includes("tenant-1"), false);
-  assert.equal(JSON.stringify(comparisons).includes("school.example"), false);
+  assert.equal("legacy" in result, false);
 });
 
-test("shadow read failures stay non-authoritative while mutation store failures fail closed", async () => {
-  const readFixture = fixture();
-  readFixture.store.loadAuthority = async () => { throw new Error("unavailable"); };
-  const read = await createTenantAuthorizationEvaluator({ store: readFixture.store }).evaluate(dashboardRequest);
-  assert.equal(read.kind, "authorized");
-  assert.equal(read.legacy.allowed, true);
-  assert.equal(read.rbac.denial?.code, "store-unavailable");
-
-  const mutationFixture = fixture({ account: { ...activeAccount, legacyRole: "school-admin" } });
-  mutationFixture.store.loadAuthority = async () => { throw new Error("unavailable"); };
-  const mutation = await createTenantAuthorizationEvaluator({ store: mutationFixture.store }).evaluate({
-    ...dashboardRequest,
-    operationId: "tenant-settings.landing-page.update",
-    surface: "api",
-  });
-  assert.equal(mutation.kind, "denied");
-  if (mutation.kind === "denied") assert.equal(mutation.internal.code, "store-unavailable");
+test("authority store failures fail closed for reads and mutations", async () => {
+  for (const request of [
+    dashboardRequest,
+    { ...dashboardRequest, operationId: "tenant-settings.landing-page.update", surface: "api" as const },
+  ]) {
+    const unavailable = fixture();
+    unavailable.store.loadAuthority = async () => { throw new Error("unavailable"); };
+    const result = await createTenantAuthorizationEvaluator({ store: unavailable.store }).evaluate(request);
+    assert.equal(result.kind, "denied");
+    if (result.kind === "denied") assert.equal(result.internal.code, "store-unavailable");
+  }
 });
 
 test("the evaluator memoizes persistence reads only within its request-local instance", async () => {
@@ -185,26 +158,18 @@ test("inactive, conflicting identity, and incomplete activation states grant no 
   }
 });
 
-test("School Admin compatibility is equivalent and dedicated revocation is visible on the next request", async () => {
-  const account = { ...activeAccount, legacyRole: "school-admin" };
-  const compatible = fixture({
-    account,
-    authority: { schoolAdminAuthorityStates: ["active"], assignments: [] },
-  });
-  const first = await createTenantAuthorizationEvaluator({ store: compatible.store }).evaluate(dashboardRequest);
+test("dedicated School Admin authority is active only at exact valid cardinality", async () => {
+  const active = fixture({ authority: { schoolAdminAuthorityStates: ["active"], assignments: [] } });
+  const first = await createTenantAuthorizationEvaluator({ store: active.store }).evaluate(dashboardRequest);
   assert.equal(first.kind, "authorized");
-  assert.equal(first.legacy.allowed, true);
   assert.equal(first.rbac.allowed, true);
 
-  const revoked = fixture({
-    account,
-    authority: { schoolAdminAuthorityStates: ["disabled"], assignments: [] },
-    rollout: { ...legacyRollout, httpMode: "intersection" },
-  });
-  const nextRequest = await createTenantAuthorizationEvaluator({ store: revoked.store }).evaluate(dashboardRequest);
-  assert.equal(nextRequest.kind, "denied");
-  assert.equal(nextRequest.legacy.allowed, true);
-  assert.equal(nextRequest.rbac.allowed, false);
+  for (const schoolAdminAuthorityStates of [[], ["disabled"], ["unknown"], ["active", "active"]]) {
+    const malformed = fixture({ authority: { schoolAdminAuthorityStates, assignments: [] } });
+    const result = await createTenantAuthorizationEvaluator({ store: malformed.store }).evaluate(dashboardRequest);
+    assert.equal(result.kind, "denied");
+    assert.equal(result.rbac.denial?.code, "permission-denied");
+  }
 });
 
 test("unknown and inactive grants are ignored rather than widening effective access", async () => {
@@ -225,14 +190,14 @@ test("unknown and inactive grants are ignored rather than widening effective acc
 });
 
 test("assigned contextual access requires a matching declared arm", async () => {
-  const rbacRollout = { ...legacyRollout, httpMode: "rbac" as const };
+  const rollout = { ...rbacRollout };
   const request = {
     sessionUserId: "user-1",
     domain: "school.example",
     operationId: "quizzes.sessions.load",
     surface: "api" as const,
   };
-  const { store } = fixture({ authority: authority(["quizzes.sessions.view"]), rollout: rbacRollout });
+  const { store } = fixture({ authority: authority(["quizzes.sessions.view"]), rollout });
   const withoutContext = await createTenantAuthorizationEvaluator({ store }).evaluate(request);
   assert.equal(withoutContext.kind, "denied");
   assert.equal(withoutContext.rbac.denial?.code, "scope-denied");
@@ -268,8 +233,8 @@ test("a missing rollout record fails closed instead of guessing an authority mod
   if (result.kind === "denied") assert.equal(result.internal.code, "rollout-missing");
 });
 
-test("stale and unsupported rollout state fails closed for HTTP and worker mutations in legacy mode", async () => {
-  const account = { ...activeAccount, legacyRole: "school-admin" };
+test("stale and unsupported rollout state fails closed for HTTP and worker mutations", async () => {
+  const account = activeAccount;
   const adminAuthority: TenantAuthorizationAuthority = { schoolAdminAuthorityStates: ["active"], assignments: [] };
   const baseRequest = {
     sessionUserId: "user-1",
@@ -280,7 +245,7 @@ test("stale and unsupported rollout state fails closed for HTTP and worker mutat
   const unsupported = fixture({
     account,
     authority: adminAuthority,
-    rollout: { ...legacyRollout, resolverVersion: "unsupported@99" },
+    rollout: { ...rbacRollout, resolverVersion: "unsupported@99" },
   });
   const httpResult = await createTenantAuthorizationEvaluator({ store: unsupported.store }).evaluate({
     ...baseRequest,
@@ -299,15 +264,34 @@ test("stale and unsupported rollout state fails closed for HTTP and worker mutat
   if (workerResult.kind === "denied") assert.equal(workerResult.internal.code, "rollout-epoch-stale");
 });
 
+test("legacy and intersection rollout modes are rejected on HTTP and worker surfaces", async () => {
+  const adminAuthority: TenantAuthorizationAuthority = { schoolAdminAuthorityStates: ["active"], assignments: [] };
+  for (const mode of ["legacy", "intersection"] as const) {
+    for (const surface of ["api", "worker"] as const) {
+      const rollout: TenantAuthorizationRollout = {
+        ...rbacRollout,
+        httpMode: surface === "api" ? mode : "rbac",
+        workerMode: surface === "worker" ? mode : "rbac",
+      };
+      const { store } = fixture({ authority: adminAuthority, rollout });
+      const result = await createTenantAuthorizationEvaluator({ store }).evaluate({
+        ...dashboardRequest,
+        surface,
+      });
+      assert.equal(result.kind, "denied");
+      assert.equal(result.rbac.denial?.code, "rollout-version-unsupported");
+    }
+  }
+});
+
 test("emergency policy can only narrow an otherwise valid RBAC mutation", async () => {
   const rollout: TenantAuthorizationRollout = {
-    ...legacyRollout,
+    ...rbacRollout,
     httpMode: "rbac-emergency",
     workerMode: "rbac-emergency",
     overlayHash: "deny-writes",
   };
   const { store } = fixture({
-    account: { ...activeAccount, legacyRole: "school-admin" },
     authority: { schoolAdminAuthorityStates: ["active"], assignments: [] },
     rollout,
   });

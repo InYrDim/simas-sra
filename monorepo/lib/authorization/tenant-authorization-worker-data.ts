@@ -20,7 +20,7 @@ const store = (connection?: mysql.PoolConnection): TenantAuthorizationStore => (
   async loadAccount(userId): Promise<TenantAuthorizationAccount | null> {
     const sql = connection ?? db();
     const [rows] = await sql.query<mysql.RowDataPacket[]>(
-      "SELECT u.id user_id,u.tenant_id,u.tenant_role,sec.lifecycle account_lifecycle,(SELECT COUNT(*) FROM school_person p WHERE p.tenant_id=u.tenant_id AND p.account_user_id=u.id) self_person_count FROM user u LEFT JOIN tenant_account_security sec ON sec.tenant_id=u.tenant_id AND sec.user_id=u.id WHERE u.id=? LIMIT 1",
+      "SELECT u.id user_id,u.tenant_id,sec.lifecycle account_lifecycle,(SELECT COUNT(*) FROM school_person p WHERE p.tenant_id=u.tenant_id AND p.account_user_id=u.id) self_person_count,(SELECT COUNT(*) FROM provider_admin pa WHERE pa.user_id=u.id) provider_admin_count,(SELECT COUNT(*) FROM applicant a WHERE a.user_id=u.id) applicant_count FROM user u LEFT JOIN tenant_account_security sec ON sec.tenant_id=u.tenant_id AND sec.user_id=u.id WHERE u.id=? LIMIT 1",
       [userId],
     );
     const row = rows[0];
@@ -29,10 +29,9 @@ const store = (connection?: mysql.PoolConnection): TenantAuthorizationStore => (
       userId: String(row.user_id),
       tenantId: row.tenant_id === null ? null : String(row.tenant_id),
       selfPersonId: Number(row.self_person_count) > 0 ? "linked" : null,
-      legacyRole: row.tenant_role,
       accountLifecycle: row.account_lifecycle ?? null,
-      providerAdmin: false,
-      applicant: false,
+      providerAdmin: Number(row.provider_admin_count) === 1,
+      applicant: Number(row.applicant_count) === 1,
       activationComplete: true,
     };
   },

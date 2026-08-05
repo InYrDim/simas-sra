@@ -8,6 +8,7 @@ import {
   type JsonValue,
 } from "@/lib/authorization/security-command";
 import type { ControlledSecurityCommandTransaction } from "@/lib/authorization/security-command-controlled-store";
+import { TENANT_AUTHORIZATION_RESOLVER_VERSION } from "@/lib/authorization/tenant-authorization";
 import {
   planEmergencyExit,
   planRolloutTransition,
@@ -128,6 +129,11 @@ export function createTenantRbacRolloutCommandService(options: Readonly<{
         if (!current || current.version !== input.expectedVersion) throw new SecurityCommandError("stale-version");
         const before = rolloutState(current.value);
         if (before.epoch !== input.expectedEpoch) throw new SecurityCommandError("stale-version");
+        if (
+          before.resolverVersion !== TENANT_AUTHORIZATION_RESOLVER_VERSION ||
+          !["rbac", "rbac-emergency"].includes(before.httpMode) ||
+          !["rbac", "rbac-emergency"].includes(before.workerMode)
+        ) throw new SecurityCommandError("context-denied");
         const after = input.transition.toMode === "rbac" && before.httpMode === "rbac-emergency"
           ? planEmergencyExit(before, input.transition)
           : planRolloutTransition(before, input.transition, now());

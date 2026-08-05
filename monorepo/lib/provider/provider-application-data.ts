@@ -331,8 +331,8 @@ export function createApplicationApprovalStore(options: Readonly<{
 
             await tx.insert(tenantRbacRollout).values({
               tenantId: values.tenant.id,
-              httpMode: "legacy",
-              workerMode: "legacy",
+              httpMode: "rbac",
+              workerMode: "rbac",
               epoch: BigInt(1),
               resolverVersion: TENANT_AUTHORIZATION_RESOLVER_VERSION,
               registryVersion: PERMISSION_REGISTRY_VERSION,

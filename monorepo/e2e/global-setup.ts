@@ -119,7 +119,7 @@ export default async function globalSetup() {
     await createTenant(connection, e2e.alpha, e2e.alpha.adminId);
     await createTenant(connection, e2e.beta, e2e.beta.adminId);
     await connection.execute(
-      "INSERT INTO tenant_rbac_rollout (tenant_id,http_mode,worker_mode,epoch,resolver_version,registry_version,operation_map_version,version,updated_at) VALUES (?,'legacy','legacy',1,'tenant-authorization@1','tenant-permissions@2','tenant-operations@4',1,NOW(3)),(?,'legacy','legacy',1,'tenant-authorization@1','tenant-permissions@2','tenant-operations@4',1,NOW(3))",
+      "INSERT INTO tenant_rbac_rollout (tenant_id,http_mode,worker_mode,epoch,resolver_version,registry_version,operation_map_version,version,updated_at) VALUES (?,'rbac','rbac',1,'tenant-authorization@2','tenant-permissions@2','tenant-operations@4',1,NOW(3)),(?,'rbac','rbac',1,'tenant-authorization@2','tenant-permissions@2','tenant-operations@4',1,NOW(3))",
       [e2e.alpha.tenantId, e2e.beta.tenantId],
     );
     await connection.execute(
