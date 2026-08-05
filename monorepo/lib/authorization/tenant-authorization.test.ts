@@ -11,6 +11,7 @@ import {
   type TenantAuthorizationTenant,
 } from "@/lib/authorization/tenant-authorization";
 import { OPERATION_MAP_VERSION, PERMISSION_REGISTRY_VERSION } from "@/lib/authorization/tenant-rbac-contract";
+import { emergencyOverlayDigest } from "@/lib/authorization/tenant-rbac-rollout";
 import { TENANT_FEATURES } from "@/lib/features/tenant-feature-policy";
 
 const allFeatures = {
@@ -39,7 +40,7 @@ const rbacRollout: TenantAuthorizationRollout = {
   resolverVersion: TENANT_AUTHORIZATION_RESOLVER_VERSION,
   registryVersion: PERMISSION_REGISTRY_VERSION,
   operationMapVersion: OPERATION_MAP_VERSION,
-  overlayHash: null,
+  emergencyOverlay: null,
 };
 
 function authority(permissionKeys: readonly string[] = []): TenantAuthorizationAuthority {
@@ -284,12 +285,20 @@ test("legacy and intersection rollout modes are rejected on HTTP and worker surf
   }
 });
 
-test("emergency policy can only narrow an otherwise valid RBAC mutation", async () => {
+test("persisted emergency policy can only narrow an otherwise valid RBAC mutation", async () => {
+  const body = {
+    deniedOperationIds: [] as readonly string[],
+    deniedPermissionKeys: [] as readonly string[],
+    denyMutations: true,
+    policyVersion: "emergency@1",
+    reviewAt: new Date("2026-08-01T00:00:00.000Z"),
+    expiresAt: new Date("2026-08-03T00:00:00.000Z"),
+  };
   const rollout: TenantAuthorizationRollout = {
     ...rbacRollout,
     httpMode: "rbac-emergency",
     workerMode: "rbac-emergency",
-    overlayHash: "deny-writes",
+    emergencyOverlay: { ...body, overlayHash: emergencyOverlayDigest(body) },
   };
   const { store } = fixture({
     authority: { schoolAdminAuthorityStates: ["active"], assignments: [] },
@@ -297,7 +306,7 @@ test("emergency policy can only narrow an otherwise valid RBAC mutation", async 
   });
   const result = await createTenantAuthorizationEvaluator({
     store,
-    emergencyPolicies: [{ overlayHash: "deny-writes", denyMutations: true }],
+    now: () => new Date("2026-08-02T00:00:00.000Z"),
   }).evaluate({
     sessionUserId: "user-1",
     domain: "school.example",
@@ -306,4 +315,45 @@ test("emergency policy can only narrow an otherwise valid RBAC mutation", async 
   });
   assert.equal(result.kind, "denied");
   assert.equal(result.rbac.denial?.code, "permission-denied");
+
+  const workerResult = await createTenantAuthorizationEvaluator({
+    store,
+    now: () => new Date("2026-08-02T00:00:00.000Z"),
+  }).evaluate({
+    sessionUserId: "user-1",
+    domain: "school.example",
+    operationId: "tenant-settings.landing-page.update",
+    surface: "worker",
+    expectedRolloutEpoch: rollout.epoch,
+  });
+  assert.equal(workerResult.kind, "denied");
+  assert.equal(workerResult.rbac.denial?.code, "permission-denied");
+
+  const malformed = fixture({
+    authority: { schoolAdminAuthorityStates: ["active"], assignments: [] },
+    rollout: { ...rollout, emergencyOverlay: { ...rollout.emergencyOverlay!, overlayHash: "a".repeat(64) } },
+  });
+  const malformedResult = await createTenantAuthorizationEvaluator({
+    store: malformed.store,
+    now: () => new Date("2026-08-02T00:00:00.000Z"),
+  }).evaluate({
+    sessionUserId: "user-1",
+    domain: "school.example",
+    operationId: "tenant-settings.landing-page.update",
+    surface: "api",
+  });
+  assert.equal(malformedResult.kind, "denied");
+  assert.equal(malformedResult.rbac.denial?.code, "emergency-policy-unsupported");
+
+  const expiredResult = await createTenantAuthorizationEvaluator({
+    store,
+    now: () => new Date("2026-08-04T00:00:00.000Z"),
+  }).evaluate({
+    sessionUserId: "user-1",
+    domain: "school.example",
+    operationId: "tenant-settings.landing-page.update",
+    surface: "api",
+  });
+  assert.equal(expiredResult.kind, "denied");
+  assert.equal(expiredResult.rbac.denial?.code, "emergency-policy-unsupported");
 });

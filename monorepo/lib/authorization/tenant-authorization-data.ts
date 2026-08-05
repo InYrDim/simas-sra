@@ -23,6 +23,7 @@ import {
   type TenantAuthorizationRequest,
   type TenantAuthorizationStore,
 } from "@/lib/authorization/tenant-authorization";
+import { validateEmergencyOverlay } from "@/lib/authorization/tenant-rbac-rollout";
 import { auth } from "@/lib/platform/auth";
 
 export const tenantAuthorizationStore: TenantAuthorizationStore = {
@@ -154,11 +155,35 @@ export const tenantAuthorizationStore: TenantAuthorizationStore = {
         registryVersion: tenantRbacRollout.registryVersion,
         operationMapVersion: tenantRbacRollout.operationMapVersion,
         overlayHash: tenantRbacRollout.overlayHash,
+        overlayPolicyVersion: tenantRbacRollout.overlayPolicyVersion,
+        overlayDeniedOperationIds: tenantRbacRollout.overlayDeniedOperationIds,
+        overlayDeniedPermissionKeys: tenantRbacRollout.overlayDeniedPermissionKeys,
+        overlayDenyMutations: tenantRbacRollout.overlayDenyMutations,
+        overlayReviewAt: tenantRbacRollout.overlayReviewAt,
+        overlayExpiresAt: tenantRbacRollout.overlayExpiresAt,
       })
       .from(tenantRbacRollout)
       .where(eq(tenantRbacRollout.tenantId, tenantId))
       .limit(1);
-    return row ?? null;
+    if (!row) return null;
+    const emergencyOverlay = row.overlayHash === null ? null : validateEmergencyOverlay({
+      overlayHash: row.overlayHash,
+      deniedOperationIds: row.overlayDeniedOperationIds ?? [],
+      deniedPermissionKeys: row.overlayDeniedPermissionKeys ?? [],
+      denyMutations: row.overlayDenyMutations ?? false,
+      policyVersion: row.overlayPolicyVersion ?? "",
+      reviewAt: row.overlayReviewAt ?? new Date(Number.NaN),
+      expiresAt: row.overlayExpiresAt ?? new Date(Number.NaN),
+    });
+    return {
+      httpMode: row.httpMode,
+      workerMode: row.workerMode,
+      epoch: row.epoch,
+      resolverVersion: row.resolverVersion,
+      registryVersion: row.registryVersion,
+      operationMapVersion: row.operationMapVersion,
+      emergencyOverlay,
+    };
   },
 };
 

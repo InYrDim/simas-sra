@@ -5,6 +5,7 @@ import {
   CreditCard,
   Headset,
   LogIn,
+  ShieldCheck,
   Settings,
   Shapes,
 } from "lucide-react";
@@ -18,6 +19,7 @@ export const providerNavItems: readonly ProviderNavItem[] = [
   { title: "Billing", href: "/provider/billing", icon: CreditCard, group: "main", availability: "empty-state" },
   { title: "Impersonasi", href: "/provider/impersonation", icon: LogIn, group: "operations", availability: "empty-state" },
   { title: "Audit Log", href: "/provider/audit-log", icon: ClipboardList, group: "operations", availability: "empty-state" },
+  { title: "Rollout RBAC", href: "/provider/rbac-rollout", icon: ShieldCheck, group: "operations", availability: "available" },
   { title: "Support Ticket", href: "/provider/support-tickets", icon: Headset, group: "operations", availability: "empty-state" },
   { title: "Pengaturan Provider", href: "/provider/settings", icon: Settings, group: "operations", availability: "empty-state" },
 ];

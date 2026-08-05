@@ -1,4 +1,5 @@
 import mysql from "mysql2/promise";
+import { validateEmergencyOverlay } from "@/lib/authorization/tenant-rbac-rollout";
 import {
   createTenantAuthorizationEvaluator,
   type TenantAuthorizationAccount,
@@ -87,19 +88,34 @@ const store = (connection?: mysql.PoolConnection): TenantAuthorizationStore => (
   async loadRollout(tenantId): Promise<TenantAuthorizationRollout | null> {
     const sql = connection ?? db();
     const [rows] = await sql.query<mysql.RowDataPacket[]>(
-      "SELECT http_mode,worker_mode,epoch,resolver_version,registry_version,operation_map_version,overlay_hash FROM tenant_rbac_rollout WHERE tenant_id=? LIMIT 1",
+      "SELECT http_mode,worker_mode,epoch,resolver_version,registry_version,operation_map_version,overlay_hash,overlay_policy_version,overlay_denied_operation_ids,overlay_denied_permission_keys,overlay_deny_mutations,overlay_review_at,overlay_expires_at FROM tenant_rbac_rollout WHERE tenant_id=? LIMIT 1",
       [tenantId],
     );
     const row = rows[0];
-    return row ? {
+    if (!row) return null;
+    const jsonArray = (value: unknown): readonly string[] => {
+      const parsed = typeof value === "string" ? JSON.parse(value) as unknown : value;
+      if (!Array.isArray(parsed) || !parsed.every((item) => typeof item === "string")) throw new Error("invalid-emergency-overlay");
+      return parsed;
+    };
+    const emergencyOverlay = row.overlay_hash === null ? null : validateEmergencyOverlay({
+      overlayHash: String(row.overlay_hash),
+      deniedOperationIds: jsonArray(row.overlay_denied_operation_ids),
+      deniedPermissionKeys: jsonArray(row.overlay_denied_permission_keys),
+      denyMutations: Boolean(row.overlay_deny_mutations),
+      policyVersion: String(row.overlay_policy_version ?? ""),
+      reviewAt: date(row.overlay_review_at) ?? new Date(Number.NaN),
+      expiresAt: date(row.overlay_expires_at) ?? new Date(Number.NaN),
+    });
+    return {
       httpMode: row.http_mode,
       workerMode: row.worker_mode,
       epoch: BigInt(row.epoch),
       resolverVersion: String(row.resolver_version),
       registryVersion: String(row.registry_version),
       operationMapVersion: String(row.operation_map_version),
-      overlayHash: row.overlay_hash ?? null,
-    } : null;
+      emergencyOverlay,
+    };
   },
 });
 

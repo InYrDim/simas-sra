@@ -30,7 +30,7 @@ const rollout = {
   resolverVersion: TENANT_AUTHORIZATION_RESOLVER_VERSION,
   registryVersion: PERMISSION_REGISTRY_VERSION,
   operationMapVersion: OPERATION_MAP_VERSION,
-  overlayHash: null,
+  emergencyOverlay: null,
 };
 
 function grantClosure(keys: readonly string[]): readonly string[] {

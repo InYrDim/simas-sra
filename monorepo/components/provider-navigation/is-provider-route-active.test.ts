@@ -19,6 +19,16 @@ test("Provider sections remain active for detail routes", () => {
   );
 });
 
+test("RBAC rollout navigation remains active for nested operations routes", () => {
+  assert.equal(
+    isProviderRouteActive(
+      "/provider/rbac-rollout/evidence",
+      "/provider/rbac-rollout",
+    ),
+    true,
+  );
+});
+
 test("Query strings do not change the active Provider section", () => {
   assert.equal(
     isProviderRouteActive(

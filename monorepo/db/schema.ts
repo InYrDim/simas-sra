@@ -1035,6 +1035,12 @@ export const tenantRbacRollout = mysqlTable(
     registryVersion: varchar("registry_version", { length: 64 }).notNull(),
     operationMapVersion: varchar("operation_map_version", { length: 64 }).notNull(),
     overlayHash: varchar("overlay_hash", { length: 64 }),
+    overlayPolicyVersion: varchar("overlay_policy_version", { length: 64 }),
+    overlayDeniedOperationIds: json("overlay_denied_operation_ids").$type<readonly string[]>(),
+    overlayDeniedPermissionKeys: json("overlay_denied_permission_keys").$type<readonly string[]>(),
+    overlayDenyMutations: boolean("overlay_deny_mutations"),
+    overlayReviewAt: timestamp("overlay_review_at", { fsp: 3 }),
+    overlayExpiresAt: timestamp("overlay_expires_at", { fsp: 3 }),
     multiRoleAcceptedAt: timestamp("multi_role_accepted_at", { fsp: 3 }),
     version: int("version").default(1).notNull(),
     updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
@@ -1043,8 +1049,23 @@ export const tenantRbacRollout = mysqlTable(
     index("tenant_rbac_rollout_modes_idx").on(table.httpMode, table.workerMode, table.epoch),
     check("tenant_rbac_rollout_version_check", sql`${table.version} > 0 AND ${table.epoch} > 0`),
     check("tenant_rbac_rollout_emergency_check", sql`(
-      (${table.httpMode} = 'rbac-emergency' AND ${table.workerMode} = 'rbac-emergency' AND ${table.overlayHash} IS NOT NULL)
-      OR (${table.httpMode} <> 'rbac-emergency' AND ${table.workerMode} <> 'rbac-emergency' AND ${table.overlayHash} IS NULL)
+      (${table.httpMode} = 'rbac-emergency' AND ${table.workerMode} = 'rbac-emergency'
+        AND ${table.overlayHash} REGEXP '^[a-f0-9]{64}$'
+        AND ${table.overlayPolicyVersion} IS NOT NULL
+        AND ${table.overlayDeniedOperationIds} IS NOT NULL
+        AND ${table.overlayDeniedPermissionKeys} IS NOT NULL
+        AND ${table.overlayDenyMutations} IS NOT NULL
+        AND ${table.overlayReviewAt} IS NOT NULL
+        AND ${table.overlayExpiresAt} IS NOT NULL
+        AND ${table.overlayReviewAt} <= ${table.overlayExpiresAt})
+      OR (${table.httpMode} <> 'rbac-emergency' AND ${table.workerMode} <> 'rbac-emergency'
+        AND ${table.overlayHash} IS NULL
+        AND ${table.overlayPolicyVersion} IS NULL
+        AND ${table.overlayDeniedOperationIds} IS NULL
+        AND ${table.overlayDeniedPermissionKeys} IS NULL
+        AND ${table.overlayDenyMutations} IS NULL
+        AND ${table.overlayReviewAt} IS NULL
+        AND ${table.overlayExpiresAt} IS NULL)
     )`),
     check("tenant_rbac_rollout_rollback_check", sql`${table.multiRoleAcceptedAt} IS NULL OR (${table.httpMode} IN ('rbac', 'rbac-emergency') AND ${table.workerMode} IN ('rbac', 'rbac-emergency'))`),
   ],

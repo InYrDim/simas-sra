@@ -21,7 +21,7 @@ const base: RolloutState = {
   resolverVersion: "tenant-authorization@1",
   registryVersion: "tenant-permissions@2",
   operationMapVersion: "tenant-operations@4",
-  overlayHash: null,
+  emergencyOverlay: null,
   multiRoleAcceptedAt: null,
   legacyAuthorityDisabledAt: null,
   rollbackEligible: true,
@@ -57,6 +57,11 @@ function stored(state: RolloutState): StoredRolloutState {
   return {
     ...state,
     epoch: state.epoch.toString(),
+    emergencyOverlay: state.emergencyOverlay ? {
+      ...state.emergencyOverlay,
+      reviewAt: state.emergencyOverlay.reviewAt.toISOString(),
+      expiresAt: state.emergencyOverlay.expiresAt.toISOString(),
+    } : null,
     multiRoleAcceptedAt: state.multiRoleAcceptedAt?.toISOString() ?? null,
     legacyAuthorityDisabledAt: state.legacyAuthorityDisabledAt?.toISOString() ?? null,
   };
@@ -82,16 +87,20 @@ test("unsupported or failed gates block promotion without widening", () => {
 
 test("emergency overlay is hash-bound, deny-only, and uses one shared epoch", () => {
   const rbac: RolloutState = { ...base, httpMode: "rbac", workerMode: "rbac", rollbackEligible: false, multiRoleAcceptedAt: now, legacyAuthorityDisabledAt: now, epoch: BigInt(4), version: 4 };
-  const body = { deniedOperationIds: ["tenant-settings.landing-page.update"], deniedPermissionKeys: [], denyMutations: true, policyVersion: "emergency@1" } as const;
+  const body = { deniedOperationIds: ["tenant-settings.landing-page.update"], deniedPermissionKeys: [], denyMutations: true, policyVersion: "emergency@1", reviewAt: now, expiresAt: new Date("2026-08-02T00:00:00.000Z") } as const;
   const overlay = { ...body, overlayHash: emergencyOverlayDigest(body) };
   const emergency = planRolloutTransition(rbac, { surface: "both", toMode: "rbac-emergency", expectedEpoch: rbac.epoch, reason: "incident narrowing", emergencyOverlay: overlay }, now);
   assert.equal(emergency.httpMode, "rbac-emergency");
   assert.equal(emergency.workerMode, "rbac-emergency");
   assert.equal(emergency.epoch, BigInt(5));
+  assert.deepEqual(emergency.emergencyOverlay?.deniedOperationIds, body.deniedOperationIds);
   assert.throws(() => planRolloutTransition(rbac, { surface: "both", toMode: "rbac-emergency", expectedEpoch: rbac.epoch, reason: "tampered", emergencyOverlay: { ...overlay, deniedOperationIds: [] } }, now), /emergency-overlay-integrity-failure/);
+  assert.throws(() => planRolloutTransition(rbac, { surface: "both", toMode: "rbac-emergency", expectedEpoch: rbac.epoch, reason: "duplicates", emergencyOverlay: { ...overlay, deniedOperationIds: [body.deniedOperationIds[0], body.deniedOperationIds[0]] } }, now), /emergency-overlay-invalid/);
+  assert.throws(() => planRolloutTransition(rbac, { surface: "both", toMode: "rbac-emergency", expectedEpoch: rbac.epoch, reason: "expired", emergencyOverlay: { ...overlay, reviewAt: new Date("2026-07-30T00:00:00.000Z"), expiresAt: new Date("2026-07-31T00:00:00.000Z") } }, now), /emergency-overlay-expired/);
   const exited = planEmergencyExit(emergency, { surface: "both", toMode: "rbac", expectedEpoch: emergency.epoch, reason: "verified recovery", exitEvidence: { verified: true, evidenceDigest: "b".repeat(64), reviewedAt: now } });
   assert.equal(exited.httpMode, "rbac");
   assert.equal(exited.workerMode, "rbac");
+  assert.equal(exited.emergencyOverlay, null);
 });
 
 test("legacy rollback is forbidden after multi-role acceptance", () => {
@@ -101,7 +110,7 @@ test("legacy rollback is forbidden after multi-role acceptance", () => {
 
 test("rollout command derives Provider context, reauthenticates, and commits through security audit CAS", async () => {
   const commandBase: RolloutState = { ...base, httpMode: "rbac", workerMode: "rbac", resolverVersion: "tenant-authorization@2", rollbackEligible: false, multiRoleAcceptedAt: now, legacyAuthorityDisabledAt: now };
-  const overlayBody = { deniedOperationIds: [], deniedPermissionKeys: [], denyMutations: true, policyVersion: "emergency@1" } as const;
+  const overlayBody = { deniedOperationIds: [], deniedPermissionKeys: [], denyMutations: true, policyVersion: "emergency@1", reviewAt: now, expiresAt: new Date("2026-08-02T00:00:00.000Z") } as const;
   const overlay = { ...overlayBody, overlayHash: emergencyOverlayDigest(overlayBody) };
   const provider = { kind: "provider-admin" as const, userId: "provider-1", displayName: "Provider", email: "provider@example.test" };
   const controlled = createControlledSecurityCommandStore({ actors: { [provider.userId]: provider }, initialState: [{ id: "tenant-1", version: 1, value: stored(commandBase) }] });
@@ -126,7 +135,7 @@ test("rollout command derives Provider context, reauthenticates, and commits thr
   assert.deepEqual(controlled.snapshot().auditEvents[0]?.evidence.before, stored(commandBase));
   assert.deepEqual(
     controlled.snapshot().auditEvents[0]?.evidence.after,
-    stored({ ...commandBase, httpMode: "rbac-emergency", workerMode: "rbac-emergency", overlayHash: overlay.overlayHash, epoch: BigInt(2), version: 2 }),
+    stored({ ...commandBase, httpMode: "rbac-emergency", workerMode: "rbac-emergency", emergencyOverlay: overlay, epoch: BigInt(2), version: 2 })
   );
   assert.equal(controlled.snapshot().state[0]?.version, 2);
 });

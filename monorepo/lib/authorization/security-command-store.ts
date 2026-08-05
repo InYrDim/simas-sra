@@ -21,6 +21,7 @@ import {
   type SecurityContext,
   type SecurityPrincipal,
 } from "@/lib/authorization/security-command";
+import { validateEmergencyOverlay, type EmergencyOverlay } from "@/lib/authorization/tenant-rbac-rollout";
 
 export type StoredSecurityCommand = Readonly<{
   id: string;
@@ -193,6 +194,12 @@ export function createMySqlSecurityCommandStore(options: Readonly<{
                   registryVersion: tenantRbacRollout.registryVersion,
                   operationMapVersion: tenantRbacRollout.operationMapVersion,
                   overlayHash: tenantRbacRollout.overlayHash,
+                  overlayPolicyVersion: tenantRbacRollout.overlayPolicyVersion,
+                  overlayDeniedOperationIds: tenantRbacRollout.overlayDeniedOperationIds,
+                  overlayDeniedPermissionKeys: tenantRbacRollout.overlayDeniedPermissionKeys,
+                  overlayDenyMutations: tenantRbacRollout.overlayDenyMutations,
+                  overlayReviewAt: tenantRbacRollout.overlayReviewAt,
+                  overlayExpiresAt: tenantRbacRollout.overlayExpiresAt,
                   multiRoleAcceptedAt: tenantRbacRollout.multiRoleAcceptedAt,
                   updatedAt: tenantRbacRollout.updatedAt,
                 })
@@ -212,7 +219,15 @@ export function createMySqlSecurityCommandStore(options: Readonly<{
                   resolverVersion: row.resolverVersion,
                   registryVersion: row.registryVersion,
                   operationMapVersion: row.operationMapVersion,
-                  overlayHash: row.overlayHash,
+                  emergencyOverlay: row.overlayHash === null ? null : {
+                    overlayHash: row.overlayHash,
+                    deniedOperationIds: row.overlayDeniedOperationIds ?? [],
+                    deniedPermissionKeys: row.overlayDeniedPermissionKeys ?? [],
+                    denyMutations: row.overlayDenyMutations ?? false,
+                    policyVersion: row.overlayPolicyVersion ?? "",
+                    reviewAt: row.overlayReviewAt?.toISOString() ?? "",
+                    expiresAt: row.overlayExpiresAt?.toISOString() ?? "",
+                  },
                   multiRoleAcceptedAt: row.multiRoleAcceptedAt?.toISOString() ?? null,
                   legacyAuthorityDisabledAt: null,
                   rollbackEligible: row.multiRoleAcceptedAt === null,
@@ -229,8 +244,35 @@ export function createMySqlSecurityCommandStore(options: Readonly<{
                 || typeof value.epoch !== "string" || typeof value.version !== "number"
                 || typeof value.resolverVersion !== "string" || typeof value.registryVersion !== "string"
                 || typeof value.operationMapVersion !== "string"
-                || (value.overlayHash !== null && typeof value.overlayHash !== "string")
+                || (value.emergencyOverlay !== null && (typeof value.emergencyOverlay !== "object" || Array.isArray(value.emergencyOverlay)))
               ) return false;
+              const overlay = value.emergencyOverlay as Record<string, JsonValue> | null;
+              if ((value.httpMode === "rbac-emergency" || value.workerMode === "rbac-emergency") !== Boolean(overlay)
+                || (value.httpMode === "rbac-emergency") !== (value.workerMode === "rbac-emergency")) return false;
+              if (overlay && (
+                typeof overlay.overlayHash !== "string" || !Array.isArray(overlay.deniedOperationIds)
+                || !overlay.deniedOperationIds.every((item) => typeof item === "string")
+                || !Array.isArray(overlay.deniedPermissionKeys) || !overlay.deniedPermissionKeys.every((item) => typeof item === "string")
+                || typeof overlay.denyMutations !== "boolean" || typeof overlay.policyVersion !== "string"
+                || typeof overlay.reviewAt !== "string" || Number.isNaN(new Date(overlay.reviewAt).getTime())
+                || typeof overlay.expiresAt !== "string" || Number.isNaN(new Date(overlay.expiresAt).getTime())
+              )) return false;
+              let validatedOverlay: EmergencyOverlay | null = null;
+              if (overlay) {
+                try {
+                  validatedOverlay = validateEmergencyOverlay({
+                    overlayHash: overlay.overlayHash as string,
+                    deniedOperationIds: overlay.deniedOperationIds as string[],
+                    deniedPermissionKeys: overlay.deniedPermissionKeys as string[],
+                    denyMutations: overlay.denyMutations as boolean,
+                    policyVersion: overlay.policyVersion as string,
+                    reviewAt: new Date(overlay.reviewAt as string),
+                    expiresAt: new Date(overlay.expiresAt as string),
+                  });
+                } catch {
+                  return false;
+                }
+              }
               const updated = await database.update(tenantRbacRollout).set({
                 httpMode: value.httpMode as "legacy" | "intersection" | "rbac" | "rbac-emergency",
                 workerMode: value.workerMode as "legacy" | "intersection" | "rbac" | "rbac-emergency",
@@ -238,7 +280,13 @@ export function createMySqlSecurityCommandStore(options: Readonly<{
                 resolverVersion: value.resolverVersion,
                 registryVersion: value.registryVersion,
                 operationMapVersion: value.operationMapVersion,
-                overlayHash: value.overlayHash as string | null,
+                overlayHash: validatedOverlay?.overlayHash ?? null,
+                overlayPolicyVersion: validatedOverlay?.policyVersion ?? null,
+                overlayDeniedOperationIds: validatedOverlay?.deniedOperationIds ?? null,
+                overlayDeniedPermissionKeys: validatedOverlay?.deniedPermissionKeys ?? null,
+                overlayDenyMutations: validatedOverlay?.denyMutations ?? null,
+                overlayReviewAt: validatedOverlay?.reviewAt ?? null,
+                overlayExpiresAt: validatedOverlay?.expiresAt ?? null,
                 multiRoleAcceptedAt: typeof value.multiRoleAcceptedAt === "string" ? new Date(value.multiRoleAcceptedAt) : null,
                 version: input.expectedVersion + 1,
                 updatedAt: new Date(),

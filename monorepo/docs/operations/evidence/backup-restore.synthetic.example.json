@@ -1,0 +1,18 @@
+{
+  "evidenceVersion": "mysql-backup-restore-rehearsal@1",
+  "evidenceKind": "backup-restore-rehearsal",
+  "synthetic": true,
+  "runId": "SYNTHETIC-EXAMPLE-NOT-REAL-EVIDENCE",
+  "startedAt": "2026-01-01T00:00:00.000Z",
+  "completedAt": "2026-01-01T00:10:00.000Z",
+  "source": { "host": "source.example.invalid", "port": 3306, "database": "simas_example" },
+  "disposableTarget": { "host": "restore.example.invalid", "port": 3306, "database": "simas_restore_rehearsal_synthetic" },
+  "artifact": { "fileName": "synthetic-example.sql", "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "bytes": 4096 },
+  "tools": { "mysqldump": "synthetic", "mysql": "synthetic" },
+  "invariants": [
+    { "name": "tenants", "source": "2", "restored": "2", "matched": true },
+    { "name": "auditEndpointMismatches", "source": "0", "restored": "0", "matched": true }
+  ],
+  "auditChainVerified": true,
+  "succeeded": true
+}

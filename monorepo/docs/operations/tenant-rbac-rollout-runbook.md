@@ -42,17 +42,26 @@ from audit events or browser input.
 
 - `pnpm rbac:rollout:verify` is a local forbidden-reference and contract scan; it
   is not production evidence.
-- Run the mandatory MySQL security, HTTP, worker, Playwright, accessibility,
-  typecheck, lint, and production-build gates for the release bundle.
-- Verify audit heads/chains, backup/restore, migration checkpoints, and cohort
-  watermarks from the production evidence store.
+- Run `pnpm rbac:health:check` and the mandatory MySQL security, HTTP, worker,
+  Playwright, accessibility, typecheck, lint, and production-build gates for the
+  release bundle.
+- Follow [MySQL backup/restore rehearsal](./mysql-backup-restore-rehearsal.md)
+  against an explicitly disposable target and retain the generated evidence.
+- Handle emergency entry and exit through the
+  [incident runbook](./tenant-rbac-incident-runbook.md), validate its evidence,
+  and use the [health signal catalog](./tenant-rbac-health-signals.md).
+- Verify audit heads/chains, migration checkpoints, and cohort watermarks from
+  the production evidence store.
 - Keep the issue open until production evidence exists and every blocker is
   attached to the release record.
 
 ## Current repository limitation
 
-The repository now supplies the policy, command/CAS seam, evaluator-compatible
-state model, unit tests, and a legacy-reference verifier. It cannot locally create
+The repository now supplies the policy, command/CAS seam, persisted emergency
+state, Provider dashboard, health signals, evidence validators, backup/restore
+rehearsal harness, tests, and a legacy-reference verifier. It cannot manufacture
 bounded production cohorts, Provider approvals, real reauthentication evidence,
-MySQL backup/restore evidence, or external dashboard/alert rehearsals. Those are
-release blockers, not reasons to weaken the gates or mark Issue 32 resolved.
+a disposable restore target, or external alert-delivery evidence. Operators must
+run the supplied procedures in authorized environments; absent evidence remains
+a release blocker and is not a reason to weaken the gates or mark Issue 32
+resolved.

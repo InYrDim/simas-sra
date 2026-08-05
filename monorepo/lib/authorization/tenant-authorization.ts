@@ -7,6 +7,7 @@ import {
   type OperationEntitlement,
   type TenantOperationDefinition,
 } from "@/lib/authorization/tenant-rbac-contract";
+import { validateEmergencyOverlay, type EmergencyOverlay } from "@/lib/authorization/tenant-rbac-rollout";
 import { isTenantFeatureEnabled, type TenantFeatureKey } from "@/lib/features/tenant-feature-policy";
 
 export const TENANT_AUTHORIZATION_RESOLVER_VERSION = "tenant-authorization@2";
@@ -69,7 +70,7 @@ export type TenantAuthorizationRollout = Readonly<{
   resolverVersion: string;
   registryVersion: string;
   operationMapVersion: string;
-  overlayHash: string | null;
+  emergencyOverlay: EmergencyOverlay | null;
 }>;
 
 export type TenantAuthorizationAccount = Readonly<{
@@ -145,12 +146,7 @@ export type TenantAuthorizationRequest = Readonly<{
   invariant?: TenantAuthorizationInvariant;
 }>;
 
-export type TenantAuthorizationEmergencyPolicy = Readonly<{
-  overlayHash: string;
-  deniedOperationIds?: ReadonlySet<string>;
-  deniedPermissionKeys?: ReadonlySet<string>;
-  denyMutations?: boolean;
-}>;
+
 
 export type TenantAuthorizationDecision = Readonly<{
   allowed: boolean;
@@ -174,7 +170,6 @@ export type TenantAuthorizationResult =
 
 export type TenantAuthorizationEvaluatorDependencies = Readonly<{
   store: TenantAuthorizationStore;
-  emergencyPolicies?: readonly TenantAuthorizationEmergencyPolicy[];
   now?: () => Date;
 }>;
 
@@ -287,7 +282,7 @@ function rolloutDenial(
   request: TenantAuthorizationRequest,
   operation: TenantOperationDefinition,
   rollout: TenantAuthorizationRollout | null,
-  emergencyPolicies: readonly TenantAuthorizationEmergencyPolicy[],
+  now: Date,
 ): TenantAuthorizationInternalDenial | null {
   if (!rollout) return denial(request.operationId, "rollout-missing", "rollout");
   const supportedModes = new Set<TenantAuthorizationMode>(["rbac", "rbac-emergency"]);
@@ -309,11 +304,15 @@ function rolloutDenial(
 
   const mode = modeFor(rollout, request.surface);
   if (mode !== "rbac-emergency") return null;
-  if (rollout.httpMode !== "rbac-emergency" || rollout.workerMode !== "rbac-emergency" || !rollout.overlayHash) {
+  if (rollout.httpMode !== "rbac-emergency" || rollout.workerMode !== "rbac-emergency" || !rollout.emergencyOverlay) {
     return denial(request.operationId, "emergency-policy-unsupported", "rollout");
   }
-  const policy = emergencyPolicies.find((candidate) => candidate.overlayHash === rollout.overlayHash);
-  return policy ? null : denial(request.operationId, "emergency-policy-unsupported", "rollout");
+  try {
+    validateEmergencyOverlay(rollout.emergencyOverlay, now);
+    return null;
+  } catch {
+    return denial(request.operationId, "emergency-policy-unsupported", "rollout");
+  }
 }
 
 function emergencyDenies(
@@ -321,14 +320,13 @@ function emergencyDenies(
   operation: TenantOperationDefinition,
   rollout: TenantAuthorizationRollout | null,
   required: readonly string[],
-  emergencyPolicies: readonly TenantAuthorizationEmergencyPolicy[],
 ): boolean {
-  if (!rollout || modeFor(rollout, request.surface) !== "rbac-emergency" || !rollout.overlayHash) return false;
-  const policy = emergencyPolicies.find((candidate) => candidate.overlayHash === rollout.overlayHash);
+  if (!rollout || modeFor(rollout, request.surface) !== "rbac-emergency" || !rollout.emergencyOverlay) return false;
+  const policy = rollout.emergencyOverlay;
   return Boolean(
-    policy?.deniedOperationIds?.has(operation.id) ||
-    required.some((key) => policy?.deniedPermissionKeys?.has(key)) ||
-    (policy?.denyMutations && operation.operationalGate === "write"),
+    policy.deniedOperationIds.includes(operation.id) ||
+    required.some((key) => policy.deniedPermissionKeys.includes(key)) ||
+    (policy.denyMutations && operation.operationalGate === "write"),
   );
 }
 
@@ -339,7 +337,6 @@ export function createTenantAuthorizationEvaluator(dependencies: TenantAuthoriza
   const tenantMemo = new Map<string, Promise<TenantAuthorizationTenant | null>>();
   const authorityMemo = new Map<string, Promise<TenantAuthorizationAuthority>>();
   const rolloutMemo = new Map<string, Promise<TenantAuthorizationRollout | null>>();
-  const emergencyPolicies = dependencies.emergencyPolicies ?? [];
   const now = dependencies.now ?? (() => new Date());
 
   const loadAccount = (userId: string) => {
@@ -478,11 +475,11 @@ export function createTenantAuthorizationEvaluator(dependencies: TenantAuthoriza
           }
         }
 
-        const rolloutProblem = rolloutDenial(request, operation, rollout, emergencyPolicies);
+        const rolloutProblem = rolloutDenial(request, operation, rollout, now());
         if (rolloutProblem && (!rbacDenial || operation.operationalGate === "write")) {
           rbacDenial = rolloutProblem;
         }
-        if (!rbacDenial && emergencyDenies(request, operation, rollout, required ?? [], emergencyPolicies)) {
+        if (!rbacDenial && emergencyDenies(request, operation, rollout, required ?? [])) {
           rbacDenial = denial(request.operationId, "permission-denied", "effective-permission");
         }
       }

@@ -24,7 +24,15 @@ export type StoredRolloutState = Readonly<{
   resolverVersion: string;
   registryVersion: string;
   operationMapVersion: string;
-  overlayHash: string | null;
+  emergencyOverlay: Readonly<{
+    overlayHash: string;
+    deniedOperationIds: readonly string[];
+    deniedPermissionKeys: readonly string[];
+    denyMutations: boolean;
+    policyVersion: string;
+    reviewAt: string;
+    expiresAt: string;
+  }> | null;
   multiRoleAcceptedAt: string | null;
   legacyAuthorityDisabledAt: string | null;
   rollbackEligible: boolean;
@@ -46,6 +54,11 @@ function storedState(state: RolloutState): StoredRolloutState {
   return {
     ...state,
     epoch: state.epoch.toString(),
+    emergencyOverlay: state.emergencyOverlay ? {
+      ...state.emergencyOverlay,
+      reviewAt: state.emergencyOverlay.reviewAt.toISOString(),
+      expiresAt: state.emergencyOverlay.expiresAt.toISOString(),
+    } : null,
     multiRoleAcceptedAt: state.multiRoleAcceptedAt?.toISOString() ?? null,
     legacyAuthorityDisabledAt: state.legacyAuthorityDisabledAt?.toISOString() ?? null,
   };
@@ -65,9 +78,33 @@ function rolloutState(value: JsonValue): RolloutState {
   if (
     typeof row.httpMode !== "string" || typeof row.workerMode !== "string" || typeof row.epoch !== "string"
     || typeof row.version !== "number" || typeof row.resolverVersion !== "string" || typeof row.registryVersion !== "string"
-    || typeof row.operationMapVersion !== "string" || (row.overlayHash !== null && typeof row.overlayHash !== "string")
-    || typeof row.rollbackEligible !== "boolean"
+    || typeof row.operationMapVersion !== "string" || typeof row.rollbackEligible !== "boolean"
   ) invalid();
+  const emergencyValue = row.emergencyOverlay;
+  let emergencyOverlay: RolloutState["emergencyOverlay"] = null;
+  if (emergencyValue !== null) {
+    if (typeof emergencyValue !== "object" || Array.isArray(emergencyValue)) invalid();
+    const overlay = emergencyValue as Record<string, JsonValue>;
+    if (
+      typeof overlay.overlayHash !== "string" || !Array.isArray(overlay.deniedOperationIds)
+      || !overlay.deniedOperationIds.every((value) => typeof value === "string")
+      || !Array.isArray(overlay.deniedPermissionKeys) || !overlay.deniedPermissionKeys.every((value) => typeof value === "string")
+      || typeof overlay.denyMutations !== "boolean" || typeof overlay.policyVersion !== "string"
+      || typeof overlay.reviewAt !== "string" || typeof overlay.expiresAt !== "string"
+    ) invalid();
+    const reviewAt = new Date(overlay.reviewAt);
+    const expiresAt = new Date(overlay.expiresAt);
+    if (Number.isNaN(reviewAt.getTime()) || Number.isNaN(expiresAt.getTime())) invalid();
+    emergencyOverlay = {
+      overlayHash: overlay.overlayHash,
+      deniedOperationIds: overlay.deniedOperationIds as string[],
+      deniedPermissionKeys: overlay.deniedPermissionKeys as string[],
+      denyMutations: overlay.denyMutations,
+      policyVersion: overlay.policyVersion,
+      reviewAt,
+      expiresAt,
+    };
+  }
   return {
     httpMode: row.httpMode as RolloutState["httpMode"],
     workerMode: row.workerMode as RolloutState["workerMode"],
@@ -76,7 +113,7 @@ function rolloutState(value: JsonValue): RolloutState {
     resolverVersion: row.resolverVersion,
     registryVersion: row.registryVersion,
     operationMapVersion: row.operationMapVersion,
-    overlayHash: row.overlayHash as string | null,
+    emergencyOverlay,
     multiRoleAcceptedAt: date("multiRoleAcceptedAt"),
     legacyAuthorityDisabledAt: date("legacyAuthorityDisabledAt"),
     rollbackEligible: row.rollbackEligible,

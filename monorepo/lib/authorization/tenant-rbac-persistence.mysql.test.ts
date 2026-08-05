@@ -13,6 +13,10 @@ const migrationUrl = new URL(
   "../../drizzle/20260731083635_expand-tenant-rbac-security/migration.sql",
   import.meta.url,
 );
+const emergencyOverlayMigrationUrl = new URL(
+  "../../drizzle/20260805120000_persist-emergency-rbac-overlay/migration.sql",
+  import.meta.url,
+);
 
 type MigrationShape = Readonly<{
   tables: ReadonlySet<string>;
@@ -68,6 +72,17 @@ async function assertCompleteMigration(
   }
 }
 
+async function applyEmergencyOverlayMigration(connection: mysql.Connection): Promise<void> {
+  const [columns] = await connection.execute<mysql.RowDataPacket[]>(
+    "SELECT `column_name` FROM `information_schema`.`columns` WHERE `table_schema`=DATABASE() AND `table_name`='tenant_rbac_rollout' AND `column_name`='overlay_policy_version'",
+  );
+  if (columns.length) return;
+  const migration = await readFile(emergencyOverlayMigrationUrl, "utf8");
+  for (const statement of migration.split("--> statement-breakpoint").map((value) => value.trim()).filter(Boolean)) {
+    await connection.query(statement);
+  }
+}
+
 async function applyMigration(connection: mysql.Connection): Promise<void> {
   const migration = await readFile(migrationUrl, "utf8");
   const expected = expectedMigrationShape(migration);
@@ -76,6 +91,7 @@ async function applyMigration(connection: mysql.Connection): Promise<void> {
 
   if (existingMigrationTables.length > 0) {
     await assertCompleteMigration(connection, expected);
+    await applyEmergencyOverlayMigration(connection);
     return;
   }
 
@@ -87,6 +103,7 @@ async function applyMigration(connection: mysql.Connection): Promise<void> {
   }
 
   await assertCompleteMigration(connection, expected);
+  await applyEmergencyOverlayMigration(connection);
 }
 
 async function expectIntegrityFailure(operation: Promise<unknown>): Promise<void> {
@@ -331,9 +348,21 @@ mysqlTest("MySQL enforces Tenant-qualified RBAC, lifecycle, and audit persistenc
       "UPDATE `tenant_rbac_rollout` SET `http_mode`='rbac-emergency',`overlay_hash`=? WHERE `tenant_id`=?",
       [hash, ids.tenantA],
     ));
-    await connection.execute(
+    await expectIntegrityFailure(connection.execute(
       "UPDATE `tenant_rbac_rollout` SET `http_mode`='rbac-emergency',`worker_mode`='rbac-emergency',`overlay_hash`=?,`epoch`=2,`version`=2 WHERE `tenant_id`=?",
       [hash, ids.tenantA],
+    ));
+    await connection.execute(
+      "UPDATE `tenant_rbac_rollout` SET `http_mode`='rbac-emergency',`worker_mode`='rbac-emergency',`overlay_hash`=?,`overlay_policy_version`='emergency@1',`overlay_denied_operation_ids`=JSON_ARRAY(),`overlay_denied_permission_keys`=JSON_ARRAY(),`overlay_deny_mutations`=true,`overlay_review_at`=NOW(3),`overlay_expires_at`=DATE_ADD(NOW(3), INTERVAL 1 HOUR),`epoch`=2,`version`=2 WHERE `tenant_id`=?",
+      [hash, ids.tenantA],
+    );
+    await expectIntegrityFailure(connection.execute(
+      "UPDATE `tenant_rbac_rollout` SET `http_mode`='rbac',`worker_mode`='rbac',`overlay_hash`=NULL WHERE `tenant_id`=?",
+      [ids.tenantA],
+    ));
+    await connection.execute(
+      "UPDATE `tenant_rbac_rollout` SET `http_mode`='rbac',`worker_mode`='rbac',`overlay_hash`=NULL,`overlay_policy_version`=NULL,`overlay_denied_operation_ids`=NULL,`overlay_denied_permission_keys`=NULL,`overlay_deny_mutations`=NULL,`overlay_review_at`=NULL,`overlay_expires_at`=NULL,`epoch`=3,`version`=3 WHERE `tenant_id`=?",
+      [ids.tenantA],
     );
     await connection.execute(
       "INSERT INTO `security_migration_checkpoint` (`migration_key`,`shard_key`,`state`,`registry_version`,`operation_map_version`,`examined_count`,`migrated_count`,`finding_count`,`version`,`updated_at`) VALUES (?, '00','pending','tenant-permissions@1','tenant-operations@1',0,0,0,1,NOW(3))",

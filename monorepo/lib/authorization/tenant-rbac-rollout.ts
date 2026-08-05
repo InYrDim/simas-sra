@@ -1,8 +1,10 @@
-import { createHash } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 import { canonicalJson, SecurityCommandError, type JsonValue } from "@/lib/authorization/security-command";
+import { resolveActivePermission, tenantOperationMap } from "@/lib/authorization/tenant-rbac-contract";
 
 export const ROLLOUT_POLICY_VERSION = "tenant-rbac-rollout@1";
+export const EMERGENCY_OVERLAY_POLICY_VERSION = "emergency@1";
 export const ROLLOUT_SURFACES = ["http", "worker"] as const;
 export type RolloutSurface = (typeof ROLLOUT_SURFACES)[number];
 export type RolloutMode = "legacy" | "intersection" | "rbac" | "rbac-emergency";
@@ -15,7 +17,7 @@ export type RolloutState = Readonly<{
   resolverVersion: string;
   registryVersion: string;
   operationMapVersion: string;
-  overlayHash: string | null;
+  emergencyOverlay: EmergencyOverlay | null;
   multiRoleAcceptedAt: Date | null;
   legacyAuthorityDisabledAt: Date | null;
   rollbackEligible: boolean;
@@ -49,6 +51,8 @@ export type EmergencyOverlay = Readonly<{
   deniedPermissionKeys: readonly string[];
   denyMutations: boolean;
   policyVersion: string;
+  reviewAt: Date;
+  expiresAt: Date;
 }>;
 
 export type RolloutTransition = Readonly<{
@@ -99,20 +103,57 @@ function assertEvidence(evidence: PromotionEvidence, state: RolloutState): void 
   for (const gate of GATES) if (!evidence.checks[gate]) fail(`rollout-gate-failed:${gate}`);
 }
 
-export function emergencyOverlayDigest(overlay: Omit<EmergencyOverlay, "overlayHash">): string {
-  return createHash("sha256").update(canonicalJson(overlay as unknown as JsonValue), "utf8").digest("hex");
+type EmergencyOverlayBody = Omit<EmergencyOverlay, "overlayHash">;
+
+function canonicalEmergencyOverlayBody(overlay: EmergencyOverlayBody): JsonValue {
+  return {
+    deniedOperationIds: [...overlay.deniedOperationIds].sort(),
+    deniedPermissionKeys: [...overlay.deniedPermissionKeys].sort(),
+    denyMutations: overlay.denyMutations,
+    policyVersion: overlay.policyVersion,
+    reviewAt: overlay.reviewAt.toISOString(),
+    expiresAt: overlay.expiresAt.toISOString(),
+  };
+}
+
+export function emergencyOverlayDigest(overlay: EmergencyOverlayBody): string {
+  return createHash("sha256").update(canonicalJson(canonicalEmergencyOverlayBody(overlay)), "utf8").digest("hex");
+}
+
+export function validateEmergencyOverlay(overlay: EmergencyOverlay, now?: Date): EmergencyOverlay {
+  if (!Array.isArray(overlay.deniedOperationIds) || !Array.isArray(overlay.deniedPermissionKeys) || typeof overlay.denyMutations !== "boolean") fail("emergency-overlay-invalid");
+  if (overlay.policyVersion !== EMERGENCY_OVERLAY_POLICY_VERSION) fail("emergency-overlay-invalid");
+  assertDate(overlay.reviewAt, "reviewAt");
+  assertDate(overlay.expiresAt, "expiresAt");
+  if (overlay.reviewAt.getTime() > overlay.expiresAt.getTime() || (now && overlay.expiresAt.getTime() <= now.getTime())) fail("emergency-overlay-expired");
+
+  const deniedOperationIds = [...overlay.deniedOperationIds].sort();
+  const deniedPermissionKeys = [...overlay.deniedPermissionKeys].sort();
+  if (
+    new Set(deniedOperationIds).size !== deniedOperationIds.length
+    || new Set(deniedPermissionKeys).size !== deniedPermissionKeys.length
+    || deniedOperationIds.some((id) => !tenantOperationMap.some((operation) => operation.id === id && operation.lifecycle === "active"))
+    || deniedPermissionKeys.some((key) => !resolveActivePermission(key))
+  ) fail("emergency-overlay-invalid");
+
+  const canonical: EmergencyOverlay = {
+    overlayHash: overlay.overlayHash,
+    deniedOperationIds,
+    deniedPermissionKeys,
+    denyMutations: overlay.denyMutations,
+    policyVersion: overlay.policyVersion,
+    reviewAt: new Date(overlay.reviewAt),
+    expiresAt: new Date(overlay.expiresAt),
+  };
+  const digest = emergencyOverlayDigest(canonical);
+  if (!HASH.test(overlay.overlayHash) || !timingSafeEqual(Buffer.from(digest, "hex"), Buffer.from(overlay.overlayHash, "hex"))) {
+    fail("emergency-overlay-integrity-failure");
+  }
+  return Object.freeze(canonical);
 }
 
 export function assertNarrowingEmergencyOverlay(overlay: EmergencyOverlay): void {
-  if (!HASH.test(overlay.overlayHash) || emergencyOverlayDigest({
-    deniedOperationIds: [...new Set(overlay.deniedOperationIds)].sort(),
-    deniedPermissionKeys: [...new Set(overlay.deniedPermissionKeys)].sort(),
-    denyMutations: overlay.denyMutations,
-    policyVersion: overlay.policyVersion,
-  }) !== overlay.overlayHash) fail("emergency-overlay-integrity-failure");
-  if (!overlay.policyVersion.trim() || overlay.deniedOperationIds.some((id) => !id.trim()) || overlay.deniedPermissionKeys.some((key) => !key.trim())) {
-    fail("emergency-overlay-invalid");
-  }
+  validateEmergencyOverlay(overlay);
 }
 
 function nextMode(current: RolloutMode, target: RolloutMode): boolean {
@@ -132,8 +173,8 @@ export function planRolloutTransition(state: RolloutState, transition: RolloutTr
   if (transition.toMode === "rbac-emergency") {
     if (transition.surface !== "both" || (state.httpMode !== "rbac" && state.httpMode !== "rbac-emergency") || (state.workerMode !== "rbac" && state.workerMode !== "rbac-emergency")) fail("emergency-requires-rbac-both-surfaces");
     if (!transition.emergencyOverlay) fail("emergency-overlay-required");
-    assertNarrowingEmergencyOverlay(transition.emergencyOverlay);
-    return { ...state, httpMode: "rbac-emergency", workerMode: "rbac-emergency", epoch: state.epoch + BigInt(1), version: state.version + 1, overlayHash: transition.emergencyOverlay.overlayHash };
+    const emergencyOverlay = validateEmergencyOverlay(transition.emergencyOverlay, now);
+    return { ...state, httpMode: "rbac-emergency", workerMode: "rbac-emergency", epoch: state.epoch + BigInt(1), version: state.version + 1, emergencyOverlay };
   }
 
 
@@ -152,7 +193,7 @@ export function planRolloutTransition(state: RolloutState, transition: RolloutTr
     workerMode: surfaces.includes("worker") ? transition.toMode : state.workerMode,
     epoch: state.epoch + BigInt(1),
     version: state.version + 1,
-    overlayHash: null,
+    emergencyOverlay: null,
     multiRoleAcceptedAt: transition.toMode === "rbac" && state.multiRoleAcceptedAt === null ? now : state.multiRoleAcceptedAt,
     legacyAuthorityDisabledAt: transition.toMode === "rbac" && state.legacyAuthorityDisabledAt === null ? now : state.legacyAuthorityDisabledAt,
     rollbackEligible: transition.toMode === "rbac" ? false : state.rollbackEligible,
@@ -165,7 +206,8 @@ export function planEmergencyExit(state: RolloutState, transition: RolloutTransi
   if (transition.surface !== "both" || transition.toMode !== "rbac" || state.httpMode !== "rbac-emergency" || state.workerMode !== "rbac-emergency") fail("invalid-emergency-exit");
   if (!transition.exitEvidence?.verified || !HASH.test(transition.exitEvidence.evidenceDigest)) fail("emergency-exit-evidence-required");
   if (transition.expectedEpoch !== state.epoch) fail("rollout-epoch-stale");
-  return { ...state, httpMode: "rbac", workerMode: "rbac", epoch: state.epoch + BigInt(1), version: state.version + 1, overlayHash: null };
+  assertDate(transition.exitEvidence.reviewedAt, "exitEvidence.reviewedAt");
+  return { ...state, httpMode: "rbac", workerMode: "rbac", epoch: state.epoch + BigInt(1), version: state.version + 1, emergencyOverlay: null };
 }
 
 export function planLegacyRollback(state: RolloutState, expectedEpoch: bigint): RolloutState {

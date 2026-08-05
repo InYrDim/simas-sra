@@ -6,6 +6,10 @@ const migrationUrl = new URL(
   "../../drizzle/20260731083635_expand-tenant-rbac-security/migration.sql",
   import.meta.url,
 );
+const emergencyOverlayMigrationUrl = new URL(
+  "../../drizzle/20260805120000_persist-emergency-rbac-overlay/migration.sql",
+  import.meta.url,
+);
 
 const expectedTables = [
   "school_admin_authority",
@@ -38,6 +42,22 @@ test("RBAC persistence migration is additive and leaves legacy authorization sto
   assert.match(sql, /CREATE TABLE `tenant_role_assignment`/);
   assert.match(sql, /CREATE TABLE `school_admin_authority`/);
   assert.match(sql, /CREATE TABLE `security_audit_event`/);
+});
+
+test("emergency overlay migration persists the complete body and enforces atomic cleanup", async () => {
+  const sql = await readFile(emergencyOverlayMigrationUrl, "utf8");
+  for (const column of [
+    "overlay_policy_version",
+    "overlay_denied_operation_ids",
+    "overlay_denied_permission_keys",
+    "overlay_deny_mutations",
+    "overlay_review_at",
+    "overlay_expires_at",
+  ]) assert.match(sql, new RegExp("ADD COLUMN `" + column + "`"), column);
+  assert.match(sql, /DROP CHECK `tenant_rbac_rollout_emergency_check`/);
+  assert.match(sql, /overlay_hash` REGEXP '\^\[a-f0-9\]\{64\}\$'/);
+  assert.match(sql, /overlay_review_at` <= `overlay_expires_at`/);
+  assert.doesNotMatch(sql, /DROP TABLE|DROP COLUMN|TRUNCATE|DELETE FROM|UPDATE `user`/i);
 });
 
 test("RBAC persistence migration carries the required MySQL integrity contracts", async () => {
