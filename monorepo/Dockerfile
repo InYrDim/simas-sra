@@ -18,7 +18,7 @@ WORKDIR /app
 COPY tsconfig.json drizzle.config.ts ./
 COPY db ./db
 COPY drizzle ./drizzle
-COPY lib/provider-admin.ts ./lib/provider-admin.ts
+COPY lib/provider/provider-admin.ts ./lib/provider/provider-admin.ts
 COPY scripts/provision-provider-admin.ts ./scripts/provision-provider-admin.ts
 COPY scripts/deprovision-provider-admin.ts ./scripts/deprovision-provider-admin.ts
 CMD ["pnpm", "db:migrate"]
