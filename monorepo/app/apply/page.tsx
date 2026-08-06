@@ -11,6 +11,7 @@ import { createApplicantPortalQuery, type ApplicantApplicationSnapshot } from "@
 import { applicantPortalStore } from "@/lib/applicants/applicant-portal-data";
 import { resolveCentralDestination } from "@/lib/platform/central-identity";
 import { getCentralIdentity } from "@/lib/platform/central-identity-data";
+import { SignOutButton } from "./sign-out-button";
 
 export default async function ApplyPage() {
   const session = await auth.api.getSession({ headers: await headers() });
@@ -22,10 +23,13 @@ export default async function ApplyPage() {
 
   return (
     <ApplyShell>
-      <header className="mb-8">
-        <p className="text-sm font-medium text-primary">{portal.state.kind === "approved" ? "Akun School Admin" : "Akun Pemohon"}</p>
-        <h1 className="mt-2 text-3xl font-bold tracking-tight">{session.user.name}</h1>
-        <p className="mt-2 text-muted-foreground">{session.user.email}</p>
+      <header className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-primary">{portal.state.kind === "approved" ? "Akun School Admin" : "Akun Pemohon"}</p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight">{session.user.name}</h1>
+          <p className="mt-2 text-muted-foreground">{session.user.email}</p>
+        </div>
+        <SignOutButton />
       </header>
       {portal.state.kind === "empty" ? (
         <section>

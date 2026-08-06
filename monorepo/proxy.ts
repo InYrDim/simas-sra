@@ -48,7 +48,23 @@ async function hasSession(req: NextRequest) {
   }
 }
 
+function applyCorsHeaders(req: NextRequest, response: NextResponse) {
+  const origin = req.headers.get("origin");
+  const domain = process.env.APP_DOMAIN || "simas.biz.id";
+  if (origin && (origin.endsWith(`.${domain}`) || origin === `https://${domain}` || origin === `http://${domain}`)) {
+    response.headers.set("Access-Control-Allow-Origin", origin);
+    response.headers.set("Access-Control-Allow-Credentials", "true");
+    response.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization, x-nextjs-data, rsc, next-router-prefetch, next-router-state-tree, next-url");
+  }
+  return response;
+}
+
 export async function proxy(req: NextRequest) {
+  if (req.method === "OPTIONS") {
+    return applyCorsHeaders(req, new NextResponse(null, { status: 204 }));
+  }
+
   if (req.nextUrl.pathname === "/login" || req.nextUrl.pathname === "/register") {
     resolveRawPublicIntent(req.nextUrl.search);
   }
@@ -60,21 +76,21 @@ export async function proxy(req: NextRequest) {
 
 
   if (route.kind === "not-found") {
-    return new NextResponse(null, { status: 404 });
+    return applyCorsHeaders(req, new NextResponse(null, { status: 404 }));
   }
 
   if (route.kind === "redirect") {
     const destination = publicRequestUrl(req, route.pathname);
     destination.hostname = route.hostname;
-    return NextResponse.redirect(destination);
+    return applyCorsHeaders(req, NextResponse.redirect(destination));
   }
 
   if (route.kind === "rewrite") {
     const tenantDomain = getTenantSubdomain(req.headers.get("host") ?? "", process.env.APP_DOMAIN);
-    if (tenantDomain && isProtectedTenantPage(route.pathname, tenantDomain) && !(await hasSession(req))) {
+    if (req.method !== "OPTIONS" && tenantDomain && isProtectedTenantPage(route.pathname, tenantDomain) && !(await hasSession(req))) {
       const destination = publicRequestUrl(req, "/login");
       destination.searchParams.set("continuation", route.pathname);
-      return NextResponse.redirect(destination);
+      return applyCorsHeaders(req, NextResponse.redirect(destination));
     }
     const requestHeaders = new Headers(req.headers);
     const publicOrigin = publicRequestOrigin(req);
@@ -85,10 +101,10 @@ export async function proxy(req: NextRequest) {
     requestHeaders.set("x-forwarded-port", publicOrigin.port);
     const destination = req.nextUrl.clone();
     destination.pathname = route.pathname;
-    return NextResponse.rewrite(destination, {
+    return applyCorsHeaders(req, NextResponse.rewrite(destination, {
       request: { headers: requestHeaders },
-    });
+    }));
   }
 
-  return NextResponse.next();
+  return applyCorsHeaders(req, NextResponse.next());
 }
