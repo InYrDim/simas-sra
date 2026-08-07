@@ -44,9 +44,12 @@ function requireEnv(name: string): string {
   return value;
 }
 
-let connection: Connection;
+let connection: Connection | undefined;
 
 async function cleanup(): Promise<void> {
+  // No-op when beforeAll failed before the connection was created (e.g. env
+  // DB credentials missing): there is nothing to remove and no handle to use.
+  if (!connection) return;
   await connection.execute("DELETE FROM session WHERE user_id IN (?, ?)", [USER_ABSENSI_ONLY_ID, USER_NO_PERM_ID]);
   await connection.execute("DELETE FROM tenant_role_assignment WHERE tenant_id = ? AND user_id IN (?, ?)", [
     TENANT_ID,
@@ -129,11 +132,18 @@ test.beforeAll(async () => {
   } catch (error) {
     await cleanup();
     await connection.end();
+    // Forget the (now closed) handle so a subsequent afterAll does not run
+    // cleanup/end again and mask the original error with a secondary one.
+    connection = undefined;
     throw error;
   }
 });
 
 test.afterAll(async () => {
+  // beforeAll may have failed before creating the connection (e.g. env DB
+  // credentials missing). Playwright still runs afterAll in that case; return
+  // so the real beforeAll error is the only error reported.
+  if (!connection) return;
   try {
     await cleanup();
   } finally {
