@@ -19,6 +19,7 @@ import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-ope
 import { TENANT_PATHNAME_HEADER } from "@/lib/platform/proxy-routing";
 
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 
 
 export default async function DashboardLayout({ children, params }: {
@@ -40,8 +41,13 @@ export default async function DashboardLayout({ children, params }: {
 
   const features = await getResolvedTenantFeatures(tenant.id);
   const pathname = requestHeaders.get(TENANT_PATHNAME_HEADER);
+  const relativePath = pathname ? getTenantRelativePath(domain, pathname) : "/";
+  if (tenant.onboardingCompletedAt === null && relativePath !== "/dashboard") {
+    redirect(`/${domain}/dashboard`);
+  }
+
   const gatedArea = pathname
-    ? getMasterDataGatedArea(getTenantRelativePath(domain, pathname))
+    ? getMasterDataGatedArea(relativePath)
     : null;
   const missing = gatedArea
     ? getMissingUrgentMasterData(domain, await getUrgentMasterDataPresence(tenant.id))

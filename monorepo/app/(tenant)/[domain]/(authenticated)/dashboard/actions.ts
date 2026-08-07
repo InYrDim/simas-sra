@@ -20,10 +20,30 @@ export async function completeOnboardingAction(
   await requireTenantFeatureAccess(domain);
 
   try {
+    const schoolYearInput = String(formData.get("schoolYear") ?? "");
     await completeTenantOnboarding({
-      schoolYear: String(formData.get("schoolYear") ?? ""),
+      schoolYear: schoolYearInput,
       timezone: String(formData.get("timezone") ?? ""),
     });
+
+    const startYear = Number(schoolYearInput.split("/")[0]);
+    if (Number.isInteger(startYear)) {
+      const endYear = startYear + 1;
+      const { createAcademicYearService } = await import("@/lib/academic/academic-year");
+      const { academicYearStore } = await import("@/lib/academic/academic-year-data");
+      const { enforceAcademicAccess } = await import("@/lib/master-data/tenant-master-data-route-access");
+      const principal = await enforceAcademicAccess(domain, "academic-years.create");
+      const service = createAcademicYearService({ store: academicYearStore });
+      await service.create(principal, {
+        label: `${startYear}/${endYear}`,
+        startDate: `${startYear}-07-01`,
+        endDate: `${endYear}-06-30`,
+        oddStartDate: `${startYear}-07-01`,
+        oddEndDate: `${startYear}-12-31`,
+        evenStartDate: `${endYear}-01-01`,
+        evenEndDate: `${endYear}-06-30`,
+      });
+    }
   } catch (error) {
     if (!(error instanceof TenantOnboardingError)) throw error;
 

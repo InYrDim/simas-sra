@@ -31,5 +31,5 @@ export const providerNavItems: readonly ProviderNavItem[] = [
   { title: "Audit Log", href: "/provider/audit-log", icon: ClipboardList, group: "operations", availability: "empty-state" },
   { title: "Rollout RBAC", href: "/provider/rbac-rollout", icon: ShieldCheck, group: "operations", availability: "available" },
   { title: "Support Ticket", href: "/provider/support-tickets", icon: Headset, group: "operations", availability: "empty-state" },
-  { title: "Pengaturan Provider", href: "/provider/settings", icon: Settings, group: "operations", availability: "empty-state" },
+  { title: "Pengaturan Provider", href: "/provider/settings", icon: Settings, group: "operations", availability: "available" },
 ];

@@ -1807,3 +1807,8 @@ export const schemaRelations = defineRelations(
     },
   }),
 );
+
+export const providerSettings = mysqlTable("provider_settings", {
+  id: int("id").primaryKey(),
+  defaultTrialDays: int("default_trial_days").default(31).notNull(),
+});

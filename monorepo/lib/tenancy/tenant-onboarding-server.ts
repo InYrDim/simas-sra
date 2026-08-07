@@ -14,8 +14,15 @@ const completeForAuthenticatedUser = createCompleteTenantOnboardingCommand({
   store: tenantOnboardingStore,
 });
 
+import { db } from "@/db";
+import { providerSettings } from "@/db/schema";
+
 export async function completeTenantOnboarding(payload: TenantOnboardingSettings) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) throw new TenantOnboardingError("forbidden");
-  return completeForAuthenticatedUser(session.user.id, payload);
+  
+  const [settings] = await db.select().from(providerSettings).limit(1);
+  const defaultTrialDays = settings?.defaultTrialDays ?? 31;
+  
+  return completeForAuthenticatedUser(session.user.id, { ...payload, defaultTrialDays });
 }

@@ -3,6 +3,7 @@ import type { TenantRole } from "@/types/TenantRole";
 export type TenantOnboardingSettings = Readonly<{
   schoolYear: string;
   timezone: string;
+  defaultTrialDays?: number;
 }>;
 
 type TenantLifecycle = Readonly<{
@@ -114,10 +115,12 @@ export function createCompleteTenantOnboardingCommand(dependencies: {
 
       const settings = validateSettings(payload);
       const completedAt = now();
+      const trialDays = payload.defaultTrialDays ?? 31;
+      const trialEndsAt = new Date(completedAt.getTime() + trialDays * 24 * 60 * 60 * 1000);
       const lifecycle = {
         onboardingCompletedAt: completedAt,
         trialStartedAt: completedAt,
-        trialEndsAt: addOneUtcCalendarMonth(completedAt),
+        trialEndsAt,
       };
       await tx.complete(principal.tenantId, settings, lifecycle);
 
