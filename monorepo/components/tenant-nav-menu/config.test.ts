@@ -28,14 +28,33 @@ test("Administrasi separates Overview, Import, and Master Data", () => {
   assert.ok(administration.every((item) => item.feature === "masterDataRead"));
 });
 
-test("placeholder navigation does not invent a permission", () => {
+test("admin-only placeholder navigation requires tenant.authorization-audit.view", () => {
+  const adminOnlyKey = ["tenant.authorization-audit.view"];
+
+  const eLibrary = tenantMenuItems.find((item) => item.title === "E-Library");
+  assert.deepEqual(eLibrary?.requiredPermissions, adminOnlyKey);
+  assert.equal(isNavigationItemAuthorized(eLibrary!, new Set()), false);
+  assert.equal(isNavigationItemAuthorized(eLibrary!, new Set(["tenant.authorization-audit.view"])), true);
+  assert.equal(isNavigationItemAuthorized(eLibrary!, new Set(["tenant.dashboard.view"])), false);
+
+  const persuratan = tenantMenuItems.find((item) => item.title === "Persuratan");
+  assert.deepEqual(persuratan?.requiredPermissions, adminOnlyKey);
+  assert.equal(isNavigationItemAuthorized(persuratan!, new Set()), false);
+  assert.equal(isNavigationItemAuthorized(persuratan!, new Set(["tenant.authorization-audit.view"])), true);
+
+  const penjadwalan = tenantMenuItems.find((item) => item.title === "Penjadwalan");
+  const jadwalMengajar = penjadwalan?.items?.find((item) => item.title === "Jadwal Mengajar");
+  const jadwalEvents = penjadwalan?.items?.find((item) => item.title === "Events");
+  assert.deepEqual(jadwalMengajar?.requiredPermissions, adminOnlyKey);
+  assert.deepEqual(jadwalEvents?.requiredPermissions, adminOnlyKey);
+  assert.equal(isNavigationItemAuthorized(jadwalMengajar!, new Set()), false);
+  assert.equal(isNavigationItemAuthorized(jadwalEvents!, new Set(["tenant.authorization-audit.view"])), true);
+
   const management = tenantMenuItems.find((item) => item.title === "Manajemen");
   const backupRestore = management?.items?.find((item) => item.title === "Backup & Restore");
-
-  assert.deepEqual(backupRestore, {
-    title: "Backup & Restore",
-    url: "/settings/backup-restore",
-  });
+  assert.deepEqual(backupRestore?.requiredPermissions, adminOnlyKey);
+  assert.equal(isNavigationItemAuthorized(backupRestore!, new Set(["tenant.dashboard.view"])), false);
+  assert.equal(isNavigationItemAuthorized(backupRestore!, new Set(["tenant.authorization-audit.view"])), true);
 });
 
 test("Absensi attendance menu is gated by absensi.attendance.view", () => {

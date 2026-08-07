@@ -230,6 +230,35 @@ test("absensi page load requires absensi.attendance.view", async () => {
   if (allowed.kind === "authorized") assert.equal(allowed.rbac.allowed, true);
 });
 
+test("admin-only placeholder pages require tenant.authorization-audit.view", async () => {
+  const adminOnlyOperationIds = [
+    "e-library.load",
+    "jadwal.mengajar.load",
+    "jadwal.events.load",
+    "persuratan.load",
+    "settings.backup-restore.load",
+    "integrasi.whatsapp-bot.load",
+  ];
+
+  const nonAdmin = fixture({ authority: authority(["tenant.dashboard.view", "absensi.attendance.view"]) });
+  const admin = fixture({
+    authority: { schoolAdminAuthorityStates: ["active"], assignments: [] },
+  });
+
+  for (const operationId of adminOnlyOperationIds) {
+    const request = { sessionUserId: "user-1", domain: "school.example", operationId, surface: "page" as const };
+
+    const denied = await createTenantAuthorizationEvaluator({ store: nonAdmin.store }).evaluate(request);
+    assert.equal(denied.kind, "denied", operationId);
+    assert.equal(denied.rbac.allowed, false, operationId);
+    assert.equal(denied.rbac.denial?.code, "permission-denied", operationId);
+
+    const allowed = await createTenantAuthorizationEvaluator({ store: admin.store }).evaluate(request);
+    assert.equal(allowed.kind, "authorized", operationId);
+    if (allowed.kind === "authorized") assert.equal(allowed.rbac.allowed, true, operationId);
+  }
+});
+
 test("read-only Tenant state is checked before entitlements and permissions", async () => {
   const { store } = fixture({
     tenant: { ...activeTenant, operationalStatus: "suspended", settings: { features: {} } },

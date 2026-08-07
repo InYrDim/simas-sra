@@ -18,11 +18,13 @@ export const tenantMenuItems: TenantNavItem[] = [
     title: "E-Library",
     icon: Library,
     url: "/e-library",
+    requiredPermissions: ["tenant.authorization-audit.view"]
   },
   {
     title: "Persuratan",
     icon: Mail,
     url: "/persuratan",
+    requiredPermissions: ["tenant.authorization-audit.view"]
   },
   {
     title: "PPDB",
@@ -49,8 +51,8 @@ export const tenantMenuItems: TenantNavItem[] = [
     title: "Penjadwalan",
     icon: Calendar,
     items: [
-      { title: "Jadwal Mengajar", url: "/jadwal/mengajar" },
-      { title: "Events", url: "/jadwal/events" }
+      { title: "Jadwal Mengajar", url: "/jadwal/mengajar", requiredPermissions: ["tenant.authorization-audit.view"] },
+      { title: "Events", url: "/jadwal/events", requiredPermissions: ["tenant.authorization-audit.view"] }
     ]
   },
   {
@@ -98,7 +100,7 @@ export const tenantMenuItems: TenantNavItem[] = [
       { title: "Riwayat Keamanan", url: "/security-history", requiredPermissions: ["tenant.users.view"] },
       { title: "Assignment Role", url: "/settings/assignments", requiredPermissions: ["tenant.assignments.view"] },
       { title: "Pengaturan Sistem", url: "/settings", requiredPermissions: ["tenant-settings.landing-page.view"] },
-      { title: "Backup & Restore", url: "/settings/backup-restore" }
+      { title: "Backup & Restore", url: "/settings/backup-restore", requiredPermissions: ["tenant.authorization-audit.view"] }
     ]
   },
 ]
