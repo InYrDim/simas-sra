@@ -1,4 +1,4 @@
-import { isNavigationItemAuthorized } from "@/components/tenant-nav-menu";
+import { isNavigationItemAuthorized } from "@/lib/authorization/tenant-nav-item-authorization";
 import type { TenantNavItem } from "@/types/components/TenantNavItem";
 
 export const TENANT_HOME_DASHBOARD = "/dashboard";

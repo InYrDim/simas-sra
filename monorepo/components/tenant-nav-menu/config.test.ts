@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { tenantMenuItems } from "@/components/tenant-nav-menu/config";
-import { isNavigationItemAuthorized, tenantNavigationHref } from "@/components/tenant-nav-menu";
+import { tenantNavigationHref } from "@/components/tenant-nav-menu";
+import { isNavigationItemAuthorized } from "@/lib/authorization/tenant-nav-item-authorization";
 
 const masterData = tenantMenuItems.find((item) => item.title === "Master Data");
 

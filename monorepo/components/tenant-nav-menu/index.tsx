@@ -23,6 +23,12 @@ import {
 
 import type { TenantFeatureSelection } from "@/lib/features/tenant-feature-policy"
 import { type TenantNavItem } from "@/types/components/TenantNavItem"
+// The predicate is a pure authorization function shared with server-side
+// helpers. It lives in a plain (non-"use client") module so Server Components
+// can import it without crossing the RSC boundary; re-export keeps the old
+// `@/components/tenant-nav-menu` import path compatible for client callers.
+import { isNavigationItemAuthorized } from "@/lib/authorization/tenant-nav-item-authorization"
+export { isNavigationItemAuthorized }
 
 export function tenantNavigationHref(domain: string, url: string | undefined) {
   if (!url) return "#"
@@ -160,13 +166,4 @@ export function TenantNavMenu({
       ))}
     </>
   )
-}
-
-export function isNavigationItemAuthorized(
-  item: Pick<TenantNavItem, "requiredPermissions" | "permissionMode">,
-  permissions: ReadonlySet<string>,
-) {
-  if (!item.requiredPermissions?.length) return permissions.size > 0
-  if (item.permissionMode === "any") return item.requiredPermissions.some((permission) => permissions.has(permission))
-  return item.requiredPermissions.every((permission) => permissions.has(permission))
 }

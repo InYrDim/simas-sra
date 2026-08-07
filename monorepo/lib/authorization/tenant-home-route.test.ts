@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { tenantMenuItems } from "@/components/tenant-nav-menu/config";
-import { isNavigationItemAuthorized } from "@/components/tenant-nav-menu";
+import { isNavigationItemAuthorized } from "@/lib/authorization/tenant-nav-item-authorization";
 import { resolveTenantHomeRoute } from "@/lib/authorization/tenant-home-route";
 import type { TenantNavItem } from "@/types/components/TenantNavItem";
 
