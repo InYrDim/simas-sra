@@ -210,6 +210,26 @@ test("assigned contextual access requires a matching declared arm", async () => 
   assert.equal(allowed.kind, "authorized");
 });
 
+test("absensi page load requires absensi.attendance.view", async () => {
+  const absensiRequest = {
+    sessionUserId: "user-1",
+    domain: "school.example",
+    operationId: "absensi.attendance.load",
+    surface: "page" as const,
+  };
+
+  const withoutKey = fixture({ authority: authority(["tenant.dashboard.view"]) });
+  const denied = await createTenantAuthorizationEvaluator({ store: withoutKey.store }).evaluate(absensiRequest);
+  assert.equal(denied.kind, "denied");
+  assert.equal(denied.rbac.allowed, false);
+  assert.equal(denied.rbac.denial?.code, "permission-denied");
+
+  const withKey = fixture({ authority: authority(["absensi.attendance.view"]) });
+  const allowed = await createTenantAuthorizationEvaluator({ store: withKey.store }).evaluate(absensiRequest);
+  assert.equal(allowed.kind, "authorized");
+  if (allowed.kind === "authorized") assert.equal(allowed.rbac.allowed, true);
+});
+
 test("read-only Tenant state is checked before entitlements and permissions", async () => {
   const { store } = fixture({
     tenant: { ...activeTenant, operationalStatus: "suspended", settings: { features: {} } },

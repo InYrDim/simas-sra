@@ -12,6 +12,7 @@ export const tenantMenuItems: TenantNavItem[] = [
     title: "Absensi",
     icon: ClipboardCheck,
     url: "/absensi",
+    requiredPermissions: ["absensi.attendance.view"]
   },
   {
     title: "E-Library",

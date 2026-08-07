@@ -1,4 +1,17 @@
-export default function AbsensiPage() {
+import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
+import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
+
+export default async function AbsensiPage({
+  params,
+}: {
+  params: Promise<{ domain: string }>;
+}) {
+  const { domain } = await params;
+  const evaluator = await createHttpTenantAuthorizationEvaluator();
+  const operationId = "absensi.attendance.load";
+  const result = await evaluator.evaluate({ surface: "page", domain, operationId });
+  enforceAuthorizedTenantOperation(result, { domain, operationId });
+
   return (
     <div className="flex flex-col gap-4 p-4">
       <h1 className="text-2xl font-bold">Absensi</h1>

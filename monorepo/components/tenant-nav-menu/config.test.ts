@@ -38,6 +38,28 @@ test("placeholder navigation does not invent a permission", () => {
   });
 });
 
+test("Absensi attendance menu is gated by absensi.attendance.view", () => {
+  const absensi = tenantMenuItems.find((item) => item.title === "Absensi");
+
+  assert.ok(absensi);
+  assert.equal(absensi?.url, "/absensi");
+  assert.deepEqual(absensi?.requiredPermissions, ["absensi.attendance.view"]);
+  assert.equal(isNavigationItemAuthorized({ requiredPermissions: ["absensi.attendance.view"] }, new Set()), false);
+  assert.equal(
+    isNavigationItemAuthorized({ requiredPermissions: ["absensi.attendance.view"] }, new Set(["tenant.dashboard.view"])),
+    false,
+  );
+  assert.equal(
+    isNavigationItemAuthorized({ requiredPermissions: ["absensi.attendance.view"] }, new Set(["absensi.attendance.view"])),
+    true,
+  );
+});
+
+test("navigation falls back to any member when requiredPermissions is empty", () => {
+  assert.equal(isNavigationItemAuthorized({ requiredPermissions: [] }, new Set()), false);
+  assert.equal(isNavigationItemAuthorized({ requiredPermissions: [] }, new Set(["tenant.users.view"])), true);
+});
+
 test("placeholder integration is not presented as an authorized capability", () => {
   const integration = tenantMenuItems.find((item) => item.title === "Integrasi");
   assert.equal(integration, undefined);
