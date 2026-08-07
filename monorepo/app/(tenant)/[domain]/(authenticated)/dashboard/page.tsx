@@ -12,6 +12,7 @@ import { OnboardingForm } from "@/app/(tenant)/[domain]/(authenticated)/dashboar
 import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
 import { resolveTenantHomeRoute } from "@/lib/authorization/tenant-home-route";
 import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
+import { getResolvedTenantFeatures } from "@/lib/features/tenant-feature-access-data";
 
 import { redirect } from "next/navigation";
 
@@ -26,10 +27,20 @@ export default async function DashboardPage({
   const layoutDecision = await evaluator.evaluate({ surface: "page", domain, operationId: "authenticated.layout" });
   const layoutPrincipal = enforceAuthorizedTenantOperation(layoutDecision, { domain, operationId: "authenticated.layout" });
 
-  const homeRoute = resolveTenantHomeRoute(layoutPrincipal.permissions, tenantMenuItems);
+  const [tenantData] = await db
+    .select()
+    .from(tenant)
+    .where(and(eq(tenant.id, layoutPrincipal.tenantId), eq(tenant.domain, domain)))
+    .limit(1);
+  if (!tenantData) throw new Error("Authorized Tenant disappeared during request");
+
+  const features = await getResolvedTenantFeatures(tenantData.id);
+  const homeRoute = resolveTenantHomeRoute(layoutPrincipal.permissions, tenantMenuItems, {
+    features,
+    onboardingCompleted: tenantData.onboardingCompletedAt !== null,
+  });
   if (homeRoute.kind === "no-access") {
-    const [identity] = await db.select({ name: tenant.name }).from(tenant).where(and(eq(tenant.id, layoutPrincipal.tenantId), eq(tenant.domain, domain))).limit(1);
-    return <NoTenantAccess tenantName={identity?.name ?? domain} />;
+    return <NoTenantAccess tenantName={tenantData.name ?? domain} />;
   }
   if (homeRoute.kind === "redirect") {
     redirect(`/${domain}${homeRoute.path}`);
@@ -37,15 +48,6 @@ export default async function DashboardPage({
 
   const dashboardDecision = await evaluator.evaluate({ surface: "page", domain, operationId: "tenant.dashboard.load" });
   const principal = enforceAuthorizedTenantOperation(dashboardDecision, { domain, operationId: "tenant.dashboard.load" });
-
-  const tenantDataArray = await db
-    .select()
-    .from(tenant)
-    .where(and(eq(tenant.id, principal.tenantId), eq(tenant.domain, domain)))
-    .limit(1);
-  const tenantData = tenantDataArray[0];
-
-  if (!tenantData) throw new Error("Authorized Tenant disappeared during request");
 
   const currentYear = new Date().getFullYear();
   const defaultSchoolYear = `${currentYear}/${currentYear + 1}`;

@@ -1,60 +1,84 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { TENANT_FEATURES } from "@/config/tenant-features";
 import { tenantMenuItems } from "@/components/tenant-nav-menu/config";
 import { isNavigationItemAuthorized } from "@/lib/authorization/tenant-nav-item-authorization";
-import { resolveTenantHomeRoute } from "@/lib/authorization/tenant-home-route";
+import {
+  resolveTenantHomeRoute,
+  type TenantHomeRouteContext,
+} from "@/lib/authorization/tenant-home-route";
+import type { TenantFeatureSelection } from "@/lib/features/tenant-feature-policy";
 import type { TenantNavItem } from "@/types/components/TenantNavItem";
 
+/** Feature selection with every registry feature enabled (mirror of a fully-provided tenant). */
+function featuresWith(overrides: Partial<TenantFeatureSelection>): TenantFeatureSelection {
+  return {
+    ...(Object.fromEntries(TENANT_FEATURES.map(({ key }) => [key, true])) as TenantFeatureSelection),
+    ...overrides,
+  };
+}
+
+/** Home-route context for a tenant that has completed onboarding. */
+function completed(overrides: Partial<TenantFeatureSelection> = {}): TenantHomeRouteContext {
+  return { features: featuresWith(overrides), onboardingCompleted: true };
+}
+
+/** Home-route context for a tenant whose onboarding is still incomplete. */
+function onboardingLocked(overrides: Partial<TenantFeatureSelection> = {}): TenantHomeRouteContext {
+  return { features: featuresWith(overrides), onboardingCompleted: false };
+}
+
 test("keeps /dashboard as the home route when the principal holds tenant.dashboard.view", () => {
-  assert.deepEqual(resolveTenantHomeRoute(new Set(["tenant.dashboard.view"]), tenantMenuItems), {
+  assert.deepEqual(resolveTenantHomeRoute(new Set(["tenant.dashboard.view"]), tenantMenuItems, completed()), {
     kind: "dashboard",
     path: "/dashboard",
   });
   assert.deepEqual(
-    resolveTenantHomeRoute(new Set(["tenant.dashboard.view", "absensi.attendance.view"]), tenantMenuItems),
+    resolveTenantHomeRoute(new Set(["tenant.dashboard.view", "absensi.attendance.view"]), tenantMenuItems, completed()),
     { kind: "dashboard", path: "/dashboard" },
   );
 });
 
 test("redirects to the first authorized menu page when dashboard access is missing", () => {
-  assert.deepEqual(resolveTenantHomeRoute(new Set(["absensi.attendance.view"]), tenantMenuItems), {
+  assert.deepEqual(resolveTenantHomeRoute(new Set(["absensi.attendance.view"]), tenantMenuItems, completed()), {
     kind: "redirect",
     path: "/absensi",
   });
-  assert.deepEqual(resolveTenantHomeRoute(new Set(["tenant.authorization-audit.view"]), tenantMenuItems), {
+  assert.deepEqual(resolveTenantHomeRoute(new Set(["tenant.authorization-audit.view"]), tenantMenuItems, completed()), {
     kind: "redirect",
     path: "/e-library",
   });
-  assert.deepEqual(resolveTenantHomeRoute(new Set(["quizzes.sessions.view"]), tenantMenuItems), {
+  assert.deepEqual(resolveTenantHomeRoute(new Set(["quizzes.sessions.view"]), tenantMenuItems, completed()), {
     kind: "redirect",
     path: "/ulangan",
   });
-  assert.deepEqual(resolveTenantHomeRoute(new Set(["tenant.users.view"]), tenantMenuItems), {
+  assert.deepEqual(resolveTenantHomeRoute(new Set(["tenant.users.view"]), tenantMenuItems, completed()), {
     kind: "redirect",
     path: "/users",
   });
 });
 
 test("walks nested menu groups in config order to find the first allowed page", () => {
-  assert.deepEqual(resolveTenantHomeRoute(new Set(["ppdb.submissions.view"]), tenantMenuItems), {
+  assert.deepEqual(resolveTenantHomeRoute(new Set(["ppdb.submissions.view"]), tenantMenuItems, completed()), {
     kind: "redirect",
     path: "/ppdb",
   });
-  assert.deepEqual(resolveTenantHomeRoute(new Set(["school-profile.profile.view"]), tenantMenuItems), {
+  assert.deepEqual(resolveTenantHomeRoute(new Set(["school-profile.profile.view"]), tenantMenuItems, completed()), {
     kind: "redirect",
     path: "/master",
   });
 });
 
 test("returns no-access for a principal without any permission", () => {
-  assert.deepEqual(resolveTenantHomeRoute(new Set(), tenantMenuItems), { kind: "no-access" });
+  assert.deepEqual(resolveTenantHomeRoute(new Set(), tenantMenuItems, completed()), { kind: "no-access" });
 });
 
 test("returns no-access when permissions authorize no menu page", () => {
-  assert.deepEqual(resolveTenantHomeRoute(new Set(["tenant.onboarding.complete"]), tenantMenuItems), {
-    kind: "no-access",
-  });
+  assert.deepEqual(
+    resolveTenantHomeRoute(new Set(["tenant.onboarding.complete"]), tenantMenuItems, completed()),
+    { kind: "no-access" },
+  );
 });
 
 test("redirect target is never /dashboard (no home loop)", () => {
@@ -67,7 +91,7 @@ test("redirect target is never /dashboard (no home loop)", () => {
     ["school-profile.profile.view"],
   ];
   for (const keys of permissionSets) {
-    const decision = resolveTenantHomeRoute(new Set(keys), tenantMenuItems);
+    const decision = resolveTenantHomeRoute(new Set(keys), tenantMenuItems, completed());
     if (decision.kind === "redirect") assert.notEqual(decision.path, "/dashboard");
   }
 });
@@ -82,13 +106,87 @@ test("redirect target is always an authorized menu item (consistent with sidebar
     ["school-profile.profile.view"],
   ];
   for (const keys of cases) {
-    const decision = resolveTenantHomeRoute(new Set(keys), tenantMenuItems);
+    const decision = resolveTenantHomeRoute(new Set(keys), tenantMenuItems, completed());
     if (decision.kind !== "redirect") continue;
     const allItems = tenantMenuItems.flatMap((item) => item.items ?? [item]);
     const target = allItems.find((item) => item.url === decision.path);
     assert.ok(target, `no menu item with url ${decision.path}`);
     assert.equal(isNavigationItemAuthorized(target, new Set(keys)), true, decision.path);
   }
+});
+
+test("skips menu pages behind a provider-disabled feature when looking for the first allowed page", () => {
+  // Only page is PPDB, whose ppdbRead feature the Provider disabled -> no-access,
+  // never a redirect onto a non-active page.
+  assert.deepEqual(
+    resolveTenantHomeRoute(new Set(["ppdb.submissions.view"]), tenantMenuItems, completed({ ppdbRead: false })),
+    { kind: "no-access" },
+  );
+  // Ulangan group gated by ulanganRead, Master Data by masterDataRead: identical to mirror.
+  assert.deepEqual(
+    resolveTenantHomeRoute(new Set(["quizzes.sessions.view"]), tenantMenuItems, completed({ ulanganRead: false })),
+    { kind: "no-access" },
+  );
+  assert.deepEqual(
+    resolveTenantHomeRoute(
+      new Set(["school-profile.profile.view", "people-imports.revisions.view"]),
+      tenantMenuItems,
+      completed({ masterDataRead: false }),
+    ),
+    { kind: "no-access" },
+  );
+});
+
+test("feature-disabled items are skipped in favor of the next allowed page (config order)", () => {
+  const permissions = new Set(["ppdb.submissions.view", "tenant.users.view"]);
+  // With ppdbRead enabled, /ppdb (config first) wins.
+  assert.deepEqual(resolveTenantHomeRoute(permissions, tenantMenuItems, completed()), {
+    kind: "redirect",
+    path: "/ppdb",
+  });
+  // With ppdbRead disabled, PPDB (with its nested urls) is skipped and /users wins.
+  assert.deepEqual(
+    resolveTenantHomeRoute(permissions, tenantMenuItems, completed({ ppdbRead: false })),
+    { kind: "redirect", path: "/users" },
+  );
+});
+
+test("a collapsible group behind a disabled feature is skipped entirely", () => {
+  // PPDB group holds both child permissions; with ppdbRead disabled the whole
+  // group must be ignored (sidebar shows a disabled button, no reachable page).
+  const permissions = new Set(["ppdb.submissions.view", "ppdb.sessions.view"]);
+  assert.deepEqual(
+    resolveTenantHomeRoute(permissions, tenantMenuItems, completed({ ppdbRead: false })),
+    { kind: "no-access" },
+  );
+});
+
+test("onboarding-incomplete locks the home route to /dashboard (no fallback redirect loop)", () => {
+  // Layout redirects every path != /dashboard back to /dashboard while onboarding
+  // is incomplete; the fallback must never redirect away from /dashboard.
+  assert.deepEqual(
+    resolveTenantHomeRoute(new Set(["absensi.attendance.view"]), tenantMenuItems, onboardingLocked()),
+    { kind: "dashboard", path: "/dashboard" },
+  );
+  assert.deepEqual(
+    resolveTenantHomeRoute(new Set(), tenantMenuItems, onboardingLocked()),
+    { kind: "dashboard", path: "/dashboard" },
+  );
+  assert.deepEqual(
+    resolveTenantHomeRoute(new Set(["tenant.dashboard.view"]), tenantMenuItems, onboardingLocked()),
+    { kind: "dashboard", path: "/dashboard" },
+  );
+});
+
+test("onboarding-incomplete wins even when the only allowed page is behind a disabled feature", () => {
+  // The dashboard-only guard runs BEFORE the permission-aware fallback, so an
+  // onboarding-incomplete tenant always stays on /dashboard even for a principal
+  // whose only menu page is behind a provider-disabled feature.
+  const permissions = new Set(["ppdb.submissions.view"]);
+  assert.deepEqual(
+    resolveTenantHomeRoute(permissions, tenantMenuItems, onboardingLocked({ ppdbRead: false })),
+    { kind: "dashboard", path: "/dashboard" },
+  );
 });
 
 test("respects config ordering on a synthetic menu", () => {
@@ -103,13 +201,29 @@ test("respects config ordering on a synthetic menu", () => {
       ],
     },
   ];
-  assert.deepEqual(resolveTenantHomeRoute(new Set(["first.view"]), menu), {
+  assert.deepEqual(resolveTenantHomeRoute(new Set(["first.view"]), menu, completed()), {
     kind: "redirect",
     path: "/first",
   });
-  assert.deepEqual(resolveTenantHomeRoute(new Set(["nested-b.view"]), menu), {
+  assert.deepEqual(resolveTenantHomeRoute(new Set(["nested-b.view"]), menu, completed()), {
     kind: "redirect",
     path: "/nested-b",
   });
-  assert.deepEqual(resolveTenantHomeRoute(new Set(["other.view"]), menu), { kind: "no-access" });
+  assert.deepEqual(resolveTenantHomeRoute(new Set(["other.view"]), menu, completed()), { kind: "no-access" });
+});
+
+test("synthetic menu: a disabled feature item is skipped while a later active item still wins", () => {
+  const menu: TenantNavItem[] = [
+    { title: "Gated First", url: "/gated", requiredPermissions: ["gated.view"], feature: "ppdbRead" },
+    { title: "Second", url: "/second", requiredPermissions: ["second.view"] },
+  ];
+  const permissions = new Set(["gated.view", "second.view"]);
+  assert.deepEqual(resolveTenantHomeRoute(permissions, menu, completed({ ppdbRead: false })), {
+    kind: "redirect",
+    path: "/second",
+  });
+  assert.deepEqual(resolveTenantHomeRoute(permissions, menu, completed()), {
+    kind: "redirect",
+    path: "/gated",
+  });
 });
