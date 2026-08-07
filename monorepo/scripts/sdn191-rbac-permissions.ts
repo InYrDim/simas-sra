@@ -1,9 +1,11 @@
 // Pure helpers describing the RBAC permission sets provisioned for tenant SDN 191.
 //
-// Milestone 1 constraint: guru & siswa only receive permission keys that already
-// exist in the registry (dashboard + akademik read). Key `absensi.*` is added in
-// Milestone 2 together with its registry entries (see VAL-DATA-008 / VAL-DATA-017),
-// so M1 provisioning intentionally does NOT include any `absensi.*` key.
+// Milestone 1 constraint: guru & siswa only received permission keys that already
+// existed in the registry (dashboard + akademik read). Key `absensi.*` was added
+// in Milestone 2 together with its registry entries (see VAL-DATA-008 /
+// VAL-DATA-017), so the M1 provisioning intentionally did NOT include any
+// `absensi.*` key. From M2 on, `absensi.attendance.view` is registered and is
+// appended to the guru role only (siswa stays without absensi).
 //
 // These functions have no I/O so they can be unit-tested in isolation.
 
@@ -19,6 +21,7 @@ export const GURU_ROLE_PERMISSIONS: readonly string[] = [
   "class-groups.groups.view",
   "students.students.view",
   "teachers.teachers.view",
+  "absensi.attendance.view",
 ];
 
 /** Permission set assigned to the `siswa` (student) role of tenant SDN 191. */
@@ -34,7 +37,6 @@ export type RolePermissionIssue = Readonly<{
   code:
     | "unknown-key"
     | "school-admin-only"
-    | "absensi-before-m2"
     | "dependency-not-included"
     | "role-sets-identical";
   detail?: string;
@@ -45,12 +47,13 @@ function resolveDefinition(key: string) {
 }
 
 /**
- * Validate that a custom role's permission set is safe to provision at M1:
+ * Validate that a custom role's permission set is safe to provision:
  * - every key is registered & active (`resolveActivePermission`);
  * - every key is tenant-assignable (custom roles must NOT embed school-admin-only
  *   or system-internal keys);
- * - dependencies of every key are also present inside the role;
- * - no M2-only `absensi.*` key leaks in.
+ * - dependencies of every key are also present inside the role.
+ * From M2 on the `absensi.*` keys are registered & assignable, so guru may hold
+ * them (the diploma placeholder absensi.attendance.view assignment is the goal).
  */
 export function validateRolePermissionSet(keys: readonly string[]): RolePermissionIssue[] {
   const issues: RolePermissionIssue[] = [];
@@ -60,9 +63,6 @@ export function validateRolePermissionSet(keys: readonly string[]): RolePermissi
     if (!entry) {
       issues.push({ key, code: "unknown-key" });
       continue;
-    }
-    if (key.startsWith(ABSENSI_KEY_PREFIX)) {
-      issues.push({ key, code: "absensi-before-m2" });
     }
     if (entry.assignment !== "tenant-assignable") {
       issues.push({ key, code: "school-admin-only" });
@@ -75,14 +75,14 @@ export function validateRolePermissionSet(keys: readonly string[]): RolePermissi
 }
 
 /**
- * Students must never receive a school-admin-only key nor any `absensi.*` key at M1
- * (VAL-DATA-008). Detects both cases.
+ * Students must never receive a school-admin-only key nor any `absensi.*` key
+ * (VAL-DATA-008): absensi stays out of the siswa role in M2 too.
  */
 export function validateStudentExclusions(siswaKeys: readonly string[]): RolePermissionIssue[] {
   const issues: RolePermissionIssue[] = [];
   for (const key of siswaKeys) {
     if (key.startsWith(ABSENSI_KEY_PREFIX)) {
-      issues.push({ key, code: "absensi-before-m2" });
+      issues.push({ key, code: "unknown-key", detail: "absensi.* is not assigned to siswa" });
     }
     const entry = resolveDefinition(key);
     if (entry && entry.assignment !== "tenant-assignable") {

@@ -13,7 +13,7 @@ export default async function BackupRestorePage({
 }) {
   const { domain } = await params;
   const evaluator = await createHttpTenantAuthorizationEvaluator();
-  const operationId = "placeholder.settings.backup-restore";
+  const operationId = "settings.backup-restore.load";
   const result = await evaluator.evaluate({ surface: "page", domain, operationId });
   enforceAuthorizedTenantOperation(result, { domain, operationId });
 

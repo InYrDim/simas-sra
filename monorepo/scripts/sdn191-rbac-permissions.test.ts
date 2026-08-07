@@ -12,7 +12,7 @@ import {
 } from "./sdn191-rbac-permissions";
 import { resolveActivePermission } from "@/lib/authorization/tenant-rbac-contract";
 
-test("every guru permission key is registered, active, and tenant-assignable (M1)", () => {
+test("every guru permission key is registered, active, and tenant-assignable (M2)", () => {
   const issues = validateRolePermissionSet(GURU_ROLE_PERMISSIONS);
   assert.deepEqual(issues, []);
   for (const key of GURU_ROLE_PERMISSIONS) {
@@ -32,17 +32,24 @@ test("every siswa permission key is registered, active, and tenant-assignable", 
   }
 });
 
-test("siswa has no admin-only key and no absensi.* key at M1", () => {
+test("siswa has no admin-only key and no absensi.* key in M2", () => {
   const issues = validateStudentExclusions(SISWA_ROLE_PERMISSIONS);
   assert.deepEqual(issues, []);
   for (const key of SISWA_ROLE_PERMISSIONS) {
-    assert.ok(!key.startsWith(ABSENSI_KEY_PREFIX), `siswa must not get absensi at M1: ${key}`);
+    assert.ok(!key.startsWith(ABSENSI_KEY_PREFIX), `siswa must not get absensi: ${key}`);
   }
 });
 
-test("only dashboard + akademik view keys are provisioned at M1 (no absensi, no admin modules)", () => {
-  const all = new Set([...GURU_ROLE_PERMISSIONS, ...SISWA_ROLE_PERMISSIONS]);
-  for (const key of all) assert.ok(!key.startsWith(ABSENSI_KEY_PREFIX), `absensi key leaked: ${key}`);
+test("M2 guru role includes absensi.attendance.view while siswa keeps it out and no admin module leaks into non-admin roles", () => {
+  assert.ok(GURU_ROLE_PERMISSIONS.includes("absensi.attendance.view"), "guru must hold absensi.attendance.view in M2");
+  const present = new Set([...GURU_ROLE_PERMISSIONS, ...SISWA_ROLE_PERMISSIONS]);
+  for (const key of present) {
+    const entry = resolveActivePermission(key);
+    assert.equal(entry?.assignment, "tenant-assignable", `non-assignable key leaked: ${key}`);
+  }
+  for (const key of SISWA_ROLE_PERMISSIONS) {
+    assert.ok(!key.startsWith(ABSENSI_KEY_PREFIX), `siswa absensi key leaked: ${key}`);
+  }
 });
 
 test("guru and siswa permission sets differ", () => {

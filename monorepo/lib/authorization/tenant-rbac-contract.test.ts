@@ -27,7 +27,7 @@ const legacyMinimum = [
 test("the approved registry and operation map form a valid executable contract", () => {
   assert.equal(PERMISSION_REGISTRY_VERSION, "tenant-permissions@2");
   assert.equal(OPERATION_MAP_VERSION, "tenant-operations@4");
-  assert.equal(permissionRegistry.length, 153);
+  assert.equal(permissionRegistry.length, 154);
   assert.match(permissionRegistryDigest, /^[a-f0-9]{64}$/);
   assert.match(tenantOperationMapDigest, /^[a-f0-9]{64}$/);
   assert.deepEqual(validateTenantRbacContract(), []);
@@ -52,6 +52,31 @@ test("every permission exposes stable Indonesian catalog metadata", () => {
     assert.ok(Number.isSafeInteger(permission.order), permission.key);
     assert.ok(Array.isArray(permission.dependencies), permission.key);
     assert.ok(Array.isArray(permission.replacements), permission.key);
+  }
+});
+
+test("absensi module wires a real operation and excluded placeholders become tenant-rbac admin-only", () => {
+  const absensiKey = resolveActivePermission("absensi.attendance.view");
+  assert.equal(absensiKey?.lifecycle, "active");
+  assert.equal(absensiKey?.assignment, "tenant-assignable");
+  assert.deepEqual(validateCustomRolePermissions(["absensi.attendance.view"]), {
+    ok: true,
+    permissions: ["absensi.attendance.view"],
+  });
+
+  const absensiLoad = tenantOperationMap.find((operation) => operation.id === "absensi.attendance.load");
+  assert.ok(absensiLoad);
+  assert.equal(absensiLoad.classification, "tenant-rbac");
+  assert.deepEqual(absensiLoad.requiredPermissions, ["absensi.attendance.view"]);
+  assert.ok(absensiLoad.entryPoints.some((entry) => entry === "page:app/(tenant)/[domain]/(authenticated)/absensi/page.tsx"));
+
+  assert.equal(tenantOperationMap.some((operation) => operation.id === "placeholder.absensi"), false);
+
+  for (const id of ["e-library.load", "jadwal.mengajar.load", "jadwal.events.load", "persuratan.load", "settings.backup-restore.load", "integrasi.whatsapp-bot.load"]) {
+    const operation = tenantOperationMap.find((candidate) => candidate.id === id);
+    assert.ok(operation, id);
+    assert.equal(operation.classification, "tenant-rbac", id);
+    assert.deepEqual(operation.requiredPermissions, ["tenant.authorization-audit.view"], id);
   }
 });
 

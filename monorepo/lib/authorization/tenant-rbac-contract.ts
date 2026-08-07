@@ -209,6 +209,7 @@ const activeSeeds: readonly CatalogSeed[] = [
   ["quizzes.grades.view", [], "sensitive"],
   ["quizzes.grades.adjust", [], "critical"],
   ["quizzes.grades.execute", [], "critical"],
+  ["absensi.attendance.view"],
 ];
 
 const reservedKeys = [
@@ -235,6 +236,7 @@ const moduleMetadata: Record<string, { label: string; group: string }> = {
   extracurriculars: { label: "Ekstrakurikuler", group: "Kegiatan Siswa" },
   ppdb: { label: "PPDB", group: "PPDB" },
   quizzes: { label: "Ulangan", group: "Ulangan" },
+  absensi: { label: "Absensi", group: "Absensi" },
 };
 
 const resourceLabels: Record<string, string> = {
@@ -454,7 +456,13 @@ const seeds: OperationSeed[] = [
   { id: "master-data.overview.load", entryPoints: [p("master")], permissions: activeSeeds.map(([key]) => key).filter((key) => key.endsWith(".view") && !key.startsWith("tenant.")), mode: "any", entitlement: "MD", legacy: ["broad-master-data", "capability-aggregate"] },
   { id: "authenticated.layout", entryPoints: ["layout:app/(tenant)/[domain]/(authenticated)/layout.tsx"], classification: "system-policy", context: "none", legacy: ["tenantRole"] },
   { id: "dashboard.demo-action", entryPoints: [a("dashboard/actions.ts", "dummyUpdateSettings")], classification: "placeholder", gate: "none", context: "none", legacy: ["legacy-school-admin"] },
-  ...["absensi", "e-library", "integrasi/whatsapp-bot", "jadwal/events", "jadwal/mengajar", "persuratan", "settings/backup-restore"].map((path): OperationSeed => ({ id: `placeholder.${path.replaceAll("/", ".")}`, entryPoints: [p(path)], classification: "placeholder", context: "none", legacy: ["integrasi/whatsapp-bot", "settings/backup-restore"].includes(path) ? ["broad-master-data"] : [] })),
+  { id: "absensi.attendance.load", entryPoints: [p("absensi")], permissions: ["absensi.attendance.view"], legacy: [] },
+  { id: "e-library.load", entryPoints: [p("e-library")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },
+  { id: "jadwal.mengajar.load", entryPoints: [p("jadwal/mengajar")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },
+  { id: "jadwal.events.load", entryPoints: [p("jadwal/events")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },
+  { id: "persuratan.load", entryPoints: [p("persuratan")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },
+  { id: "settings.backup-restore.load", entryPoints: [p("settings/backup-restore")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: ["broad-master-data"] },
+  { id: "integrasi.whatsapp-bot.load", entryPoints: [p("integrasi/whatsapp-bot")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: ["broad-master-data"] },
 ];
 
 for (const key of reservedKeys) {

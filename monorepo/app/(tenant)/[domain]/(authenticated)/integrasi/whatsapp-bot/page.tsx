@@ -8,7 +8,7 @@ export default async function WhatsAppBotPage({
 }) {
   const { domain } = await params;
   const evaluator = await createHttpTenantAuthorizationEvaluator();
-  const operationId = "placeholder.integrasi.whatsapp-bot";
+  const operationId = "integrasi.whatsapp-bot.load";
   const result = await evaluator.evaluate({ surface: "page", domain, operationId });
   enforceAuthorizedTenantOperation(result, { domain, operationId });
 
