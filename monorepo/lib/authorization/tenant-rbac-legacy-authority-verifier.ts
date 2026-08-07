@@ -19,6 +19,7 @@ const FORBIDDEN_RUNTIME_REFERENCES = [
 const ALLOWED_PATHS = [
   /legacy-non-admin-backfill/,
   /applicant-identity-migration/,
+  /provision-sdn-191/,
   /school-admin-authority\.ts$/,
   /tenant-rbac-legacy-authority-verifier/,
 ];

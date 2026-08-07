@@ -26,6 +26,7 @@
     "db:backfill:tenant-operational": "tsx scripts/migrate-tenant-operational-model.ts backfill",
     "db:verify:tenant-operational": "tsx scripts/migrate-tenant-operational-model.ts verify",
     "db:project:school-admin-authorities": "tsx scripts/project-school-admin-authorities.ts",
+    "db:provision:sdn191": "tsx scripts/provision-sdn-191.ts",
     "db:backfill:legacy-non-admin": "tsx scripts/backfill-legacy-non-admin-access.ts backfill",
     "db:verify:legacy-non-admin": "tsx scripts/backfill-legacy-non-admin-access.ts verify",
     "test:legacy-non-admin-backfill:mysql": "tsx scripts/run-legacy-non-admin-backfill-mysql-test.ts",
