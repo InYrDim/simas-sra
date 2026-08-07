@@ -2,6 +2,7 @@ import { SessionInfo } from "@/components/dashboard/session-info";
 import { AdvancedAnalytics } from "@/components/dashboard/advanced-analytics";
 import { MasterDataWarningBanner } from "@/components/dashboard/master-data-warning-banner";
 import { NoTenantAccess } from "@/components/dashboard/no-tenant-access";
+import { tenantMenuItems } from "@/components/tenant-nav-menu/config";
 import { db } from "@/db";
 import { tenant } from "@/db/schema";
 import { and, eq } from "drizzle-orm";
@@ -9,7 +10,10 @@ import { and, eq } from "drizzle-orm";
 import { OnboardingForm } from "@/app/(tenant)/[domain]/(authenticated)/dashboard/onboarding-form";
 
 import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
+import { resolveTenantHomeRoute } from "@/lib/authorization/tenant-home-route";
 import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
+
+import { redirect } from "next/navigation";
 
 
 export default async function DashboardPage({
@@ -21,10 +25,16 @@ export default async function DashboardPage({
   const evaluator = await createHttpTenantAuthorizationEvaluator();
   const layoutDecision = await evaluator.evaluate({ surface: "page", domain, operationId: "authenticated.layout" });
   const layoutPrincipal = enforceAuthorizedTenantOperation(layoutDecision, { domain, operationId: "authenticated.layout" });
-  if (layoutPrincipal.permissions.size === 0) {
+
+  const homeRoute = resolveTenantHomeRoute(layoutPrincipal.permissions, tenantMenuItems);
+  if (homeRoute.kind === "no-access") {
     const [identity] = await db.select({ name: tenant.name }).from(tenant).where(and(eq(tenant.id, layoutPrincipal.tenantId), eq(tenant.domain, domain))).limit(1);
     return <NoTenantAccess tenantName={identity?.name ?? domain} />;
   }
+  if (homeRoute.kind === "redirect") {
+    redirect(`/${domain}${homeRoute.path}`);
+  }
+
   const dashboardDecision = await evaluator.evaluate({ surface: "page", domain, operationId: "tenant.dashboard.load" });
   const principal = enforceAuthorizedTenantOperation(dashboardDecision, { domain, operationId: "tenant.dashboard.load" });
 
