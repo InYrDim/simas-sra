@@ -92,16 +92,35 @@ export const tenantMenuItems: TenantNavItem[] = [
     ]
   },
   {
-    title: "Manajemen",
+    title: "Pengguna",
     icon: Settings,
-    group: "Sistem & Keamanan",
+    group: "Manajemen",
     items: [
       { title: "Manajemen Pengguna", url: "/users", requiredPermissions: ["tenant.users.view"] },
-      { title: "Riwayat Keamanan", url: "/security-history", requiredPermissions: ["tenant.users.view"] },
-      { title: "Assignment Role", url: "/settings/assignments", requiredPermissions: ["tenant.assignments.view"] },
+      { title: "Pemberian Role", url: "/settings/assignments", requiredPermissions: ["tenant.assignments.view"] },
       { title: "Roles", url: "/settings/roles", requiredPermissions: ["tenant.roles.list"] },
-      { title: "Pengaturan Sistem", url: "/settings", requiredPermissions: ["tenant-settings.landing-page.view"] },
-      { title: "Backup & Restore", url: "/settings/backup-restore", requiredPermissions: ["tenant.authorization-audit.view"] }
-    ]
+      { title: "Permission", url: "/settings/permissions", requiredPermissions: ["tenant.permissions.view"] },
+    ],
+  },
+  {
+    title: "Riwayat Keamanan",
+    icon: Settings,
+    url: "/security-history",
+    group: "Sistem & Keamanan",
+    requiredPermissions: ["tenant.users.view"],
+  },
+  {
+    title: "Pengaturan Sistem",
+    icon: Settings,
+    url: "/settings",
+    group: "Sistem & Keamanan",
+    requiredPermissions: ["tenant-settings.landing-page.view"],
+  },
+  {
+    title: "Backup & Restore",
+    icon: Settings,
+    url: "/settings/backup-restore",
+    group: "Sistem & Keamanan",
+    requiredPermissions: ["tenant.authorization-audit.view"],
   },
 ]

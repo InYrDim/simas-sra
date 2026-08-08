@@ -1,6 +1,7 @@
-import assert from "node:assert/strict";
 import test from "node:test";
+import assert from "node:assert/strict";
 
+import { type TenantNavItem } from "@/types/components/TenantNavItem";
 import { tenantMenuItems } from "@/components/tenant-nav-menu/config";
 import { tenantNavigationHref } from "@/components/tenant-nav-menu";
 import { isNavigationItemAuthorized } from "@/lib/authorization/tenant-nav-item-authorization";
@@ -51,8 +52,7 @@ test("admin-only placeholder navigation requires tenant.authorization-audit.view
   assert.equal(isNavigationItemAuthorized(jadwalMengajar!, new Set()), false);
   assert.equal(isNavigationItemAuthorized(jadwalEvents!, new Set(["tenant.authorization-audit.view"])), true);
 
-  const management = tenantMenuItems.find((item) => item.title === "Manajemen");
-  const backupRestore = management?.items?.find((item) => item.title === "Backup & Restore");
+  const backupRestore = tenantMenuItems.find((item) => item.title === "Backup & Restore");
   assert.deepEqual(backupRestore?.requiredPermissions, adminOnlyKey);
   assert.equal(isNavigationItemAuthorized(backupRestore!, new Set(["tenant.dashboard.view"])), false);
   assert.equal(isNavigationItemAuthorized(backupRestore!, new Set(["tenant.authorization-audit.view"])), true);
@@ -80,23 +80,37 @@ test("navigation falls back to any member when requiredPermissions is empty", ()
   assert.equal(isNavigationItemAuthorized({ requiredPermissions: [] }, new Set(["tenant.users.view"])), true);
 });
 
-test("Roles menu item lives in the Manajemen group and is gated by tenant.roles.list", () => {
-  const management = tenantMenuItems.find((item) => item.title === "Manajemen");
-  assert.ok(management);
+test("Roles menu item lives under the Manajemen > Pengguna collapsible", () => {
+  const pengguna = tenantMenuItems.find((item) => item.title === "Pengguna");
+  assert.ok(pengguna, "Pengguna collapsible must exist");
 
-  const rolesItem = management?.items?.find((item) => item.title === "Roles");
-  assert.ok(rolesItem, "Roles item must exist in the Manajemen group");
+  const rolesItem = pengguna?.items?.find((item) => item.title === "Roles");
+  assert.ok(rolesItem, "Roles item must exist inside Pengguna");
   assert.equal(rolesItem?.url, "/settings/roles");
   assert.deepEqual(rolesItem?.requiredPermissions, ["tenant.roles.list"]);
-  // school-admin holds tenant.roles.list; guru/siswa never do.
   assert.equal(isNavigationItemAuthorized(rolesItem!, new Set()), false);
   assert.equal(isNavigationItemAuthorized(rolesItem!, new Set(["tenant.dashboard.view"])), false);
   assert.equal(isNavigationItemAuthorized(rolesItem!, new Set(["tenant.roles.list"])), true);
 });
 
-test("placeholder integration is not presented as an authorized capability", () => {
-  const integration = tenantMenuItems.find((item) => item.title === "Integrasi");
-  assert.equal(integration, undefined);
+test("school-admin sidebar contains the redesigned management structure", () => {
+  const labels = new Set([
+    ...tenantMenuItems.map((item) => item.title),
+    ...tenantMenuItems.map((item) => item.group ?? ""),
+    ...tenantMenuItems.flatMap((item) => item.items?.map((child) => child.title) ?? []),
+    ...tenantMenuItems.flatMap((item) => item.items?.flatMap((child) => child.items?.map((grandChild) => grandChild.title) ?? []) ?? []),
+  ]);
+
+  assert.ok(labels.has("Manajemen"));
+  assert.ok(labels.has("Pengguna"));
+  assert.ok(labels.has("Manajemen Pengguna"));
+  assert.ok(labels.has("Pemberian Role"));
+  assert.ok(labels.has("Roles"));
+  assert.ok(labels.has("Permission"));
+  assert.ok(labels.has("Sistem & Keamanan"));
+  assert.ok(labels.has("Riwayat Keamanan"));
+  assert.ok(labels.has("Pengaturan Sistem"));
+  assert.ok(labels.has("Backup & Restore"));
 });
 
 test("Tenant navigation prefixes every route with the current domain", () => {
@@ -105,14 +119,51 @@ test("Tenant navigation prefixes every route with the current domain", () => {
   assert.equal(tenantNavigationHref("sekolah-a", undefined), "#");
 
   for (const item of tenantMenuItems.flatMap((entry) => entry.items ?? [entry])) {
+    if (!item.url) continue;
     assert.match(tenantNavigationHref("sekolah-a", item.url), /^\/sekolah-a\//, item.title);
   }
 });
 
-test("navigation consumes effective permission state and zero-role users see no business items", () => {
-  assert.equal(isNavigationItemAuthorized({ requiredPermissions: ["tenant.dashboard.view"] }, new Set()), false);
-  assert.equal(isNavigationItemAuthorized({ requiredPermissions: ["tenant.dashboard.view"] }, new Set(["tenant.dashboard.view"])), true);
-  assert.equal(isNavigationItemAuthorized({}, new Set()), false);
-  assert.equal(isNavigationItemAuthorized({}, new Set(["tenant.users.view"])), true);
-  assert.equal(isNavigationItemAuthorized({ requiredPermissions: ["a", "b"], permissionMode: "any" }, new Set(["b"])), true);
+function leafVisible(item: TenantNavItem, permissions: ReadonlySet<string>): boolean {
+  if (item.items?.length) return item.items.some((child) => leafVisible(child, permissions))
+  return isNavigationItemAuthorized(item, permissions)
+}
+
+test("non-admin permissions hide the redesigned management sections", () => {
+  const permissions = new Set(["tenant.dashboard.view", "absensi.attendance.view"]);
+  const visible = tenantMenuItems.filter((item) => leafVisible(item, permissions));
+
+  assert.equal(visible.some((item) => item.title === "Pengguna"), false);
+  assert.equal(visible.some((item) => item.group === "Manajemen"), false);
+  assert.equal(visible.some((item) => item.title === "Permission"), false);
+  assert.equal(visible.some((item) => item.group === "Sistem & Keamanan"), false);
+  assert.equal(visible.some((item) => item.title === "Riwayat Keamanan"), false);
+  assert.equal(visible.some((item) => item.title === "Pengaturan Sistem"), false);
+});
+
+test("Manajemen and Sistem & Keamanan expose the redesigned management labels", () => {
+  const pengguna = tenantMenuItems.find((item) => item.title === "Pengguna");
+  assert.ok(pengguna, "Pengguna collapsible must exist");
+  assert.equal(pengguna?.group, "Manajemen");
+  assert.deepEqual(
+    pengguna.items?.map((item) => ({ title: item.title, url: item.url, requiredPermissions: item.requiredPermissions })),
+    [
+      { title: "Manajemen Pengguna", url: "/users", requiredPermissions: ["tenant.users.view"] },
+      { title: "Pemberian Role", url: "/settings/assignments", requiredPermissions: ["tenant.assignments.view"] },
+      { title: "Roles", url: "/settings/roles", requiredPermissions: ["tenant.roles.list"] },
+      { title: "Permission", url: "/settings/permissions", requiredPermissions: ["tenant.permissions.view"] },
+    ],
+  );
+
+  const securitySystem = tenantMenuItems.filter((item) => item.group === "Sistem & Keamanan");
+  assert.ok(securitySystem.length > 0, "Sistem & Keamanan group items must exist");
+  assert.equal(securitySystem.some((item) => item.items?.length), false, "Sistem & Keamanan items must be flat");
+  assert.deepEqual(
+    securitySystem.map((item) => ({ title: item.title, url: item.url })),
+    [
+      { title: "Riwayat Keamanan", url: "/security-history" },
+      { title: "Pengaturan Sistem", url: "/settings" },
+      { title: "Backup & Restore", url: "/settings/backup-restore" },
+    ],
+  );
 });

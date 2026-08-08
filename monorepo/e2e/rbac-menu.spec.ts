@@ -29,12 +29,39 @@ const ADMIN_ONLY_MODULES = [
   "Manajemen",
 ] as const;
 
+const ADMIN_VISIBLE_ITEMS = [
+  "Dasbor",
+  "Absensi",
+  "E-Library",
+  "Persuratan",
+  "Overview",
+  "Import",
+  "Penjadwalan",
+  "PPDB",
+  "Ulangan",
+  "Manajemen",
+  "Pengguna",
+  "Manajemen Pengguna",
+  "Pemberian Role",
+  "Roles",
+  "Permission",
+  "Sistem & Keamanan",
+  "Riwayat Keamanan",
+  "Pengaturan Sistem",
+  "Backup & Restore",
+] as const;
+
+const GURU_VISIBLE_ITEMS = [
+  "Dasbor",
+  "Absensi",
+] as const;
+
 test("school-admin sees the full RBAC module menu and opens Absensi", async ({ page }) => {
   const baseURL = currentBaseURL();
   await signIn(page, baseURL, "school-admin");
 
   const labels = await sidebarMenuLabels(page);
-  for (const expected of ["Dasbor", "Absensi", "E-Library", "Persuratan", "Overview", "Import", "Penjadwalan", "PPDB", "Ulangan", "Manajemen"]) {
+  for (const expected of ADMIN_VISIBLE_ITEMS) {
     expect(labels, `menu should contain ${expected}`).toContain(expected);
   }
 
@@ -48,14 +75,23 @@ test("guru sees Dasbor + Absensi and none of the admin-only placeholder modules"
   await signIn(page, baseURL, "guru");
 
   const labels = await sidebarMenuLabels(page);
-  expect(labels).toContain("Dasbor");
-  expect(labels).toContain("Absensi");
+  for (const expected of GURU_VISIBLE_ITEMS) {
+    expect(labels, `guru menu must contain ${expected}`).toContain(expected);
+  }
   for (const adminOnly of ADMIN_ONLY_MODULES) {
     expect(labels, `guru menu must not contain ${adminOnly}`).not.toContain(adminOnly);
   }
   expect(labels).not.toContain("Backup & Restore");
   expect(labels).not.toContain("Jadwal Mengajar");
   expect(labels).not.toContain("Jadwal Events");
+  expect(labels).not.toContain("Manajemen Pengguna");
+  expect(labels).not.toContain("Pemberian Role");
+  expect(labels).not.toContain("Roles");
+  expect(labels).not.toContain("Permission");
+  expect(labels).not.toContain("Pengguna");
+  expect(labels).not.toContain("Sistem & Keamanan");
+  expect(labels).not.toContain("Riwayat Keamanan");
+  expect(labels).not.toContain("Pengaturan Sistem");
 
   // VAL-CROSS-002: guru can open /absensi (200, content renders).
   await page.goto(tenantUrl(baseURL, "/absensi"));
@@ -75,6 +111,14 @@ test("siswa sees the narrowest menu; Absensi is hidden and direct /absensi is de
   expect(labels).not.toContain("Backup & Restore");
   expect(labels).not.toContain("Jadwal Mengajar");
   expect(labels).not.toContain("Jadwal Events");
+  expect(labels).not.toContain("Manajemen Pengguna");
+  expect(labels).not.toContain("Pemberian Role");
+  expect(labels).not.toContain("Roles");
+  expect(labels).not.toContain("Permission");
+  expect(labels).not.toContain("Pengguna");
+  expect(labels).not.toContain("Sistem & Keamanan");
+  expect(labels).not.toContain("Riwayat Keamanan");
+  expect(labels).not.toContain("Pengaturan Sistem");
 
   // VAL-CROSS-003: direct /absensi for siswa -> deny without content.
   await page.goto(tenantUrl(baseURL, "/absensi"));

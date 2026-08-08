@@ -37,8 +37,15 @@ export function tenantNavigationHref(domain: string, url: string | undefined) {
   return `/${normalizedDomain}${normalizedUrl}`
 }
 
+function isNavigationItemLeafAuthorized(item: TenantNavItem, permissions: ReadonlySet<string>): boolean {
+  if (item.items?.length) {
+    return item.items.some((child) => isNavigationItemLeafAuthorized(child, permissions))
+  }
+  return isNavigationItemAuthorized(item, permissions)
+}
+
 function TenantNavCollapsibleItem({ item, permissions, pathname, domain, disabled }: { item: TenantNavItem, permissions: ReadonlySet<string>, pathname: string, domain: string, disabled: boolean }) {
-  const filteredSubItems = item.items!.filter((subItem) => isNavigationItemAuthorized(subItem, permissions))
+  const filteredSubItems = item.items!.filter((subItem) => isNavigationItemLeafAuthorized(subItem, permissions))
   const isActive = filteredSubItems.some((subItem) => pathname === tenantNavigationHref(domain, subItem.url))
 
   const [isOpen, setIsOpen] = React.useState(isActive)
@@ -117,10 +124,7 @@ export function TenantNavMenu({
   const pathname = usePathname()
   const permissionSet = new Set(permissions)
 
-  const filteredItems = items.filter((item) => {
-    if (item.items?.length) return item.items.some((child) => isNavigationItemAuthorized(child, permissionSet))
-    return isNavigationItemAuthorized(item, permissionSet)
-  })
+  const filteredItems = items.filter((item) => isNavigationItemLeafAuthorized(item, permissionSet))
 
   // Group items by their "group" property, default to "Menu Utama"
   const groupedItems = filteredItems.reduce((acc, item) => {

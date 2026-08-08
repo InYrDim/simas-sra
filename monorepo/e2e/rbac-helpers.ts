@@ -91,10 +91,34 @@ export async function logout(page: Page): Promise<void> {
   ).toBeVisible();
 }
 
-/** Visible menu labels (links + collapsible triggers) rendered inside the sidebar. */
-export async function sidebarMenuLabels(page: Page): Promise<string[]> {
+/**
+ * Open every sidebar collapsible so nested labels are present in the DOM.
+ * Group labels ("Manajemen", "Sistem & Keamanan") are non-interactive
+ * `SidebarGroupLabel` divs and are skipped here — their flat items are always
+ * visible once the collapsible that contains them is open.
+ */
+export async function expandSidebarCollapsibles(page: Page): Promise<void> {
   const sidebar = page.locator('[data-slot="sidebar"]').first();
-  const labels = (await sidebar.locator("a, button").allTextContents())
+  const groupNames = ["Penjadwalan", "Pengguna"];
+
+  for (const groupName of groupNames) {
+    const button = sidebar.getByRole("button", { name: groupName, exact: true });
+    if ((await button.count()) === 0) continue;
+
+    await button.waitFor({ state: "visible", timeout: 20_000 });
+    await button.click();
+    await expect(button).toHaveAttribute("data-state", "open", { timeout: 20_000 }).catch(() => {});
+  }
+}
+
+/**
+ * Visible menu labels rendered inside the sidebar: nav links, collapsible
+ * triggers, and section group labels (e.g. "Manajemen", "Sistem & Keamanan").
+ */
+export async function sidebarMenuLabels(page: Page): Promise<string[]> {
+  await expandSidebarCollapsibles(page);
+  const sidebar = page.locator('[data-slot="sidebar"]').first();
+  const labels = (await sidebar.locator("a, button, [data-slot='sidebar-group-label']").allTextContents())
     .map((text) => text.replace(/\s+/g, " ").trim())
     .filter((text) => text && text !== "Keluar" && text !== "KeluarKeluar");
   return [...new Set(labels)];

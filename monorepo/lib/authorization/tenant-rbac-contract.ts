@@ -210,6 +210,7 @@ const activeSeeds: readonly CatalogSeed[] = [
   ["quizzes.grades.adjust", [], "critical"],
   ["quizzes.grades.execute", [], "critical"],
   ["absensi.attendance.view"],
+  ["tenant.permissions.view", [], "sensitive", "school-admin-only"],
 ];
 
 const reservedKeys = [
@@ -248,7 +249,7 @@ const resourceLabels: Record<string, string> = {
   periods: "Periode kepengurusan", leadership: "Kepengurusan", extracurriculars: "Ekstrakurikuler", advisors: "Pembina",
   participants: "Peserta", sessions: "Sesi", submissions: "Pengajuan", documents: "Dokumen", results: "Hasil",
   questions: "Pertanyaan", attendance: "Kehadiran", grades: "Nilai", roles: "Role Tenant", assignments: "Assignment role",
-  "effective-access": "Akses efektif", "authorization-audit": "Audit otorisasi", accounts: "Akun non-admin",
+  "effective-access": "Akses efektif", "authorization-audit": "Audit otorisasi", accounts: "Akun non-admin", permissions: "Permission",
 };
 
 const actionLabels: Record<string, string> = {
@@ -345,6 +346,7 @@ const seeds: OperationSeed[] = [
   { id: "tenant.assignments.replace", entryPoints: [a("settings/assignments/actions.ts", "replaceRoleSetAction")], permissions: ["tenant.assignments.replace"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
   { id: "tenant.assignments.bulk", entryPoints: [a("settings/assignments/actions.ts", "previewBulkRoleChangeAction"), a("settings/assignments/actions.ts", "commitBulkRoleChangeAction")], permissions: ["tenant.assignments.bulk"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
   { id: "tenant.effective-access.view", entryPoints: [a("settings/assignments/actions.ts", "getEffectiveAccessAction")], permissions: ["tenant.effective-access.view"], context: "school-admin-only", legacy: ["legacy-school-admin"] },
+  { id: "tenant.permissions.view", entryPoints: [p("settings/permissions")], permissions: ["tenant.permissions.view"], context: "school-admin-only", risk: "sensitive", legacy: ["legacy-school-admin"] },
   { id: "tenant-settings.landing-page.load", entryPoints: [p("settings")], permissions: ["tenant-settings.landing-page.view"], legacy: ["broad-master-data", "capability-aggregate"] },
   { id: "tenant-settings.landing-page.update", entryPoints: [a("settings/actions.ts", "updateLandingPageAction")], permissions: ["tenant-settings.landing-page.update"], gate: "write", legacy: ["broad-master-data"] },
 

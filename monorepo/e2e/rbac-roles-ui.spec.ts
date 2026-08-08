@@ -191,10 +191,11 @@ test("VAL-ROLES-001/002: school-admin sees Roles in the sidebar and the roles pa
   const labels = await sidebarMenuLabels(page);
   expect(labels, "admin sidebar must contain the Manajemen group").toContain("Manajemen");
 
-  // "Roles" is a sub-item of the collapsed Manajemen collapsible, so opening
-  // the group through the sidebar and clicking the link proves the item is
-  // present AND that real navigation reaches the rendered page.
-  await openGroupAndNavigate(page, "Manajemen", "Roles", /\/settings\/roles(?:[/?#]|$)/, "Roles");
+  // "Roles" is a sub-item of the collapsed "Pengguna" collapsible (which sits in
+  // the "Manajemen" section), so opening the collapsible through the sidebar and
+  // clicking the link proves the item is present AND that real navigation
+  // reaches the rendered page.
+  await openGroupAndNavigate(page, "Pengguna", "Roles", /\/settings\/roles(?:[/?#]|$)/, "Roles");
 
   // The SDN 191 role list (Guru & Siswa) renders with status and counts plus the
   // Create Role button.
