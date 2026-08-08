@@ -73,12 +73,13 @@ pnpm dev
 - **Guard server** — `enforceAuthorizedTenantOperation`; melindungi operation (halaman/API) dengan permission tenant.
 - **Filter menu** — `isNavigationItemAuthorized` di `lib/authorization/tenant-nav-item-authorization.ts` (modul server-safe); menu hanya tampil sesuai izin.
 - **Homepage fallback** — `lib/authorization/tenant-home-route.ts`; mengarahkan tenant ke halaman pertama yang boleh diakses.
+- **Manajemen roles (UI)** — menu sidebar **"Roles"** (admin-only, `tenant.roles.list`) pada grup "Manajemen" → `/{domain}/settings/roles`. Dialog create/edit menampilkan permission nyata dari registry lewat katalog `lib/authorization/tenant-role-permission-catalog.ts` (key tenant-assignable, dikelompokkan per modul). Lifecycle role: **draft → active → archived**; "hapus" = archive (hanya bila `userCount = 0`), tidak ada delete permanen maupun restore dari UI.
 
 Tenant uji RBAC: **SDN 191** (`uptd-sdn-191-inpres-batunapara`). Provisioning data dilakukan `scripts/provision-sdn-191.ts` (idempoten); assignment role via `scripts/assign-sdn191-guru-absensi.ts`.
 
 ### Test E2E RBAC
 
-Spec E2E RBAC ada di `e2e/rbac-*.spec.ts`. Dari folder ini:
+Spec E2E RBAC ada di `e2e/rbac-*.spec.ts`, termasuk `e2e/rbac-roles-ui.spec.ts` untuk UI manajemen roles. Dari folder ini:
 
 ```powershell
 $env:E2E_BASE_URL = "http://localhost:3000"
