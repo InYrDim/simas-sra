@@ -82,6 +82,7 @@ export function createTenantRoleLifecycleDataRepository(
         tenantId: row.tenantId,
         name: row.name,
         normalizedName: row.normalizedName,
+        description: row.description,
         lifecycle: row.lifecycle,
         origin: row.origin,
         templateKey: row.templateKey,
@@ -122,6 +123,7 @@ export function createTenantRoleLifecycleDataRepository(
         tenantId: row.tenantId,
         name: row.name,
         normalizedName: row.normalizedName,
+        description: row.description,
         lifecycle: row.lifecycle,
         origin: row.origin,
         templateKey: row.templateKey,
@@ -141,6 +143,7 @@ export function createTenantRoleLifecycleDataRepository(
         tenantId: row.tenantId,
         name: row.name,
         normalizedName: row.normalizedName,
+        description: row.description ?? null,
         lifecycle: "draft",
         origin: row.origin,
         templateKey: row.templateKey ?? null,
@@ -161,6 +164,7 @@ export function createTenantRoleLifecycleDataRepository(
       };
       if (input.name !== undefined) set.name = input.name;
       if (input.normalizedName !== undefined) set.normalizedName = input.normalizedName;
+      if (input.description !== undefined) set.description = input.description;
       if (input.lifecycle !== undefined) set.lifecycle = input.lifecycle;
 
       const updated = await database.update(tenantRole).set(set).where(and(

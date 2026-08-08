@@ -17,6 +17,7 @@ import { permissionRegistry } from "@/lib/authorization/tenant-rbac-contract";
 export const TENANT_ROLE_EVENT_TYPES = {
   CREATED: "tenant_role.created",
   RENAMED: "tenant_role.renamed",
+  DESCRIPTION_EDITED: "tenant_role.description_edited",
   PERMISSIONS_EDITED: "tenant_role.permissions_edited",
   ACTIVATED: "tenant_role.activated",
   DRAFTED: "tenant_role.drafted",
@@ -42,11 +43,26 @@ export function normalizeReason(reason: string): string {
   return normalized;
 }
 
+/**
+ * Normalize a role description for storage. Empty/whitespace-only values
+ * become NULL so the column stays nullable; the value is length-capped to keep
+ * tenant-role rows bounded.
+ */
+export function normalizeDescription(value: string | null | undefined): string | null {
+  if (value == null) return null;
+  const normalized = value.trim();
+  if (normalized.length > 2000) {
+    throw new SecurityCommandError("invalid-command");
+  }
+  return normalized === "" ? null : normalized;
+}
+
 export type LifecycleRoleRow = Readonly<{
   id: string;
   tenantId: string;
   name: string;
   normalizedName: string;
+  description: string | null;
   lifecycle: TenantRoleState;
   origin: "scratch" | "template" | "copy" | "legacy-migration";
   templateKey: string | null;
@@ -65,6 +81,7 @@ export interface TenantRoleLifecycleRepository {
     tenantId: string;
     name: string;
     normalizedName: string;
+    description?: string | null;
     origin: "scratch" | "template" | "copy";
     templateKey?: string | null;
     templateVersion?: string | null;
@@ -77,6 +94,7 @@ export interface TenantRoleLifecycleRepository {
     expectedVersion: number;
     name?: string;
     normalizedName?: string;
+    description?: string | null;
     lifecycle?: TenantRoleState;
     updatedAt: Date;
   }>): Promise<boolean>;
@@ -110,6 +128,7 @@ export type TenantRoleLifecycleExecutor<TTransaction extends object> = <TResult 
 export type TenantRoleLifecycleService = Readonly<{
   createRole(input: CreateRoleInput): Promise<CreateRoleResult>;
   renameRole(input: RenameRoleInput): Promise<RenameRoleResult>;
+  changeRoleDescription(input: ChangeRoleDescriptionInput): Promise<ChangeRoleDescriptionResult>;
   editPermissions(input: EditPermissionsInput): Promise<EditPermissionsResult>;
   activateRole(input: ActivateRoleInput): Promise<ActivateRoleResult>;
   draftRole(input: DraftRoleInput): Promise<DraftRoleResult>;
@@ -125,6 +144,7 @@ export type CreateRoleInput = Readonly<{
   templateKey?: string;
   templateVersion?: string;
   copiedFromRoleId?: string;
+  description?: string | null;
   permissions: readonly string[];
   reason: string;
   idempotencyKey: string;
@@ -150,6 +170,22 @@ export type RenameRoleInput = Readonly<{
 
 export type RenameRoleResult = Readonly<{
   status: "role-renamed";
+  roleId: string;
+}>;
+
+export type ChangeRoleDescriptionInput = Readonly<{
+  principal: SecurityPrincipal;
+  tenantId: string;
+  roleId: string;
+  expectedVersion: number;
+  description: string | null;
+  reason: string;
+  idempotencyKey: string;
+  correlationId: string;
+}>;
+
+export type ChangeRoleDescriptionResult = Readonly<{
+  status: "role-description-edited";
   roleId: string;
 }>;
 
@@ -315,6 +351,7 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
       assertIdentifier(input.tenantId);
       const name = normalizeRoleName(input.name);
       const normalizedName = name.toLowerCase();
+      const description = normalizeDescription(input.description);
       const reason = normalizeReason(input.reason);
       validatePermissions(input.permissions);
 
@@ -322,7 +359,7 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
         principal: input.principal,
         idempotencyKey: input.idempotencyKey,
         commandName: "tenant-role.create",
-        payload: { tenantId: input.tenantId, name, permissions: input.permissions, origin: input.origin },
+        payload: { tenantId: input.tenantId, name, description, permissions: input.permissions, origin: input.origin },
         correlationId: input.correlationId,
         deriveContext: async () => tenantContext(input.tenantId),
         authorizeAndMutate: async ({ actor, transaction }) => {
@@ -340,6 +377,7 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
             tenantId: input.tenantId,
             name,
             normalizedName,
+            description,
             origin: input.origin,
             templateKey: input.templateKey,
             templateVersion: input.templateVersion,
@@ -362,12 +400,14 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
               evidence: securityAuditEvidence({
                 after: {
                   name,
+                  description,
                   lifecycle: "draft",
                   permissions: [...input.permissions].sort(),
                 },
                 diff: {
                   created: {
                     name,
+                    description,
                     lifecycle: "draft",
                     permissions: [...input.permissions].sort(),
                   },
@@ -430,6 +470,58 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
                 before: { name: role!.name },
                 after: { name: newName },
                 diff: { name: { before: role!.name, after: newName } },
+                version: { before: input.expectedVersion, after: input.expectedVersion + 1 },
+              }),
+              metadata: {},
+            }],
+          };
+        },
+      })).result;
+    },
+
+    async changeRoleDescription(input) {
+      assertIdentifier(input.tenantId);
+      assertIdentifier(input.roleId);
+      const description = normalizeDescription(input.description);
+      const reason = normalizeReason(input.reason);
+
+      return (await dependencies.execute<ChangeRoleDescriptionResult>({
+        principal: input.principal,
+        idempotencyKey: input.idempotencyKey,
+        commandName: "tenant-role.edit-description",
+        payload: { tenantId: input.tenantId, roleId: input.roleId, description },
+        expectedVersions: [{ resourceType: "tenant-role", resourceId: input.roleId, expectedVersion: input.expectedVersion }],
+        correlationId: input.correlationId,
+        deriveContext: async () => tenantContext(input.tenantId),
+        authorizeAndMutate: async ({ actor, transaction }) => {
+          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, { 
+            tenantId: input.tenantId, 
+            roleId: input.roleId, 
+            expectedVersion: input.expectedVersion 
+          });
+
+          const updated = await repo.updateRole({
+            id: input.roleId,
+            tenantId: input.tenantId,
+            expectedVersion: input.expectedVersion,
+            description,
+            updatedAt: now(),
+          });
+          if (!updated) throw new SecurityCommandError("stale-version");
+
+          return {
+            result: { status: "role-description-edited", roleId: input.roleId },
+            versionTransitions: [{ resourceType: "tenant-role", resourceId: input.roleId, expectedVersion: input.expectedVersion, toVersion: input.expectedVersion + 1 }],
+            auditEvents: [{
+              purpose: "role-description-edited",
+              order: "summary",
+              eventType: TENANT_ROLE_EVENT_TYPES.DESCRIPTION_EDITED,
+              targets: { roleId: input.roleId },
+              reason,
+              evidence: securityAuditEvidence({
+                before: { description: role!.description },
+                after: { description },
+                diff: { description: { before: role!.description, after: description } },
                 version: { before: input.expectedVersion, after: input.expectedVersion + 1 },
               }),
               metadata: {},

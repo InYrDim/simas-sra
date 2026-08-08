@@ -56,7 +56,7 @@ export async function getRoles(domain: string): Promise<Role[]> {
       results.push({
         id: r.id,
         name: r.name,
-        description: '', // description not stored in DB, reason used for audit
+        description: r.description ?? '',
         status: r.lifecycle,
         userCount,
         permissions: [...r.permissions],
@@ -81,7 +81,7 @@ export async function getRole(domain: string, id: string): Promise<Role | null> 
     return {
       id: r.id,
       name: r.name,
-      description: '',
+      description: r.description ?? '',
       status: r.lifecycle,
       userCount,
       permissions: [...r.permissions],
@@ -102,6 +102,7 @@ export async function createRole(domain: string, data: Partial<Role>): Promise<{
       tenantId,
       name: data.name || '',
       origin: 'scratch',
+      description: data.description ?? null,
       permissions: data.permissions || [],
       reason: data.description || 'Created via UI',
       idempotencyKey: randomUUID(),
@@ -129,6 +130,21 @@ export async function updateRole(domain: string, id: string, expectedVersion: nu
         expectedVersion,
         newName: data.name,
         reason: data.description || 'Renamed via UI',
+        idempotencyKey: randomUUID(),
+        correlationId,
+      });
+      // Increment expectedVersion since it successfully updated
+      expectedVersion++;
+    }
+    
+    if (data.description !== undefined) {
+      await service.changeRoleDescription({
+        principal,
+        tenantId,
+        roleId: id,
+        expectedVersion,
+        description: data.description ?? null,
+        reason: 'Description updated via UI',
         idempotencyKey: randomUUID(),
         correlationId,
       });

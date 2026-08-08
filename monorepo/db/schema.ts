@@ -765,6 +765,7 @@ export const tenantRole = mysqlTable(
     tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
     name: varchar("name", { length: 150 }).notNull(),
     normalizedName: varchar("normalized_name", { length: 150 }).notNull(),
+    description: text("description"),
     lifecycle: mysqlEnum("lifecycle", ["draft", "active", "archived"]).default("draft").notNull(),
     origin: mysqlEnum("origin", ["scratch", "template", "copy", "legacy-migration"]).notNull(),
     templateKey: varchar("template_key", { length: 100 }),
