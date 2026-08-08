@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { Button } from '@/components/ui/button';
+import { groupTenantAssignableRolePermissions } from '@/lib/authorization/tenant-role-permission-catalog';
 
 import { getRoles } from './actions';
 import { RolesClient } from './roles-client';
@@ -12,6 +13,7 @@ export const metadata = {
 export default async function RolesPage(props: { params: Promise<{ domain: string }> }) {
   const { domain } = await props.params;
   const roles = await getRoles(domain);
+  const permissionGroups = groupTenantAssignableRolePermissions();
 
   return (
     <div className="flex flex-col gap-6 p-6 w-full max-w-6xl mx-auto">
@@ -27,7 +29,7 @@ export default async function RolesPage(props: { params: Promise<{ domain: strin
         </Button>
       </div>
       
-      <RolesClient initialRoles={roles} />
+      <RolesClient initialRoles={roles} permissionGroups={permissionGroups} />
     </div>
   );
 }

@@ -80,6 +80,20 @@ test("navigation falls back to any member when requiredPermissions is empty", ()
   assert.equal(isNavigationItemAuthorized({ requiredPermissions: [] }, new Set(["tenant.users.view"])), true);
 });
 
+test("Roles menu item lives in the Manajemen group and is gated by tenant.roles.list", () => {
+  const management = tenantMenuItems.find((item) => item.title === "Manajemen");
+  assert.ok(management);
+
+  const rolesItem = management?.items?.find((item) => item.title === "Roles");
+  assert.ok(rolesItem, "Roles item must exist in the Manajemen group");
+  assert.equal(rolesItem?.url, "/settings/roles");
+  assert.deepEqual(rolesItem?.requiredPermissions, ["tenant.roles.list"]);
+  // school-admin holds tenant.roles.list; guru/siswa never do.
+  assert.equal(isNavigationItemAuthorized(rolesItem!, new Set()), false);
+  assert.equal(isNavigationItemAuthorized(rolesItem!, new Set(["tenant.dashboard.view"])), false);
+  assert.equal(isNavigationItemAuthorized(rolesItem!, new Set(["tenant.roles.list"])), true);
+});
+
 test("placeholder integration is not presented as an authorized capability", () => {
   const integration = tenantMenuItems.find((item) => item.title === "Integrasi");
   assert.equal(integration, undefined);

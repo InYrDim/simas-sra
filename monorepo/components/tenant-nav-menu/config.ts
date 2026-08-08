@@ -99,6 +99,7 @@ export const tenantMenuItems: TenantNavItem[] = [
       { title: "Manajemen Pengguna", url: "/users", requiredPermissions: ["tenant.users.view"] },
       { title: "Riwayat Keamanan", url: "/security-history", requiredPermissions: ["tenant.users.view"] },
       { title: "Assignment Role", url: "/settings/assignments", requiredPermissions: ["tenant.assignments.view"] },
+      { title: "Roles", url: "/settings/roles", requiredPermissions: ["tenant.roles.list"] },
       { title: "Pengaturan Sistem", url: "/settings", requiredPermissions: ["tenant-settings.landing-page.view"] },
       { title: "Backup & Restore", url: "/settings/backup-restore", requiredPermissions: ["tenant.authorization-audit.view"] }
     ]

@@ -16,20 +16,23 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal, Plus, Eye, Pencil, Archive, Play, Loader2 } from 'lucide-react';
+import type { TenantAssignableRolePermissionGroup } from '@/lib/authorization/tenant-role-permission-catalog';
 import { RoleDialog } from './role-dialog';
 import { toast } from 'sonner';
 
 interface RolesClientProps {
   initialRoles: Role[];
+  permissionGroups: TenantAssignableRolePermissionGroup[];
 }
 
-export function RolesClient({ initialRoles }: RolesClientProps) {
+export function RolesClient({ initialRoles, permissionGroups }: RolesClientProps) {
   const router = useRouter();
   const params = useParams();
   const domain = params.domain as string;
@@ -131,38 +134,42 @@ export function RolesClient({ initialRoles }: RolesClientProps) {
                           )}
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => openViewDialog(role)}>
-                          <Eye className="mr-2 h-4 w-4" />
-                          Inspect
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => openEditDialog(role)}>
-                          <Pencil className="mr-2 h-4 w-4" />
-                          Edit
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        {role.status === 'draft' && (
-                          <DropdownMenuItem onClick={() => handleStatusChange(role, 'active')}>
-                            <Play className="mr-2 h-4 w-4" />
-                            Activate
+                        <DropdownMenuGroup>
+                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => openViewDialog(role)}>
+                            <Eye className="mr-2 h-4 w-4" />
+                            Inspect
                           </DropdownMenuItem>
-                        )}
-                        {role.status === 'active' && (
-                          <DropdownMenuItem onClick={() => handleStatusChange(role, 'draft')}>
+                          <DropdownMenuItem onClick={() => openEditDialog(role)}>
                             <Pencil className="mr-2 h-4 w-4" />
-                            Move to Draft
+                            Edit
                           </DropdownMenuItem>
-                        )}
-                        {role.status !== 'archived' && (
-                          <DropdownMenuItem
-                            onClick={() => handleStatusChange(role, 'archived')}
-                            disabled={role.userCount > 0}
-                            className="text-red-600 focus:text-red-600"
-                          >
-                            <Archive className="mr-2 h-4 w-4" />
-                            Archive
-                          </DropdownMenuItem>
-                        )}
+                        </DropdownMenuGroup>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuGroup>
+                          {role.status === 'draft' && (
+                            <DropdownMenuItem onClick={() => handleStatusChange(role, 'active')}>
+                              <Play className="mr-2 h-4 w-4" />
+                              Activate
+                            </DropdownMenuItem>
+                          )}
+                          {role.status === 'active' && (
+                            <DropdownMenuItem onClick={() => handleStatusChange(role, 'draft')}>
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Move to Draft
+                            </DropdownMenuItem>
+                          )}
+                          {role.status !== 'archived' && (
+                            <DropdownMenuItem
+                              onClick={() => handleStatusChange(role, 'archived')}
+                              disabled={role.userCount > 0}
+                              className="text-red-600 focus:text-red-600"
+                            >
+                              <Archive className="mr-2 h-4 w-4" />
+                              Archive
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuGroup>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -179,6 +186,7 @@ export function RolesClient({ initialRoles }: RolesClientProps) {
         setIsOpen={setIsDialogOpen}
         editingRole={editingRole}
         viewingRole={viewingRole}
+        permissionGroups={permissionGroups}
         onSuccess={() => {
           setIsDialogOpen(false);
           router.refresh();

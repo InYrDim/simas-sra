@@ -23,12 +23,13 @@ export interface Role {
   version: number;
 }
 
-async function enforceRoleAccess(domain: string, operationId: string) {
+async function enforceRoleAccess(domain: string, operationId: string, requestedPermissions?: string[]) {
   const evaluator = await createHttpTenantAuthorizationEvaluator();
   const decision = await evaluator.evaluate({
     surface: "api",
     domain,
     operationId,
+    ...(requestedPermissions?.length ? { requestedPermissions } : {}),
   });
   if (decision.kind !== "authorized") {
     if (decision.kind === "denied" && decision.external.status === 404) {
@@ -116,7 +117,7 @@ export async function createRole(domain: string, data: Partial<Role>): Promise<{
 
 export async function updateRole(domain: string, id: string, expectedVersion: number, data: Partial<Role>): Promise<{ success: boolean; error?: string }> {
   try {
-    const { tenantId, principal } = await enforceRoleAccess(domain, 'tenant.roles.rename');
+    const { tenantId, principal } = await enforceRoleAccess(domain, 'tenant.roles.update', ['tenant.roles.rename']);
     const service = createTenantRoleLifecycleDataService();
     const correlationId = randomUUID();
     
@@ -146,7 +147,7 @@ export async function updateRole(domain: string, id: string, expectedVersion: nu
       
       if (addedPermissions.length > 0 || removedPermissions.length > 0) {
         // Evaluate if they have change-permissions right
-        await enforceRoleAccess(domain, 'tenant.roles.change-permissions');
+        await enforceRoleAccess(domain, 'tenant.roles.update', ['tenant.roles.change-permissions']);
         await service.editPermissions({
           principal,
           tenantId,
@@ -175,7 +176,7 @@ export async function changeRoleStatus(domain: string, id: string, expectedVersi
     
     let access;
     if (status === 'active') {
-      access = await enforceRoleAccess(domain, 'tenant.roles.activate');
+      access = await enforceRoleAccess(domain, 'tenant.roles.lifecycle', ['tenant.roles.activate']);
       await service.activateRole({
         principal: access.principal,
         tenantId: access.tenantId,
@@ -186,7 +187,7 @@ export async function changeRoleStatus(domain: string, id: string, expectedVersi
         correlationId,
       });
     } else if (status === 'draft') {
-      access = await enforceRoleAccess(domain, 'tenant.roles.draft');
+      access = await enforceRoleAccess(domain, 'tenant.roles.lifecycle', ['tenant.roles.draft']);
       await service.draftRole({
         principal: access.principal,
         tenantId: access.tenantId,
@@ -197,7 +198,7 @@ export async function changeRoleStatus(domain: string, id: string, expectedVersi
         correlationId,
       });
     } else if (status === 'archived') {
-      access = await enforceRoleAccess(domain, 'tenant.roles.archive');
+      access = await enforceRoleAccess(domain, 'tenant.roles.lifecycle', ['tenant.roles.archive']);
       await service.archiveRole({
         principal: access.principal,
         tenantId: access.tenantId,
