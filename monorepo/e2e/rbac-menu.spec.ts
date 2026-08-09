@@ -41,7 +41,7 @@ const ADMIN_VISIBLE_ITEMS = [
   "Ulangan",
   "Manajemen",
   "Pengguna",
-  "Manajemen Pengguna",
+  "Manajemen Akun",
   "Pemberian Role",
   "Roles",
   "Permission",
@@ -84,7 +84,7 @@ test("guru sees Dasbor + Absensi and none of the admin-only placeholder modules"
   expect(labels).not.toContain("Backup & Restore");
   expect(labels).not.toContain("Jadwal Mengajar");
   expect(labels).not.toContain("Jadwal Events");
-  expect(labels).not.toContain("Manajemen Pengguna");
+  expect(labels).not.toContain("Manajemen Akun");
   expect(labels).not.toContain("Pemberian Role");
   expect(labels).not.toContain("Roles");
   expect(labels).not.toContain("Permission");
@@ -111,7 +111,7 @@ test("siswa sees the narrowest menu; Absensi is hidden and direct /absensi is de
   expect(labels).not.toContain("Backup & Restore");
   expect(labels).not.toContain("Jadwal Mengajar");
   expect(labels).not.toContain("Jadwal Events");
-  expect(labels).not.toContain("Manajemen Pengguna");
+  expect(labels).not.toContain("Manajemen Akun");
   expect(labels).not.toContain("Pemberian Role");
   expect(labels).not.toContain("Roles");
   expect(labels).not.toContain("Permission");

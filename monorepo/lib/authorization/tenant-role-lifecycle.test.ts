@@ -25,6 +25,7 @@ class FakeRoleStore {
   readonly tenantId: string;
   readonly adminUserId: string;
   roles = new Map<string, LifecycleRoleRow>();
+  activeAssignmentCount = 0;
 
   constructor(tenantId: string, adminUserId: string) {
     this.tenantId = tenantId;
@@ -88,7 +89,11 @@ class FakeRoleStore {
           permissions: row.permissions.filter((p) => !remove.has(p)),
         });
       },
-      countActiveAssignments: async () => 0,
+      countActiveAssignments: async () => this.activeAssignmentCount,
+      deleteRole: async (tenantId, roleId) => {
+        const row = this.roles.get(roleId);
+        if (row && row.tenantId === tenantId) this.roles.delete(roleId);
+      },
       isSchoolAdmin: async (tenantId, userId) =>
         tenantId === this.tenantId && userId === this.adminUserId,
     };
@@ -295,5 +300,106 @@ test("changeRoleDescription against a stale version is rejected", async () => {
     }),
     (error: unknown) =>
       error instanceof SecurityCommandError && error.code === "stale-version",
+  );
+});
+
+test("restoreRole transitions an archived role directly to active", async () => {
+  const { store, tenantId, adminUserId, service } = setup();
+
+  const created = await service.createRole({
+    principal: principal(adminUserId),
+    tenantId,
+    name: "Role Arsip",
+    origin: "scratch",
+    permissions: ["tenant.dashboard.view"],
+    reason: "Created via UI",
+    idempotencyKey: randomUUID(),
+    correlationId: randomUUID(),
+  });
+  await service.activateRole({
+    principal: principal(adminUserId),
+    tenantId,
+    roleId: created.roleId,
+    expectedVersion: 1,
+    reason: "Activate",
+    idempotencyKey: randomUUID(),
+    correlationId: randomUUID(),
+  });
+  await service.archiveRole({
+    principal: principal(adminUserId),
+    tenantId,
+    roleId: created.roleId,
+    expectedVersion: 2,
+    reason: "Archive",
+    idempotencyKey: randomUUID(),
+    correlationId: randomUUID(),
+  });
+
+  const res = await service.restoreRole({
+    principal: principal(adminUserId),
+    tenantId,
+    roleId: created.roleId,
+    expectedVersion: 3,
+    reason: "Restore",
+    idempotencyKey: randomUUID(),
+    correlationId: randomUUID(),
+  });
+
+  assert.equal(res.status, "role-restored");
+  const row = await store.repository().getRole(tenantId, created.roleId);
+  assert.equal(row?.lifecycle, "active");
+});
+
+test("deleteRole removes the role and is rejected when active assignments exist", async () => {
+  const { store, tenantId, adminUserId, service } = setup();
+
+  const created = await service.createRole({
+    principal: principal(adminUserId),
+    tenantId,
+    name: "Role Hapus",
+    origin: "scratch",
+    permissions: ["tenant.dashboard.view"],
+    reason: "Created via UI",
+    idempotencyKey: randomUUID(),
+    correlationId: randomUUID(),
+  });
+
+  // No active assignments -> delete succeeds.
+  const res = await service.deleteRole({
+    principal: principal(adminUserId),
+    tenantId,
+    roleId: created.roleId,
+    expectedVersion: 1,
+    reason: "Delete",
+    idempotencyKey: randomUUID(),
+    correlationId: randomUUID(),
+  });
+  assert.equal(res.status, "role-deleted");
+  assert.equal(await store.repository().getRole(tenantId, created.roleId), null);
+
+  // With active assignments, delete is rejected.
+  const other = await service.createRole({
+    principal: principal(adminUserId),
+    tenantId,
+    name: "Role Terpakai",
+    origin: "scratch",
+    permissions: [],
+    reason: "Created via UI",
+    idempotencyKey: randomUUID(),
+    correlationId: randomUUID(),
+  });
+  store.activeAssignmentCount = 1;
+  await assert.rejects(
+    service.deleteRole({
+      principal: principal(adminUserId),
+      tenantId,
+      roleId: other.roleId,
+      expectedVersion: 1,
+      reason: "Delete blocked",
+      idempotencyKey: randomUUID(),
+      correlationId: randomUUID(),
+    }),
+    (error: unknown) =>
+      error instanceof SecurityCommandError && error.code === "invalid-command",
   );
 });

@@ -23,6 +23,7 @@ export const TENANT_ROLE_EVENT_TYPES = {
   DRAFTED: "tenant_role.drafted",
   ARCHIVED: "tenant_role.archived",
   RESTORED: "tenant_role.restored",
+  DELETED: "tenant_role.deleted",
 } as const;
 
 export type TenantRoleState = "draft" | "active" | "archived";
@@ -101,6 +102,7 @@ export interface TenantRoleLifecycleRepository {
   insertPermissions(tenantId: string, roleId: string, permissions: readonly string[], createdAt: Date): Promise<void>;
   deletePermissions(tenantId: string, roleId: string, permissions: readonly string[]): Promise<void>;
   countActiveAssignments(tenantId: string, roleId: string): Promise<number>;
+  deleteRole(tenantId: string, roleId: string): Promise<void>;
   isSchoolAdmin(tenantId: string, userId: string): Promise<boolean>;
   getRole(tenantId: string, roleId: string): Promise<LifecycleRoleRow | null>;
 }
@@ -134,6 +136,7 @@ export type TenantRoleLifecycleService = Readonly<{
   draftRole(input: DraftRoleInput): Promise<DraftRoleResult>;
   archiveRole(input: ArchiveRoleInput): Promise<ArchiveRoleResult>;
   restoreRole(input: RestoreRoleInput): Promise<RestoreRoleResult>;
+  deleteRole(input: DeleteRoleInput): Promise<DeleteRoleResult>;
 }>;
 
 export type CreateRoleInput = Readonly<{
@@ -263,6 +266,21 @@ export type RestoreRoleInput = Readonly<{
 
 export type RestoreRoleResult = Readonly<{
   status: "role-restored";
+  roleId: string;
+}>;
+
+export type DeleteRoleInput = Readonly<{
+  principal: SecurityPrincipal;
+  tenantId: string;
+  roleId: string;
+  expectedVersion: number;
+  reason: string;
+  idempotencyKey: string;
+  correlationId: string;
+}>;
+
+export type DeleteRoleResult = Readonly<{
+  status: "role-deleted";
   roleId: string;
 }>;
 
@@ -790,7 +808,7 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
             id: input.roleId,
             tenantId: input.tenantId,
             expectedVersion: input.expectedVersion,
-            lifecycle: "draft",
+            lifecycle: "active",
             updatedAt: now(),
           });
           if (!updated) throw new SecurityCommandError("stale-version");
@@ -806,8 +824,56 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
               reason,
               evidence: securityAuditEvidence({
                 before: { lifecycle: role!.lifecycle },
-                after: { lifecycle: "draft" },
-                diff: { lifecycle: { before: role!.lifecycle, after: "draft" } },
+                after: { lifecycle: "active" },
+                diff: { lifecycle: { before: role!.lifecycle, after: "active" } },
+                version: { before: input.expectedVersion, after: input.expectedVersion + 1 },
+              }),
+              metadata: {},
+            }],
+          };
+        },
+      })).result;
+    },
+
+    async deleteRole(input) {
+      assertIdentifier(input.tenantId);
+      assertIdentifier(input.roleId);
+      const reason = normalizeReason(input.reason);
+
+      return (await dependencies.execute<DeleteRoleResult>({
+        principal: input.principal,
+        idempotencyKey: input.idempotencyKey,
+        commandName: "tenant-role.delete",
+        payload: { tenantId: input.tenantId, roleId: input.roleId },
+        expectedVersions: [{ resourceType: "tenant-role", resourceId: input.roleId, expectedVersion: input.expectedVersion }],
+        correlationId: input.correlationId,
+        deriveContext: async () => tenantContext(input.tenantId),
+        authorizeAndMutate: async ({ actor, transaction }) => {
+          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, {
+            tenantId: input.tenantId,
+            roleId: input.roleId,
+            expectedVersion: input.expectedVersion,
+          });
+          if (!role) throw new SecurityCommandError("invalid-command");
+
+          const activeAssignments = await repo.countActiveAssignments(input.tenantId, input.roleId);
+          if (activeAssignments > 0) throw new SecurityCommandError("invalid-command");
+
+          await repo.deleteRole(input.tenantId, input.roleId);
+
+          return {
+            result: { status: "role-deleted", roleId: input.roleId },
+            versionTransitions: [],
+            auditEvents: [{
+              purpose: "role-deleted",
+              order: "summary",
+              eventType: TENANT_ROLE_EVENT_TYPES.DELETED,
+              targets: { roleId: input.roleId },
+              reason,
+              evidence: securityAuditEvidence({
+                before: { lifecycle: role.lifecycle },
+                after: { lifecycle: "deleted" },
+                diff: { lifecycle: { before: role.lifecycle, after: "deleted" } },
                 version: { before: input.expectedVersion, after: input.expectedVersion + 1 },
               }),
               metadata: {},

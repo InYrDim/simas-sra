@@ -75,6 +75,9 @@ const activeSeeds: readonly CatalogSeed[] = [
   ["tenant.accounts.deactivate", [], "critical", "school-admin-only"],
   ["tenant.accounts.reactivate", [], "critical", "school-admin-only"],
   ["tenant.accounts.recovery", [], "critical", "school-admin-only"],
+  ["tenant.accounts.delete", [], "critical", "school-admin-only"],
+  ["tenant.accounts.link", [], "critical", "school-admin-only"],
+  ["tenant.accounts.unlink", [], "critical", "school-admin-only"],
   ["tenant.authorization-audit.view", [], "sensitive", "school-admin-only"],
   ["tenant.authorization-audit.export", [], "critical", "school-admin-only"],
   ["tenant.roles.list", [], "sensitive", "school-admin-only"],
@@ -86,6 +89,7 @@ const activeSeeds: readonly CatalogSeed[] = [
   ["tenant.roles.draft", [], "critical", "school-admin-only"],
   ["tenant.roles.archive", [], "critical", "school-admin-only"],
   ["tenant.roles.restore", [], "critical", "school-admin-only"],
+  ["tenant.roles.delete", [], "critical", "school-admin-only"],
   ["tenant.assignments.view", [], "sensitive", "school-admin-only"],
   ["tenant.assignments.replace", [], "critical", "school-admin-only"],
   ["tenant.assignments.bulk", [], "critical", "school-admin-only"],
@@ -215,7 +219,7 @@ const activeSeeds: readonly CatalogSeed[] = [
 
 const reservedKeys = [
   "tenant.roles.copy",
-  "tenant.accounts.invite", "tenant.accounts.link", "tenant.accounts.unlink", "tenant.accounts.resend",
+  "tenant.accounts.invite", "tenant.accounts.resend",
   "tenant.accounts.reissue", "tenant.accounts.initiate-recovery",
 ] as const;
 
@@ -334,6 +338,9 @@ const seeds: OperationSeed[] = [
   { id: "tenant.accounts.deactivate", entryPoints: [a("users/actions.ts", "deactivateTenantAccountAction")], permissions: ["tenant.accounts.deactivate"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
   { id: "tenant.accounts.reactivate", entryPoints: [a("users/actions.ts", "reactivateTenantAccountAction")], permissions: ["tenant.accounts.reactivate"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
   { id: "tenant.accounts.recovery", entryPoints: [a("users/actions.ts", "initiateTenantRecoveryAction")], permissions: ["tenant.accounts.recovery"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
+  { id: "tenant.accounts.delete", entryPoints: [a("users/actions.ts", "deleteTenantAccountAction")], permissions: ["tenant.accounts.delete"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
+  { id: "tenant.accounts.link", entryPoints: [a("users/actions.ts", "linkTenantAccountAction")], permissions: ["tenant.accounts.link"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
+  { id: "tenant.accounts.unlink", entryPoints: [a("users/actions.ts", "unlinkTenantAccountAction")], permissions: ["tenant.accounts.unlink"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
   { id: "tenant.authorization-audit.load", entryPoints: [p("security-history")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", risk: "sensitive", legacy: ["legacy-school-admin"] },
   { id: "tenant.authorization-audit.self", entryPoints: [p("security-history")], permissions: ["tenant.users.view"], context: "self", risk: "sensitive", legacy: ["tenantRole"] },
   { id: "tenant.authorization-audit.export", entryPoints: [r("security-history/export", "GET")], permissions: ["tenant.authorization-audit.export"], gate: "read", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
@@ -341,7 +348,7 @@ const seeds: OperationSeed[] = [
   { id: "tenant.roles.view", entryPoints: [a("settings/roles/actions.ts", "getRole")], permissions: ["tenant.roles.view"], context: "school-admin-only", legacy: ["legacy-school-admin"] },
   { id: "tenant.roles.create", entryPoints: [a("settings/roles/actions.ts", "createRole")], permissions: ["tenant.roles.create"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
   { id: "tenant.roles.update", entryPoints: [a("settings/roles/actions.ts", "updateRole")], permissions: ["tenant.roles.rename", "tenant.roles.change-permissions"], mode: "conditional", gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
-  { id: "tenant.roles.lifecycle", entryPoints: [a("settings/roles/actions.ts", "changeRoleStatus")], permissions: ["tenant.roles.activate", "tenant.roles.draft", "tenant.roles.archive", "tenant.roles.restore"], mode: "conditional", gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
+  { id: "tenant.roles.lifecycle", entryPoints: [a("settings/roles/actions.ts", "changeRoleStatus")], permissions: ["tenant.roles.activate", "tenant.roles.draft", "tenant.roles.archive", "tenant.roles.restore", "tenant.roles.delete"], mode: "conditional", gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
   { id: "tenant.assignments.view", entryPoints: [p("settings/assignments"), a("settings/assignments/actions.ts", "getAssignmentRolesAction"), a("settings/assignments/actions.ts", "searchEligibleAccountsAction")], permissions: ["tenant.assignments.view"], context: "school-admin-only", legacy: ["legacy-school-admin"] },
   { id: "tenant.assignments.replace", entryPoints: [a("settings/assignments/actions.ts", "replaceRoleSetAction")], permissions: ["tenant.assignments.replace"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
   { id: "tenant.assignments.bulk", entryPoints: [a("settings/assignments/actions.ts", "previewBulkRoleChangeAction"), a("settings/assignments/actions.ts", "commitBulkRoleChangeAction")], permissions: ["tenant.assignments.bulk"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },

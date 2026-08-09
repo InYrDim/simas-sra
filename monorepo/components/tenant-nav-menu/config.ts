@@ -96,7 +96,7 @@ export const tenantMenuItems: TenantNavItem[] = [
     icon: Settings,
     group: "Manajemen",
     items: [
-      { title: "Manajemen Pengguna", url: "/users", requiredPermissions: ["tenant.users.view"] },
+      { title: "Manajemen Akun", url: "/users", requiredPermissions: ["tenant.users.view"] },
       { title: "Pemberian Role", url: "/settings/assignments", requiredPermissions: ["tenant.assignments.view"] },
       { title: "Roles", url: "/settings/roles", requiredPermissions: ["tenant.roles.list"] },
       { title: "Permission", url: "/settings/permissions", requiredPermissions: ["tenant.permissions.view"] },

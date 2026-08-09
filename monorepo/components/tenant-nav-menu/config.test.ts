@@ -103,7 +103,7 @@ test("school-admin sidebar contains the redesigned management structure", () => 
 
   assert.ok(labels.has("Manajemen"));
   assert.ok(labels.has("Pengguna"));
-  assert.ok(labels.has("Manajemen Pengguna"));
+  assert.ok(labels.has("Manajemen Akun"));
   assert.ok(labels.has("Pemberian Role"));
   assert.ok(labels.has("Roles"));
   assert.ok(labels.has("Permission"));
@@ -148,7 +148,7 @@ test("Manajemen and Sistem & Keamanan expose the redesigned management labels", 
   assert.deepEqual(
     pengguna.items?.map((item) => ({ title: item.title, url: item.url, requiredPermissions: item.requiredPermissions })),
     [
-      { title: "Manajemen Pengguna", url: "/users", requiredPermissions: ["tenant.users.view"] },
+      { title: "Manajemen Akun", url: "/users", requiredPermissions: ["tenant.users.view"] },
       { title: "Pemberian Role", url: "/settings/assignments", requiredPermissions: ["tenant.assignments.view"] },
       { title: "Roles", url: "/settings/roles", requiredPermissions: ["tenant.roles.list"] },
       { title: "Permission", url: "/settings/permissions", requiredPermissions: ["tenant.permissions.view"] },

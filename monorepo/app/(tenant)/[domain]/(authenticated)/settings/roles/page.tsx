@@ -24,7 +24,7 @@ export default async function RolesPage(props: { params: Promise<{ domain: strin
             Manage roles and their permissions for your school.
           </p>
         </div>
-        <Button variant="outline" render={<Link href={`/${domain}/settings/assignments`} />}>
+        <Button variant="outline" nativeButton={false} render={<Link href={`/${domain}/settings/assignments`} />}>
           Kelola assignment
         </Button>
       </div>

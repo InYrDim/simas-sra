@@ -131,8 +131,8 @@ export default async function StudentsPage({
     code = typeof raw.result === "string" ? raw.result : undefined,
     selectedAction =
       raw.action === "edit" ||
-      raw.action === "status" ||
-      raw.action === "archive"
+        raw.action === "status" ||
+        raw.action === "archive"
         ? raw.action
         : "detail";
   const empty =
@@ -173,15 +173,13 @@ export default async function StudentsPage({
           return {
             id: student.id,
             title: person.fullName,
-            description: `NIS ${student.nis} · NISN ${
-              student.nisn ?? "—"
-            } · Rombongan Belajar ${classGroupName ?? "Belum ada"} · Akun ${
-              person.accountUserId
+            description: `NIS ${student.nis} · NISN ${student.nisn ?? "—"
+              } · Rombongan Belajar ${classGroupName ?? "Belum ada"} · Akun ${person.accountUserId
                 ? person.accountActive
                   ? "Aktif"
                   : "Tertaut"
                 : "Tidak tertaut"
-            }`,
+              }`,
             lifecycle: statusLabel[student.status],
             archived: student.archived,
             actions: (
@@ -195,7 +193,7 @@ export default async function StudentsPage({
               />
             ),
           };
-        })} 
+        })}
         detailTitle={
           selectedAction === "edit"
             ? "Edit siswa"
@@ -517,53 +515,53 @@ function LifecycleForm({
       operation === "transition"
         ? "Ubah status Siswa"
         : operation === "correct-graduation"
-        ? "Koreksi Kelulusan"
-        : operation === "archive"
-        ? "Arsipkan Profil Siswa"
-        : "Aktifkan kembali Profil Siswa";
+          ? "Koreksi Kelulusan"
+          : operation === "archive"
+            ? "Arsipkan Profil Siswa"
+            : "Aktifkan kembali Profil Siswa";
   const options =
     student.status === "active"
       ? (["graduated", "transferred", "withdrawn"] as const)
       : student.status === "graduated"
-      ? (["active", "transferred", "withdrawn"] as const)
-      : (["active"] as const);
+        ? (["active", "transferred", "withdrawn"] as const)
+        : (["active"] as const);
   const form = (
     <form
       action={manageStudentLifecycleAction.bind(null, domain)}
       className={direct ? "space-y-4" : "mt-4 space-y-3"}
     >
-          <input type="hidden" name="id" value={student.id} />
-          <input type="hidden" name="expectedVersion" value={student.version} />
-          <input type="hidden" name="operation" value={operation} />
-          {operation === "transition" || operation === "correct-graduation" ? (
-            <>
-              <Label className="block">
-                <span className="text-sm font-medium">Status baru</span>
-                <UISelect required name="toStatus">
-                  <SelectTrigger className="mt-1 h-11 w-full border bg-background px-3">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {options.map((value) => (
-                      <SelectItem key={value} value={value}>
-                        {statusLabel[value]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </UISelect>
-              </Label>
-              <Field name="effectiveDate" label="Tanggal efektif" type="date" />
-              <Field name="notes" label="Catatan (opsional)" />
-            </>
-          ) : null}
+      <input type="hidden" name="id" value={student.id} />
+      <input type="hidden" name="expectedVersion" value={student.version} />
+      <input type="hidden" name="operation" value={operation} />
+      {operation === "transition" || operation === "correct-graduation" ? (
+        <>
           <Label className="block">
-            <span className="text-sm font-medium">Alasan</span>
-            <Textarea
-              required
-              name="reason"
-              className="mt-1 min-h-24 w-full border bg-background p-3"
-            />
+            <span className="text-sm font-medium">Status baru</span>
+            <UISelect required name="toStatus">
+              <SelectTrigger className="mt-1 h-11 w-full border bg-background px-3">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {options.map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {statusLabel[value]}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </UISelect>
           </Label>
+          <Field name="effectiveDate" label="Tanggal efektif" type="date" />
+          <Field name="notes" label="Catatan (opsional)" />
+        </>
+      ) : null}
+      <Label className="block">
+        <span className="text-sm font-medium">Alasan</span>
+        <Textarea
+          required
+          name="reason"
+          className="mt-1 min-h-24 w-full border bg-background p-3"
+        />
+      </Label>
       <Button className="min-h-11 rounded-full px-4">{title}</Button>
     </form>
   );

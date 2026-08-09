@@ -213,6 +213,23 @@ export function createTenantRoleLifecycleDataRepository(
       return res?.count ?? 0;
     },
 
+    async deleteRole(tenantId, roleId) {
+      assertIdentifier(tenantId);
+      assertIdentifier(roleId);
+      await database.delete(tenantRolePermission).where(and(
+        eq(tenantRolePermission.tenantId, tenantId),
+        eq(tenantRolePermission.roleId, roleId),
+      ));
+      await database.delete(tenantRoleAssignment).where(and(
+        eq(tenantRoleAssignment.tenantId, tenantId),
+        eq(tenantRoleAssignment.roleId, roleId),
+      ));
+      await database.delete(tenantRole).where(and(
+        eq(tenantRole.tenantId, tenantId),
+        eq(tenantRole.id, roleId),
+      ));
+    },
+
     async isSchoolAdmin(tenantId, userId) {
       assertIdentifier(tenantId);
       assertIdentifier(userId);

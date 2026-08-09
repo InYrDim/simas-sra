@@ -458,6 +458,45 @@ export function createTenantAccountLifecycleDataRepository(
       const deleted = await database.delete(session).where(eq(session.userId, userId));
       return deleted[0].affectedRows;
     },
+
+    async deleteCredential(tenantId, userId, updatedAt) {
+      assertIdentifier(tenantId);
+      assertIdentifier(userId);
+      await database.delete(account).where(and(
+        eq(account.userId, userId),
+        eq(account.providerId, "credential"),
+      ));
+    },
+
+    async unlinkPersonByAccount(tenantId, userId, updatedAt) {
+      assertIdentifier(tenantId);
+      assertIdentifier(userId);
+      await database.update(schoolPerson).set({
+        accountUserId: null,
+        version: sql`${schoolPerson.version} + 1`,
+        updatedAt,
+      }).where(and(
+        eq(schoolPerson.tenantId, tenantId),
+        eq(schoolPerson.accountUserId, userId),
+      ));
+    },
+
+    async linkPersonToAccount(tenantId, personId, userId, updatedAt) {
+      assertIdentifier(tenantId);
+      assertIdentifier(personId);
+      assertIdentifier(userId);
+      const updated = await database.update(schoolPerson).set({
+        accountUserId: userId,
+        version: sql`${schoolPerson.version} + 1`,
+        updatedAt,
+      }).where(and(
+        eq(schoolPerson.tenantId, tenantId),
+        eq(schoolPerson.id, personId),
+        eq(schoolPerson.archived, false),
+        isNull(schoolPerson.accountUserId),
+      ));
+      return updated[0].affectedRows;
+    },
   };
 }
 

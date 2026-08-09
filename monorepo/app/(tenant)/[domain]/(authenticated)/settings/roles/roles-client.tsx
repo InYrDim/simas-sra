@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { Role, changeRoleStatus } from './actions';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
   Table,
@@ -22,7 +22,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Plus, Eye, Pencil, Archive, Play, Loader2 } from 'lucide-react';
+import { MoreHorizontal, Plus, Eye, Pencil, Archive, Play, Trash2, Loader2 } from 'lucide-react';
 import type { TenantAssignableRolePermissionGroup } from '@/lib/authorization/tenant-role-permission-catalog';
 import { RoleDialog } from './role-dialog';
 import { toast } from 'sonner';
@@ -125,7 +125,15 @@ export function RolesClient({ initialRoles, permissionGroups }: RolesClientProps
                   <TableCell className="text-right">{role.userCount}</TableCell>
                   <TableCell>
                     <DropdownMenu>
-                      <DropdownMenuTrigger render={<Button variant="ghost" className="h-8 w-8 p-0" disabled={isLoading === role.id} />}>
+                      <DropdownMenuTrigger
+                        render={
+                          <button
+                            type="button"
+                            className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+                            disabled={isLoading === role.id}
+                          />
+                        }
+                      >
                           <span className="sr-only">Open menu</span>
                           {isLoading === role.id ? (
                             <Loader2 className="h-4 w-4 animate-spin" />
@@ -169,6 +177,20 @@ export function RolesClient({ initialRoles, permissionGroups }: RolesClientProps
                               Archive
                             </DropdownMenuItem>
                           )}
+                          {role.status === 'archived' && (
+                            <DropdownMenuItem onClick={() => handleStatusChange(role, 'restored')}>
+                              <Play className="mr-2 h-4 w-4" />
+                              Unarchive
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem
+                            onClick={() => handleStatusChange(role, 'deleted')}
+                            disabled={role.userCount > 0}
+                            className="text-red-600 focus:text-red-600"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete
+                          </DropdownMenuItem>
                         </DropdownMenuGroup>
                       </DropdownMenuContent>
                     </DropdownMenu>

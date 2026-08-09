@@ -85,7 +85,7 @@ test("school-admin navigates every RBAC module from the sidebar and returns to t
   // openGroupAndNavigate, so a fresh/cold server cannot drop the click.
   await openGroupAndNavigate(page, ["Penjadwalan"], "Jadwal Mengajar", /\/jadwal\/mengajar(?:[/?#]|$)/, "Jadwal Mengajar");
   await openGroupAndNavigate(page, ["Penjadwalan"], "Events", /\/jadwal\/events(?:[/?#]|$)/, "Events");
-  await openGroupAndNavigate(page, ["Pengguna"], "Manajemen Pengguna", /\/users(?:[/?#]|$)/, "Siklus Akun Sekolah");
+  await openGroupAndNavigate(page, ["Pengguna"], "Manajemen Akun", /\/users(?:[/?#]|$)/, "Siklus Akun Sekolah");
   await openGroupAndNavigate(page, ["Pengguna"], "Pemberian Role", /\/settings\/assignments(?:[/?#]|$)/, "Assignment role");
   await openGroupAndNavigate(page, ["Pengguna"], "Roles", /\/settings\/roles(?:[/?#]|$)/, "Roles");
   await openGroupAndNavigate(page, ["Pengguna"], "Permission", /\/settings\/permissions(?:[/?#]|$)/, "Permission Explorer");

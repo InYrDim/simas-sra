@@ -188,6 +188,20 @@ export async function deactivateTenantAccountAction(
   }
 }
 
+export async function deleteTenantAccountAction(
+  domain: string,
+  input: Readonly<{ targetUserId: string; expectedVersion: number; reason: string }>,
+): Promise<LifecycleActionResult> {
+  try {
+    const { tenantId, principal } = await authorize(domain, 'tenant.accounts.delete');
+    await createTenantAccountLifecycleDataService().deleteAccount({ principal, tenantId, ...input, ...commandIds() });
+    refresh(domain);
+    return { success: true, data: undefined, message: 'Akun dihapus: akses ditutup, kredensial dihapus, dan tautan person dilepaskan. Jejak audit tetap tersimpan.' };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
 export async function reactivateTenantAccountAction(
   domain: string,
   input: Readonly<{ targetUserId: string; expectedVersion: number; reason: string; roleIds: readonly string[] }>,
@@ -211,6 +225,34 @@ export async function initiateTenantRecoveryAction(
     const result = await createTenantAccountLifecycleDataService().initiateRecovery({ principal, tenantId, ...input, ...commandIds() });
     refresh(domain);
     return { success: true, data: undefined, message: input.mode === 'resend' ? 'Instruksi pemulihan dikirim ulang.' : 'Instruksi pemulihan baru diterbitkan.', ...('secret' in result && result.secret ? { secret: result.secret } : {}) };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function linkTenantAccountAction(
+  domain: string,
+  input: Readonly<{ targetUserId: string; expectedVersion: number; personId: string; reason: string }>,
+): Promise<LifecycleActionResult> {
+  try {
+    const { tenantId, principal } = await authorize(domain, 'tenant.accounts.link');
+    await createTenantAccountLifecycleDataService().linkAccount({ principal, tenantId, ...input, ...commandIds() });
+    refresh(domain);
+    return { success: true, data: undefined, message: 'Akun berhasil ditautkan ke person sekolah.' };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function unlinkTenantAccountAction(
+  domain: string,
+  input: Readonly<{ targetUserId: string; expectedVersion: number; reason: string }>,
+): Promise<LifecycleActionResult> {
+  try {
+    const { tenantId, principal } = await authorize(domain, 'tenant.accounts.unlink');
+    await createTenantAccountLifecycleDataService().unlinkAccount({ principal, tenantId, ...input, ...commandIds() });
+    refresh(domain);
+    return { success: true, data: undefined, message: 'Tautan person sekolah dilepaskan dari akun.' };
   } catch (error) {
     return failure(error);
   }

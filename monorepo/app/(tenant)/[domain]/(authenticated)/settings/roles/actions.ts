@@ -9,7 +9,7 @@ import { createHttpTenantAuthorizationEvaluator } from '@/lib/authorization/tena
 import { createTenantRoleLifecycleDataService, createTenantRoleLifecycleDataRepository } from '@/lib/authorization/tenant-role-lifecycle-data';
 import type { TenantRoleState } from '@/lib/authorization/tenant-role-lifecycle';
 
-export type RoleStatus = TenantRoleState;
+export type RoleStatus = TenantRoleState | "restored" | "deleted";
 
 export interface Role {
   id: string;
@@ -224,8 +224,30 @@ export async function changeRoleStatus(domain: string, id: string, expectedVersi
         idempotencyKey: randomUUID(),
         correlationId,
       });
+    } else if (status === 'restored') {
+      access = await enforceRoleAccess(domain, 'tenant.roles.lifecycle', ['tenant.roles.restore']);
+      await service.restoreRole({
+        principal: access.principal,
+        tenantId: access.tenantId,
+        roleId: id,
+        expectedVersion,
+        reason: 'Role restored via UI',
+        idempotencyKey: randomUUID(),
+        correlationId,
+      });
+    } else if (status === 'deleted') {
+      access = await enforceRoleAccess(domain, 'tenant.roles.lifecycle', ['tenant.roles.delete']);
+      await service.deleteRole({
+        principal: access.principal,
+        tenantId: access.tenantId,
+        roleId: id,
+        expectedVersion,
+        reason: 'Role deleted via UI',
+        idempotencyKey: randomUUID(),
+        correlationId,
+      });
     }
-    
+
     revalidatePath(`/${domain}/settings/roles`);
     return { success: true };
   } catch {

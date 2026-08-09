@@ -71,6 +71,9 @@ export interface AccountLifecycleRepository {
   suspendAssignments(tenantId: string, userId: string, updatedAt: Date): Promise<readonly string[]>;
   restoreAssignments(tenantId: string, userId: string, roleIds: readonly string[], updatedAt: Date): Promise<readonly string[]>;
   revokeSessions(userId: string): Promise<number>;
+  deleteCredential(tenantId: string, userId: string, updatedAt: Date): Promise<void>;
+  unlinkPersonByAccount(tenantId: string, userId: string, updatedAt: Date): Promise<void>;
+  linkPersonToAccount(tenantId: string, personId: string, userId: string, updatedAt: Date): Promise<number>;
 }
 
 type Executor<TTransaction extends object> = <TResult extends JsonValue>(input: Readonly<{
@@ -89,7 +92,8 @@ type CommandBase = Readonly<{ principal: SecurityPrincipal; tenantId: string; id
 type TargetCommand = CommandBase & Readonly<{ targetUserId: string; expectedVersion: number }>;
 
 type IssueResult = Readonly<{ status: "issued" | "resent"; caseId: string; expiresAt: string; secret?: string }>;
-type TransitionResult = Readonly<{ status: "deactivated" | "reactivated" | "activated"; targetUserId: string; version: number; roleIds: readonly string[] }>;
+type TransitionResult = Readonly<{ status: "deactivated" | "reactivated" | "activated" | "deleted"; targetUserId: string; version: number; roleIds: readonly string[] }>;
+type LinkResult = Readonly<{ status: "linked" | "unlinked"; targetUserId: string; version: number; personId: string | null }>;
 type CreateResult = Readonly<{ status: "created"; targetUserId: string; version: number; caseId: string | null; secret?: string }>;
 
 export function deriveLifecycleSecret(input: Readonly<{ key: string; caseId: string; purpose: LifecycleCaseKind; tenantId: string; userId: string; expiresAt: Date }>): string {
@@ -240,12 +244,96 @@ export function createTenantAccountLifecycleService<TTransaction extends object>
     })).result;
   }
 
+  async function deleteAccount(input: TargetCommand & Readonly<{ reason: string }>): Promise<TransitionResult> {
+    identifier(input.tenantId); identifier(input.targetUserId);
+    const normalizedReason = reason(input.reason);
+    return (await dependencies.execute<TransitionResult>({
+      principal: input.principal, idempotencyKey: input.idempotencyKey, commandName: "tenant-account.delete",
+      payload: { tenantId: input.tenantId, targetUserId: input.targetUserId, reason: normalizedReason },
+      expectedVersions: [{ resourceType: "tenant-account", resourceId: input.targetUserId, expectedVersion: input.expectedVersion }], correlationId: input.correlationId, requestId: input.requestId,
+      deriveContext: async () => tenantContext(input.tenantId),
+      authorizeAndMutate: async ({ actor, transaction }) => {
+        const repository = dependencies.repository(transaction); await authorize(repository, actor, input.tenantId);
+        const account = await target(repository, input.tenantId, input.targetUserId);
+        if (account.version !== input.expectedVersion) throw new SecurityCommandError("stale-version");
+        if (account.lifecycle === "pending-activation") throw new SecurityCommandError("invalid-command");
+        if (account.schoolAdmin) throw new SecurityCommandError("context-denied");
+        const at = now();
+        const revokedSessions = await repository.revokeSessions(account.userId);
+        await repository.revokePendingCases(input.tenantId, account.userId, at);
+        const affectedRoleIds = await repository.suspendAssignments(input.tenantId, account.userId, at);
+        await repository.deleteCredential(input.tenantId, account.userId, at);
+        await repository.unlinkPersonByAccount(input.tenantId, account.userId, at);
+        if (!await repository.transitionLifecycle({ tenantId: input.tenantId, userId: account.userId, expectedVersion: input.expectedVersion, lifecycle: "inactive", bumpAssignmentVersion: true, updatedAt: at })) throw new SecurityCommandError("stale-version");
+        return {
+          result: { status: "deleted", targetUserId: account.userId, version: input.expectedVersion + 1, roleIds: affectedRoleIds },
+          versionTransitions: [{ resourceType: "tenant-account", resourceId: account.userId, expectedVersion: input.expectedVersion, toVersion: input.expectedVersion + 1 }],
+          auditEvents: [{ purpose: "account-deleted", order: "summary", eventType: "tenant_account.deleted", targets: { userId: account.userId }, reason: normalizedReason, evidence: securityAuditEvidence({ before: { lifecycle: account.lifecycle }, after: { lifecycle: "inactive" }, diff: { lifecycle: { before: account.lifecycle, after: "inactive" } }, version: { before: input.expectedVersion, after: input.expectedVersion + 1 } }), metadata: { roleIds: affectedRoleIds, revokedSessions, credentialRemoved: true, personUnlinked: true } }],
+        };
+      },
+    })).result;
+  }
+
+  async function linkAccount(input: TargetCommand & Readonly<{ personId: string; reason: string }>): Promise<LinkResult> {
+    identifier(input.tenantId); identifier(input.targetUserId); identifier(input.personId);
+    const normalizedReason = reason(input.reason);
+    return (await dependencies.execute<LinkResult>({
+      principal: input.principal, idempotencyKey: input.idempotencyKey, commandName: "tenant-account.link",
+      payload: { tenantId: input.tenantId, targetUserId: input.targetUserId, personId: input.personId, reason: normalizedReason },
+      expectedVersions: [{ resourceType: "tenant-account", resourceId: input.targetUserId, expectedVersion: input.expectedVersion }], correlationId: input.correlationId, requestId: input.requestId,
+      deriveContext: async () => tenantContext(input.tenantId),
+      authorizeAndMutate: async ({ actor, transaction }) => {
+        const repository = dependencies.repository(transaction); await authorize(repository, actor, input.tenantId);
+        const account = await target(repository, input.tenantId, input.targetUserId);
+        if (account.version !== input.expectedVersion) throw new SecurityCommandError("stale-version");
+        if (account.linkedPersonId) throw new SecurityCommandError("invalid-command");
+        const person = await repository.getPerson(input.tenantId, input.personId);
+        if (!person || person.tenantId !== input.tenantId || person.archived || person.accountUserId) throw new SecurityCommandError("context-denied");
+        const at = now();
+        const affected = await repository.linkPersonToAccount(input.tenantId, input.personId, account.userId, at);
+        if (affected !== 1) throw new SecurityCommandError("stale-version");
+        return {
+          result: { status: "linked", targetUserId: account.userId, version: input.expectedVersion + 1, personId: input.personId },
+          versionTransitions: [{ resourceType: "tenant-account", resourceId: account.userId, expectedVersion: input.expectedVersion, toVersion: input.expectedVersion + 1 }],
+          auditEvents: [{ purpose: "account-linked", order: "summary", eventType: "tenant_account.linked", targets: { userId: account.userId, personId: input.personId }, reason: normalizedReason, evidence: securityAuditEvidence({ before: { linkedPersonId: null }, after: { linkedPersonId: input.personId }, diff: { linkedPersonId: { before: null, after: input.personId } }, version: { before: input.expectedVersion, after: input.expectedVersion + 1 } }), metadata: {} }],
+        };
+      },
+    })).result;
+  }
+
+  async function unlinkAccount(input: TargetCommand & Readonly<{ reason: string }>): Promise<LinkResult> {
+    identifier(input.tenantId); identifier(input.targetUserId);
+    const normalizedReason = reason(input.reason);
+    return (await dependencies.execute<LinkResult>({
+      principal: input.principal, idempotencyKey: input.idempotencyKey, commandName: "tenant-account.unlink",
+      payload: { tenantId: input.tenantId, targetUserId: input.targetUserId, reason: normalizedReason },
+      expectedVersions: [{ resourceType: "tenant-account", resourceId: input.targetUserId, expectedVersion: input.expectedVersion }], correlationId: input.correlationId, requestId: input.requestId,
+      deriveContext: async () => tenantContext(input.tenantId),
+      authorizeAndMutate: async ({ actor, transaction }) => {
+        const repository = dependencies.repository(transaction); await authorize(repository, actor, input.tenantId);
+        const account = await target(repository, input.tenantId, input.targetUserId);
+        if (account.version !== input.expectedVersion) throw new SecurityCommandError("stale-version");
+        if (!account.linkedPersonId) throw new SecurityCommandError("invalid-command");
+        const at = now();
+        await repository.unlinkPersonByAccount(input.tenantId, account.userId, at);
+        return {
+          result: { status: "unlinked", targetUserId: account.userId, version: input.expectedVersion + 1, personId: null },
+          versionTransitions: [{ resourceType: "tenant-account", resourceId: account.userId, expectedVersion: input.expectedVersion, toVersion: input.expectedVersion + 1 }],
+          auditEvents: [{ purpose: "account-unlinked", order: "summary", eventType: "tenant_account.unlinked", targets: { userId: account.userId, personId: account.linkedPersonId }, reason: normalizedReason, evidence: securityAuditEvidence({ before: { linkedPersonId: account.linkedPersonId }, after: { linkedPersonId: null }, diff: { linkedPersonId: { before: account.linkedPersonId, after: null } }, version: { before: input.expectedVersion, after: input.expectedVersion + 1 } }), metadata: {} }],
+        };
+      },
+    })).result;
+  }
+
   return {
     issueActivation: (input: TargetCommand & Readonly<{ deliveryChannel: LifecycleDeliveryChannel; mode: "resend" | "reissue" }>) => issue({ ...input, kind: "activation" }),
     initiateRecovery: (input: TargetCommand & Readonly<{ deliveryChannel: LifecycleDeliveryChannel; mode: "resend" | "reissue" }>) => issue({ ...input, kind: "recovery" }),
     deactivate: (input: TargetCommand & Readonly<{ reason: string }>) => transition({ ...input, operation: "deactivate" }),
     reactivate: (input: TargetCommand & Readonly<{ reason: string; roleIds: readonly string[] }>) => transition({ ...input, operation: "reactivate" }),
     activateAdministratively: (input: TargetCommand & Readonly<{ reason: string }>) => transition({ ...input, operation: "activate" }),
+    deleteAccount,
+    linkAccount,
+    unlinkAccount,
     async create(input: CommandBase & Readonly<{ name: string; email: string; personId?: string; deliveryChannel: LifecycleDeliveryChannel | "administrative" }>): Promise<CreateResult> {
       const normalizedName = name(input.name); const normalizedEmail = email(input.email); if (input.personId) identifier(input.personId);
       return (await dependencies.execute<CreateResult>({

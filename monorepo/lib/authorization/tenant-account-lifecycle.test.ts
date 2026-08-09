@@ -7,6 +7,7 @@ import {
   digestLifecycleSecret,
   type AccountLifecycleCase,
   type AccountLifecycleRepository,
+  type LifecyclePerson,
   type TenantLifecycleAccount,
 } from "@/lib/authorization/tenant-account-lifecycle";
 import { SecurityCommandError } from "@/lib/authorization/security-command";
@@ -36,12 +37,13 @@ function fixture(initial = account()) {
   let current = initial;
   let pending: AccountLifecycleCase | null = null;
   const outbox: unknown[] = [];
+  let person: LifecyclePerson | null = null as LifecyclePerson | null;
   const repository: AccountLifecycleRepository = {
     lockTenant: async () => true,
     isSchoolAdmin: async (_tenantId, userId) => userId === ADMIN_ID,
     findIdentityByEmail: async (email) => email === current.email ? current : null,
     getAccount: async (_tenantId, userId) => userId === current.userId ? current : null,
-    getPerson: async () => null,
+    getPerson: async (_tenantId, personId) => person && person.id === personId ? person : null,
     listRoles: async () => [{ id: ROLE_ID, tenantId: TENANT_ID, lifecycle: "active" }],
     listAssignments: async () => [{ id: "assignment-1", roleId: ROLE_ID, state: "suspended", version: 2 }],
     findPendingCase: async () => pending,
@@ -64,6 +66,9 @@ function fixture(initial = account()) {
     suspendAssignments: async () => [],
     restoreAssignments: async () => [],
     revokeSessions: async () => 0,
+    deleteCredential: async () => undefined,
+    unlinkPersonByAccount: async () => undefined,
+    linkPersonToAccount: async () => 1,
   };
   const service = createTenantAccountLifecycleService({
     execute: async (input) => {
@@ -82,7 +87,7 @@ function fixture(initial = account()) {
     now: () => NOW,
     lifecycleSecretKey: "test-only-lifecycle-key-with-at-least-32-bytes",
   });
-  return { service, repository, get account() { return current; }, get pending() { return pending; }, outbox };
+  return { service, repository, get account() { return current; }, get pending() { return pending; }, get person() { return person; }, set person(value: LifecyclePerson | null) { person = value; }, outbox };
 }
 
 const command = {
@@ -186,4 +191,101 @@ test("foreign and School Admin targets are rejected through the same opaque deni
       (error) => error instanceof SecurityCommandError && error.code === "context-denied",
     );
   }
+});
+
+test("delete soft-removes access: revokes sessions, suspends roles, removes credential, unlinks person, and transitions to inactive", async () => {
+  const state = fixture(account({ lifecycle: "active", version: 4, assignmentVersion: 7 }));
+  let revokedSessions = -1;
+  let pendingRevoked = false;
+  let suspendedRoles: readonly string[] = [];
+  let credentialDeleted = false;
+  let personUnlinked = false;
+  state.repository.revokeSessions = async () => { revokedSessions = 0; return 0; };
+  state.repository.revokePendingCases = async () => { pendingRevoked = true; };
+  state.repository.suspendAssignments = async () => { suspendedRoles = [ROLE_ID]; return suspendedRoles; };
+  state.repository.deleteCredential = async () => { credentialDeleted = true; };
+  state.repository.unlinkPersonByAccount = async () => { personUnlinked = true; };
+
+  const result = await state.service.deleteAccount({ ...command, targetUserId: USER_ID, expectedVersion: 4, reason: "Akun duplikat, digabung ke identitas lain" });
+  assert.equal(result.status, "deleted");
+  assert.equal(state.account.lifecycle, "inactive");
+  assert.equal(revokedSessions, 0);
+  assert.equal(pendingRevoked, true);
+  assert.deepEqual([...suspendedRoles], [ROLE_ID]);
+  assert.equal(credentialDeleted, true);
+  assert.equal(personUnlinked, true);
+});
+
+test("delete is rejected for pending-activation and School Admin targets", async () => {
+  const pending = fixture(account({ lifecycle: "pending-activation", version: 1 }));
+  await assert.rejects(
+    pending.service.deleteAccount({ ...command, targetUserId: USER_ID, expectedVersion: 1, reason: "Salah buat" }),
+    (error) => error instanceof SecurityCommandError && error.code === "invalid-command",
+  );
+  const admin = fixture(account({ schoolAdmin: true, lifecycle: "active", version: 2 }));
+  await assert.rejects(
+    admin.service.deleteAccount({ ...command, targetUserId: USER_ID, expectedVersion: 2, reason: "Tidak berlaku" }),
+    (error) => error instanceof SecurityCommandError && error.code === "context-denied",
+  );
+});
+
+test("link attaches an existing unlinked person and bumps version", async () => {
+  const state = fixture(account({ lifecycle: "active", version: 3 }));
+  state.person = { id: "person-1", tenantId: TENANT_ID, accountUserId: null, archived: false };
+  let linkedPersonId: string | null = null;
+  state.repository.linkPersonToAccount = async () => { linkedPersonId = "person-1"; return 1; };
+  const result = await state.service.linkAccount({ ...command, targetUserId: USER_ID, expectedVersion: 3, personId: "person-1", reason: "Person ini pemilik akun" });
+  assert.equal(result.status, "linked");
+  assert.equal(result.personId, "person-1");
+  assert.equal(result.version, 4);
+  assert.equal(linkedPersonId, "person-1");
+});
+
+test("link is rejected for School Admin, already-linked account, missing person, archived person, or wrong tenant", async () => {
+  const adminTarget = fixture(account({ schoolAdmin: true, lifecycle: "active", version: 2 }));
+  await assert.rejects(
+    adminTarget.service.linkAccount({ ...command, targetUserId: USER_ID, expectedVersion: 2, personId: "person-1", reason: "x" }),
+    (error) => error instanceof SecurityCommandError && error.code === "context-denied",
+  );
+  const already = fixture(account({ lifecycle: "active", version: 2, linkedPersonId: "person-0" }));
+  await assert.rejects(
+    already.service.linkAccount({ ...command, targetUserId: USER_ID, expectedVersion: 2, personId: "person-1", reason: "x" }),
+    (error) => error instanceof SecurityCommandError && error.code === "invalid-command",
+  );
+  const missing = fixture(account({ lifecycle: "active", version: 2 }));
+  await assert.rejects(
+    missing.service.linkAccount({ ...command, targetUserId: USER_ID, expectedVersion: 2, personId: "person-1", reason: "x" }),
+    (error) => error instanceof SecurityCommandError && error.code === "context-denied",
+  );
+  const archived = fixture(account({ lifecycle: "active", version: 2 }));
+  archived.person = { id: "person-1", tenantId: TENANT_ID, accountUserId: null, archived: true };
+  await assert.rejects(
+    archived.service.linkAccount({ ...command, targetUserId: USER_ID, expectedVersion: 2, personId: "person-1", reason: "x" }),
+    (error) => error instanceof SecurityCommandError && error.code === "context-denied",
+  );
+  const foreign = fixture(account({ lifecycle: "active", version: 2 }));
+  foreign.person = { id: "person-1", tenantId: "00000000-0000-4000-8000-000000000090", accountUserId: null, archived: false };
+  await assert.rejects(
+    foreign.service.linkAccount({ ...command, targetUserId: USER_ID, expectedVersion: 2, personId: "person-1", reason: "x" }),
+    (error) => error instanceof SecurityCommandError && error.code === "context-denied",
+  );
+});
+
+test("unlink detaches the person and bumps version", async () => {
+  const state = fixture(account({ lifecycle: "active", version: 5, linkedPersonId: "person-1" }));
+  let unlinked = false;
+  state.repository.unlinkPersonByAccount = async () => { unlinked = true; };
+  const result = await state.service.unlinkAccount({ ...command, targetUserId: USER_ID, expectedVersion: 5, reason: "Person pindah sekolah" });
+  assert.equal(result.status, "unlinked");
+  assert.equal(result.personId, null);
+  assert.equal(result.version, 6);
+  assert.equal(unlinked, true);
+});
+
+test("unlink is rejected when no person is linked", async () => {
+  const state = fixture(account({ lifecycle: "active", version: 2 }));
+  await assert.rejects(
+    state.service.unlinkAccount({ ...command, targetUserId: USER_ID, expectedVersion: 2, reason: "x" }),
+    (error) => error instanceof SecurityCommandError && error.code === "invalid-command",
+  );
 });
