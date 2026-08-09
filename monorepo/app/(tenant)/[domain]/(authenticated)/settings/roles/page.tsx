@@ -28,7 +28,7 @@ export default async function RolesPage(props: { params: Promise<{ domain: strin
           Kelola assignment
         </Button>
       </div>
-      
+
       <RolesClient initialRoles={roles} permissionGroups={permissionGroups} />
     </div>
   );

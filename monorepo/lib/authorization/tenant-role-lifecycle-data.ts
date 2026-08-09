@@ -58,9 +58,9 @@ export function createTenantRoleLifecycleDataRepository(
         .from(tenantRole)
         .where(eq(tenantRole.tenantId, tenantId))
         .for("update");
-      
+
       if (rows.length === 0) return [];
-      
+
       const permissions = await database
         .select({ roleId: tenantRolePermission.roleId, permissionKey: tenantRolePermission.permissionKey })
         .from(tenantRolePermission)
@@ -106,9 +106,9 @@ export function createTenantRoleLifecycleDataRepository(
         ))
         .limit(1)
         .for("update");
-      
+
       if (!row) return null;
-      
+
       const permissions = await database
         .select({ permissionKey: tenantRolePermission.permissionKey })
         .from(tenantRolePermission)

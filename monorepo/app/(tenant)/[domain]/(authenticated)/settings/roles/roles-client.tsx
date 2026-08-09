@@ -115,8 +115,8 @@ export function RolesClient({ initialRoles, permissionGroups }: RolesClientProps
                         role.status === 'active'
                           ? 'default'
                           : role.status === 'draft'
-                          ? 'secondary'
-                          : 'outline'
+                            ? 'secondary'
+                            : 'outline'
                       }
                     >
                       {role.status}
@@ -134,12 +134,12 @@ export function RolesClient({ initialRoles, permissionGroups }: RolesClientProps
                           />
                         }
                       >
-                          <span className="sr-only">Open menu</span>
-                          {isLoading === role.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <MoreHorizontal className="h-4 w-4" />
-                          )}
+                        <span className="sr-only">Open menu</span>
+                        {isLoading === role.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <MoreHorizontal className="h-4 w-4" />
+                        )}
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuGroup>

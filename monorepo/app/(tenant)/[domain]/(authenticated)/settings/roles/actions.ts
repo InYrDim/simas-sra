@@ -45,11 +45,11 @@ async function enforceRoleAccess(domain: string, operationId: string, requestedP
 
 export async function getRoles(domain: string): Promise<Role[]> {
   const { tenantId } = await enforceRoleAccess(domain, 'tenant.roles.list');
-  
+
   return db.transaction(async (tx) => {
     const repo = createTenantRoleLifecycleDataRepository({ database: tx });
     const roles = await repo.listRoles(tenantId);
-    
+
     const results = [];
     for (const r of roles) {
       const userCount = await repo.countActiveAssignments(tenantId, r.id);
@@ -71,12 +71,12 @@ export async function getRoles(domain: string): Promise<Role[]> {
 
 export async function getRole(domain: string, id: string): Promise<Role | null> {
   const { tenantId } = await enforceRoleAccess(domain, 'tenant.roles.list');
-  
+
   return db.transaction(async (tx) => {
     const repo = createTenantRoleLifecycleDataRepository({ database: tx });
     const r = await repo.getRole(tenantId, id);
     if (!r) return null;
-    
+
     const userCount = await repo.countActiveAssignments(tenantId, r.id);
     return {
       id: r.id,
@@ -96,7 +96,7 @@ export async function createRole(domain: string, data: Partial<Role>): Promise<{
   try {
     const { tenantId, principal } = await enforceRoleAccess(domain, 'tenant.roles.create');
     const service = createTenantRoleLifecycleDataService();
-    
+
     const res = await service.createRole({
       principal,
       tenantId,
@@ -108,7 +108,7 @@ export async function createRole(domain: string, data: Partial<Role>): Promise<{
       idempotencyKey: randomUUID(),
       correlationId: randomUUID(),
     });
-    
+
     revalidatePath(`/${domain}/settings/roles`);
     return { success: true, role: { ...data, id: res.roleId, version: 1 } as Role };
   } catch {
@@ -121,7 +121,7 @@ export async function updateRole(domain: string, id: string, expectedVersion: nu
     const { tenantId, principal } = await enforceRoleAccess(domain, 'tenant.roles.update', ['tenant.roles.rename']);
     const service = createTenantRoleLifecycleDataService();
     const correlationId = randomUUID();
-    
+
     if (data.name) {
       await service.renameRole({
         principal,
@@ -136,7 +136,7 @@ export async function updateRole(domain: string, id: string, expectedVersion: nu
       // Increment expectedVersion since it successfully updated
       expectedVersion++;
     }
-    
+
     if (data.description !== undefined) {
       await service.changeRoleDescription({
         principal,
@@ -151,16 +151,16 @@ export async function updateRole(domain: string, id: string, expectedVersion: nu
       // Increment expectedVersion since it successfully updated
       expectedVersion++;
     }
-    
+
     if (data.permissions) {
       // Need to find existing permissions to know what was added/removed
       const role = await getRole(domain, id);
       const existingPerms = new Set(role?.permissions || []);
       const newPerms = new Set(data.permissions);
-      
+
       const addedPermissions = [...newPerms].filter(p => !existingPerms.has(p));
       const removedPermissions = [...existingPerms].filter(p => !newPerms.has(p));
-      
+
       if (addedPermissions.length > 0 || removedPermissions.length > 0) {
         // Evaluate if they have change-permissions right
         await enforceRoleAccess(domain, 'tenant.roles.update', ['tenant.roles.change-permissions']);
@@ -177,7 +177,7 @@ export async function updateRole(domain: string, id: string, expectedVersion: nu
         });
       }
     }
-    
+
     revalidatePath(`/${domain}/settings/roles`);
     return { success: true };
   } catch {
@@ -189,7 +189,7 @@ export async function changeRoleStatus(domain: string, id: string, expectedVersi
   try {
     const service = createTenantRoleLifecycleDataService();
     const correlationId = randomUUID();
-    
+
     let access;
     if (status === 'active') {
       access = await enforceRoleAccess(domain, 'tenant.roles.lifecycle', ['tenant.roles.activate']);

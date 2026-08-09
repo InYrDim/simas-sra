@@ -334,7 +334,7 @@ async function authorizeAdminMutation<TTransaction extends object>(
   if (actor.kind !== "tenant-user" && actor.kind !== "provider-admin") throw new SecurityCommandError("context-denied");
   const repo = dependencies.repository(transaction);
   if (!(await repo.lockTenant(input.tenantId))) throw new SecurityCommandError("context-denied");
-  
+
   if (actor.kind === "tenant-user" && !(await repo.isSchoolAdmin(input.tenantId, actor.userId))) {
     throw new SecurityCommandError("context-denied");
   }
@@ -458,11 +458,11 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
         correlationId: input.correlationId,
         deriveContext: async () => tenantContext(input.tenantId),
         authorizeAndMutate: async ({ actor, transaction }) => {
-          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, { 
-            tenantId: input.tenantId, 
-            roleId: input.roleId, 
-            expectedVersion: input.expectedVersion, 
-            normalizedName 
+          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, {
+            tenantId: input.tenantId,
+            roleId: input.roleId,
+            expectedVersion: input.expectedVersion,
+            normalizedName
           });
 
           const updated = await repo.updateRole({
@@ -512,10 +512,10 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
         correlationId: input.correlationId,
         deriveContext: async () => tenantContext(input.tenantId),
         authorizeAndMutate: async ({ actor, transaction }) => {
-          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, { 
-            tenantId: input.tenantId, 
-            roleId: input.roleId, 
-            expectedVersion: input.expectedVersion 
+          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, {
+            tenantId: input.tenantId,
+            roleId: input.roleId,
+            expectedVersion: input.expectedVersion
           });
 
           const updated = await repo.updateRole({
@@ -563,16 +563,16 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
         correlationId: input.correlationId,
         deriveContext: async () => tenantContext(input.tenantId),
         authorizeAndMutate: async ({ actor, transaction }) => {
-          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, { 
-            tenantId: input.tenantId, 
-            roleId: input.roleId, 
-            expectedVersion: input.expectedVersion 
+          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, {
+            tenantId: input.tenantId,
+            roleId: input.roleId,
+            expectedVersion: input.expectedVersion
           });
 
           const currentSet = new Set(role!.permissions);
           for (const rm of input.removedPermissions) currentSet.delete(rm);
           for (const add of input.addedPermissions) currentSet.add(add);
-          
+
           const newPermissions = Array.from(currentSet);
           validatePermissions(newPermissions);
 
@@ -635,10 +635,10 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
         correlationId: input.correlationId,
         deriveContext: async () => tenantContext(input.tenantId),
         authorizeAndMutate: async ({ actor, transaction }) => {
-          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, { 
-            tenantId: input.tenantId, 
-            roleId: input.roleId, 
-            expectedVersion: input.expectedVersion 
+          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, {
+            tenantId: input.tenantId,
+            roleId: input.roleId,
+            expectedVersion: input.expectedVersion
           });
           if (role!.lifecycle === "active") throw new SecurityCommandError("invalid-command");
 
@@ -687,10 +687,10 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
         correlationId: input.correlationId,
         deriveContext: async () => tenantContext(input.tenantId),
         authorizeAndMutate: async ({ actor, transaction }) => {
-          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, { 
-            tenantId: input.tenantId, 
-            roleId: input.roleId, 
-            expectedVersion: input.expectedVersion 
+          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, {
+            tenantId: input.tenantId,
+            roleId: input.roleId,
+            expectedVersion: input.expectedVersion
           });
           if (role!.lifecycle !== "active") throw new SecurityCommandError("invalid-command");
 
@@ -742,10 +742,10 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
         correlationId: input.correlationId,
         deriveContext: async () => tenantContext(input.tenantId),
         authorizeAndMutate: async ({ actor, transaction }) => {
-          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, { 
-            tenantId: input.tenantId, 
-            roleId: input.roleId, 
-            expectedVersion: input.expectedVersion 
+          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, {
+            tenantId: input.tenantId,
+            roleId: input.roleId,
+            expectedVersion: input.expectedVersion
           });
           if (role!.lifecycle === "archived") throw new SecurityCommandError("invalid-command");
 
@@ -797,10 +797,10 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
         correlationId: input.correlationId,
         deriveContext: async () => tenantContext(input.tenantId),
         authorizeAndMutate: async ({ actor, transaction }) => {
-          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, { 
-            tenantId: input.tenantId, 
-            roleId: input.roleId, 
-            expectedVersion: input.expectedVersion 
+          const { repo, role } = await authorizeAdminMutation(actor, transaction, dependencies, {
+            tenantId: input.tenantId,
+            roleId: input.roleId,
+            expectedVersion: input.expectedVersion
           });
           if (role!.lifecycle !== "archived") throw new SecurityCommandError("invalid-command");
 
