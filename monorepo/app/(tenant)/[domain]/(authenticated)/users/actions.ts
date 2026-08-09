@@ -54,15 +54,34 @@ async function authorize(domain: string, operationId: string): Promise<Authorize
 }
 
 function failure(error: unknown): LifecycleActionResult<never> {
-  const code = error instanceof Error && 'code' in error ? error.code : undefined;
+  const rawCode = error instanceof Error && 'code' in error ? (error as { code: unknown }).code : undefined;
+  const code = typeof rawCode === 'string' ? rawCode : undefined;
   const stale = code === 'stale-version' || code === 'idempotency-conflict';
-  return {
-    success: false,
-    stale,
-    error: stale
-      ? 'Data akun telah berubah. Data terbaru sedang dimuat; periksa kembali sebelum mencoba lagi.'
-      : 'Tindakan tidak dapat diproses. Periksa data, status akun, dan kewenangan Anda.',
-  };
+  if (stale) {
+    return {
+      success: false,
+      stale,
+      error: 'Data akun telah berubah. Data terbaru sedang dimuat; periksa kembali sebelum mencoba lagi.',
+    };
+  }
+  return { success: false, error: lifecycleFailureMessage(code) };
+}
+
+function lifecycleFailureMessage(code: string | undefined): string {
+  switch (code) {
+    case 'invalid-command':
+      return 'Data tidak valid. Periksa nama, format email, dan person yang dipilih.';
+    case 'context-denied':
+      return 'Tidak dapat memproses. Email mungkin sudah terdaftar, person tidak valid, atau Anda tidak memiliki wewenang school-admin.';
+    case 'unauthenticated':
+      return 'Sesi tidak valid. Silakan keluar dan masuk kembali.';
+    case 'command-in-progress':
+      return 'Tindakan sedang diproses. Tunggu sebentar lalu coba lagi.';
+    case 'integrity-failure':
+      return 'Tindakan gagal diverifikasi. Hubungi administrator sistem.';
+    default:
+      return 'Tindakan tidak dapat diproses. Periksa data, status akun, dan kewenangan Anda.';
+  }
 }
 
 function refresh(domain: string): void {

@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
-import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
+import { Field, FieldContent, FieldError, FieldLabel } from "@/components/ui/field";
 import {
   Popover,
   PopoverContent,
@@ -25,11 +25,13 @@ export function DatePickerField({
   label,
   value,
   required = false,
+  error,
 }: {
   name: string;
   label: string;
   value?: string | null;
   required?: boolean;
+  error?: string;
 }) {
   const [date, setDate] = useState<Date | undefined>(() => initialDate(value));
   const hiddenInputRef = useRef<HTMLInputElement>(null);
@@ -39,7 +41,7 @@ export function DatePickerField({
   }, [date]);
 
   return (
-    <Field orientation="vertical" className="gap-1">
+    <Field orientation="vertical" className="gap-1" data-invalid={error ? true : undefined}>
       <FieldLabel htmlFor={name}>{label}</FieldLabel>
       <FieldContent>
         <Popover>
@@ -49,6 +51,8 @@ export function DatePickerField({
                 type="button"
                 variant="outline"
                 id={name}
+                aria-invalid={error ? true : undefined}
+                aria-describedby={error ? `${name}-error` : undefined}
                 className={cn(
                   "w-full justify-start text-left font-normal",
                   !date && "text-muted-foreground",
@@ -71,6 +75,7 @@ export function DatePickerField({
           required={required}
         />
       </FieldContent>
+      <FieldError id={`${name}-error`}>{error}</FieldError>
     </Field>
   );
 }

@@ -9,14 +9,11 @@ import {
 } from "lucide-react";
 
 import {
-  createStudentAction,
-  editStudentAction,
   manageStudentLifecycleAction,
 } from "@/app/(tenant)/[domain]/(authenticated)/master/siswa/actions";
-import { DatePickerField } from "@/components/master-data/date-picker-field";
+import { StudentForm } from "@/app/(tenant)/[domain]/(authenticated)/master/siswa/student-form";
 import { MasterDataFormDialog } from "@/components/master-data/master-data-form-dialog";
 import { MasterDataWorkspace } from "@/components/master-data/master-data-workspace";
-import { ValidatedSubmitButton } from "@/components/master-data/validated-submit-button";
 import {
   SchoolPersonArchiveForm,
   SharedPersonImpact,
@@ -26,8 +23,6 @@ import { schoolPersonMasterDataStore } from "@/lib/master-data/school-person-mas
 import {
   createStudentMasterDataService,
   STUDENT_STATUSES,
-  type SchoolPerson,
-  type StudentInput,
   type StudentRecord,
 } from "@/lib/master-data/student-master-data";
 import { studentMasterDataStore } from "@/lib/master-data/student-master-data-data";
@@ -42,7 +37,6 @@ import {
 } from "@/lib/master-data/master-data-workspace";
 import { enforceTenantMasterDataOperation } from "@/lib/authorization/tenant-operation-route-access";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Collapsible,
   CollapsibleContent,
@@ -585,179 +579,16 @@ function LifecycleForm({
     </Collapsible>
   );
 }
-function StudentForm({
-  domain,
-  record,
-  availablePeople = [],
-}: {
-  domain: string;
-  record?: StudentRecord;
-  availablePeople?: readonly SchoolPerson[];
-}) {
-  const action = record ? editStudentAction : createStudentAction,
-    p = record?.person,
-    s = record?.student;
-  return (
-    <form action={action.bind(null, domain)} className="mt-4 space-y-5">
-      {record ? (
-        <>
-          <input type="hidden" name="id" value={s!.id} />
-          <input type="hidden" name="personVersion" value={p!.version} />
-          <input type="hidden" name="studentVersion" value={s!.version} />
-        </>
-      ) : null}
-      <fieldset className="space-y-3">
-        <legend className="font-semibold">Data pribadi Warga Sekolah</legend>
-        {!record && availablePeople.length ? (
-          <Label className="block">
-            <span className="text-sm font-medium">
-              Tambahkan profil ke Warga Sekolah yang ada (opsional)
-            </span>
-            <UISelect name="existingPersonId" defaultValue="">
-              <SelectTrigger className="mt-1 h-11 w-full border bg-background px-3">
-                <SelectValue placeholder="Buat Warga Sekolah baru" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">Buat Warga Sekolah baru</SelectItem>
-                {availablePeople.map((person) => (
-                  <SelectItem key={person.id} value={person.id}>
-                    {person.fullName} · {person.birthPlace}, {person.birthDate}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </UISelect>
-            <span className="mt-1 block text-sm text-muted-foreground">
-              Pilih hanya setelah memastikan data pribadi pada formulir sama.
-              Sistem tidak menggabungkan data otomatis.
-            </span>
-          </Label>
-        ) : null}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field name="fullName" label="Nama lengkap" value={p?.fullName} />
-          <Field
-            name="preferredName"
-            label="Nama panggilan (opsional)"
-            value={p?.preferredName}
-          />
-          <Field name="birthPlace" label="Tempat lahir" value={p?.birthPlace} />
-          <DatePickerField
-            name="birthDate"
-            label="Tanggal lahir"
-            value={p?.birthDate}
-            required
-          />
-          <Select
-            name="gender"
-            label="Jenis kelamin"
-            value={p?.gender}
-            options={[
-              { value: "female", label: "Perempuan" },
-              { value: "male", label: "Laki-laki" },
-            ]}
-          />
-          <Field
-            name="nik"
-            label="NIK 16 digit (opsional)"
-            value={p?.nik}
-            inputMode="numeric"
-          />
-          <Field
-            name="nip"
-            label="NIP 18 digit (opsional)"
-            value={p?.nip}
-            inputMode="numeric"
-          />
-          <Field name="religion" label="Agama (opsional)" value={p?.religion} />
-          <Field name="street" label="Alamat jalan" value={p?.street} />
-          <Field
-            name="village"
-            label="Desa/kelurahan (opsional)"
-            value={p?.village}
-          />
-          <Field
-            name="district"
-            label="Kecamatan (opsional)"
-            value={p?.district}
-          />
-          <Field
-            name="city"
-            label="Kabupaten/kota (opsional)"
-            value={p?.city}
-          />
-          <Field
-            name="province"
-            label="Provinsi (opsional)"
-            value={p?.province}
-          />
-          <Field
-            name="postalCode"
-            label="Kode pos (opsional)"
-            value={p?.postalCode}
-          />
-          <Field name="phone" label="Telepon (opsional)" value={p?.phone} />
-          <Field
-            name="email"
-            label="Email (opsional)"
-            type="email"
-            value={p?.email}
-          />
-        </div>
-      </fieldset>
-      <fieldset className="space-y-3">
-        <legend className="font-semibold">Profil Siswa</legend>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field name="nis" label="NIS" value={s?.nis} inputMode="numeric" />
-          <Field
-            name="nisn"
-            label="NISN 10 digit (opsional)"
-            value={s?.nisn}
-            inputMode="numeric"
-          />
-          <Field
-            name="externalStudentId"
-            label="Nomor eksternal (opsional)"
-            value={s?.externalStudentId}
-          />
-          <DatePickerField
-            name="entryDate"
-            label="Tanggal masuk"
-            value={s?.entryDate}
-            required
-          />
-        </div>
-        {!record ? (
-          <Label className="flex min-h-11 items-center gap-2">
-            <Checkbox name="confirmDistinct" value="true" />
-            Saya sudah meninjau kandidat serupa dan memastikan orang ini
-            berbeda.
-          </Label>
-        ) : null}
-        <p className="text-sm text-muted-foreground">
-          {record
-            ? "Status tidak dapat diubah melalui edit biasa. Gunakan tindakan Ubah status Siswa."
-            : "Siswa baru selalu berstatus Aktif. Pembuatan ini tidak membuat atau menautkan Akun Pengguna."}
-        </p>
-      </fieldset>
-      <div className="flex justify-end">
-        <ValidatedSubmitButton className="min-h-11 rounded-full px-4">
-          {record ? "Simpan perubahan" : "Simpan Siswa"}
-        </ValidatedSubmitButton>
-      </div>
-    </form>
-  );
-}
 function Field({
   name,
   label,
   value,
   type = "text",
-  inputMode,
 }: {
-  name: keyof StudentInput | "effectiveDate" | "notes";
+  name: "effectiveDate" | "notes";
   label: string;
   value?: string | null;
   type?: string;
-  inputMode?: "numeric";
 }) {
   return (
     <Label className="block">
@@ -766,42 +597,9 @@ function Field({
         required={!label.includes("opsional")}
         name={name}
         type={type}
-        inputMode={inputMode}
         defaultValue={value ?? ""}
         className="mt-1 h-11"
       />
-    </Label>
-  );
-}
-function Select({
-  name,
-  label,
-  value,
-  options,
-}: {
-  name: string;
-  label: string;
-  value?: string;
-  options: { value: string; label: string }[];
-}) {
-  return (
-    <Label className="block">
-      <span className="text-sm font-medium">{label}</span>
-      <UISelect required name={name} defaultValue={value ?? ""}>
-        <SelectTrigger className="mt-1 h-11 w-full border bg-background px-3">
-          <SelectValue placeholder="Pilih" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="" disabled>
-            Pilih
-          </SelectItem>
-          {options.map((option) => (
-            <SelectItem key={option.value} value={option.value}>
-              {option.label}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </UISelect>
     </Label>
   );
 }
