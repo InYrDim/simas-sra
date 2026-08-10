@@ -5,6 +5,7 @@ import { startTransition, useActionState, useRef, useState } from "react"
 import { CheckCircle2, ChevronRight, Printer, UploadCloud } from "lucide-react"
 import { toast } from "sonner"
 
+import { Button } from "@/components/ui/button"
 import { submitPpdbApplicationAction, type PpdbApplicationActionState } from "@/app/ppdb/[domain]/actions"
 import { printPpdbRegistrationReceipt, type PpdbReceiptAnswers } from "@/app/ppdb/[domain]/registration-receipt-printer"
 import { PpdbSessionClosedNotice } from "@/app/ppdb/[domain]/session-closed-notice"
@@ -131,27 +132,28 @@ export function PpdbApplyForm({
 
           <footer className="absolute bottom-0 w-full border-t border-slate-100 bg-white p-4 flex gap-3">
             {step > 0 && (
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 onClick={goBack}
                 disabled={pending}
-                className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-bold text-slate-700 disabled:opacity-50"
+                className="flex-1 py-3 font-bold text-slate-700"
               >
                 Kembali
-              </button>
+              </Button>
             )}
             {step < totalSteps - 1 ? (
-              <button
+              <Button
                 type="button"
                 onClick={goNext}
                 disabled={pending}
-                className="flex-[2] rounded-xl bg-sky-500 py-3 text-sm font-bold text-white shadow-lg shadow-sky-500/20 flex justify-center items-center gap-2 hover:bg-sky-600 transition-colors disabled:opacity-50"
+                className="flex-[2] gap-2 bg-sky-500 py-3 font-bold text-white shadow-lg shadow-sky-500/20 hover:bg-sky-600"
               >
                 Selanjutnya
                 <ChevronRight className="size-4" />
-              </button>
+              </Button>
             ) : (
-              <button
+              <Button
                 type="button"
                 disabled={pending}
                 onClick={() => {
@@ -166,10 +168,10 @@ export function PpdbApplyForm({
                   setSubmittedAnswers(answers)
                   startTransition(() => formAction(formData))
                 }}
-                className="flex-[2] rounded-xl bg-sky-500 py-3 text-sm font-bold text-white shadow-lg shadow-sky-500/20 flex justify-center items-center gap-2 hover:bg-sky-600 transition-colors disabled:opacity-50"
+                className="flex-[2] gap-2 bg-sky-500 py-3 font-bold text-white shadow-lg shadow-sky-500/20 hover:bg-sky-600"
               >
                 {pending ? "Mengirim..." : "Kirim Pendaftaran"}
-              </button>
+              </Button>
             )}
           </footer>
         </form>
@@ -298,20 +300,21 @@ function PpdbApplySuccess({
           <p className="text-xs font-semibold text-sky-600 uppercase">Kode Pendaftaran</p>
           <p className="mt-1 text-2xl font-bold tracking-wide text-sky-700">{registrationCode}</p>
         </div>
-        <button
+        <Button
           type="button"
+          variant="outline"
           onClick={() => printPpdbRegistrationReceipt({ domain, sessionId, registrationCode, fields, answers })}
-          className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-sky-500 py-3 text-sm font-bold text-sky-700 transition-colors hover:bg-sky-50"
+          className="mt-2 w-full gap-2 border-sky-500 py-3 font-bold text-sky-700 hover:bg-sky-50"
         >
           <Printer className="size-4" />
           Cetak Bukti Pendaftaran
-        </button>
-        <Link
-          href={`/ppdb/${sessionId}/status`}
-          className="w-full rounded-xl bg-sky-500 py-3 text-sm font-bold text-white shadow-lg shadow-sky-500/20 flex justify-center items-center gap-2 hover:bg-sky-600 transition-colors"
+        </Button>
+        <Button
+          render={<Link href={`/ppdb/${sessionId}/status`} />}
+          className="w-full gap-2 bg-sky-500 font-bold text-white shadow-lg shadow-sky-500/20 hover:bg-sky-600"
         >
           Cek Status Pendaftaran
-        </Link>
+        </Button>
       </main>
     </div>
   )
