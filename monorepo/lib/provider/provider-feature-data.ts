@@ -10,6 +10,11 @@ import {
   readProviderFeatureSelection,
   type ProviderFeatureSelection,
 } from "@/lib/provider/provider-feature-settings";
+import {
+  mergeTenantMenuVisibility,
+  readTenantMenuVisibility,
+  type TenantMenuVisibility,
+} from "@/lib/features/tenant-menu-visibility";
 
 export async function listTenantsForFeatureManagement() {
   await requireProviderDataAccess();
@@ -27,7 +32,13 @@ export async function getTenantFeatureConfiguration(tenantId: string) {
     .where(eq(tenant.id, tenantId))
     .limit(1);
 
-  return row ? { ...row, features: readProviderFeatureSelection(row.settings) } : null;
+  return row
+    ? {
+        ...row,
+        features: readProviderFeatureSelection(row.settings),
+        menuVisibility: readTenantMenuVisibility(row.settings),
+      }
+    : null;
 }
 
 export async function updateTenantFeatureConfiguration(
@@ -46,6 +57,27 @@ export async function updateTenantFeatureConfiguration(
     await tx
       .update(tenant)
       .set({ settings: mergeProviderFeatureSelection(row.settings, selection) })
+      .where(eq(tenant.id, tenantId));
+    return true;
+  });
+}
+
+export async function updateTenantMenuVisibility(
+  tenantId: string,
+  visibility: TenantMenuVisibility,
+) {
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select({ settings: tenant.settings })
+      .from(tenant)
+      .where(eq(tenant.id, tenantId))
+      .limit(1)
+      .for("update");
+    if (!row) return false;
+
+    await tx
+      .update(tenant)
+      .set({ settings: mergeTenantMenuVisibility(row.settings, visibility) })
       .where(eq(tenant.id, tenantId));
     return true;
   });

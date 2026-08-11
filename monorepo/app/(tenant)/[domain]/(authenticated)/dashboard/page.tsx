@@ -13,6 +13,7 @@ import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tena
 import { resolveTenantHomeRoute } from "@/lib/authorization/tenant-home-route";
 import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
 import { getResolvedTenantFeatures } from "@/lib/features/tenant-feature-access-data";
+import { readTenantMenuVisibility } from "@/lib/features/tenant-menu-visibility";
 
 import { redirect } from "next/navigation";
 
@@ -38,6 +39,7 @@ export default async function DashboardPage({
   const homeRoute = resolveTenantHomeRoute(layoutPrincipal.permissions, tenantMenuItems, {
     features,
     onboardingCompleted: tenantData.onboardingCompletedAt !== null,
+    menuVisibility: readTenantMenuVisibility(tenantData.settings),
   });
   if (homeRoute.kind === "no-access") {
     return <NoTenantAccess tenantName={tenantData.name ?? domain} />;

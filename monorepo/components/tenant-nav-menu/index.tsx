@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/sidebar"
 
 import type { TenantFeatureSelection } from "@/lib/features/tenant-feature-policy"
+import { resolveHiddenMenuKeys } from "@/lib/features/tenant-menu-visibility"
 import { type TenantNavItem } from "@/types/components/TenantNavItem"
 // The predicate is a pure authorization function shared with server-side
 // helpers. It lives in a plain (non-"use client") module so Server Components
@@ -44,8 +45,8 @@ function isNavigationItemLeafAuthorized(item: TenantNavItem, permissions: Readon
   return isNavigationItemAuthorized(item, permissions)
 }
 
-function TenantNavCollapsibleItem({ item, permissions, pathname, domain, disabled }: { item: TenantNavItem, permissions: ReadonlySet<string>, pathname: string, domain: string, disabled: boolean }) {
-  const filteredSubItems = item.items!.filter((subItem) => isNavigationItemLeafAuthorized(subItem, permissions))
+function TenantNavCollapsibleItem({ item, permissions, pathname, domain, disabled, hiddenKeys }: { item: TenantNavItem, permissions: ReadonlySet<string>, pathname: string, domain: string, disabled: boolean, hiddenKeys: Set<string> | null }) {
+  const filteredSubItems = item.items!.filter((subItem) => !hiddenKeys?.has(subItem.key) && isNavigationItemLeafAuthorized(subItem, permissions))
   const isActive = filteredSubItems.some((subItem) => pathname === tenantNavigationHref(domain, subItem.url))
 
   const [isOpen, setIsOpen] = React.useState(isActive)
@@ -115,16 +116,22 @@ export function TenantNavMenu({
   permissions,
   domain,
   features,
+  menuVisibility,
 }: {
   items: TenantNavItem[]
   permissions: readonly string[]
   domain: string
   features: TenantFeatureSelection
+  menuVisibility?: Record<string, boolean>
 }) {
   const pathname = usePathname()
   const permissionSet = new Set(permissions)
+  const hiddenKeys = menuVisibility ? resolveHiddenMenuKeys(menuVisibility) : null
 
-  const filteredItems = items.filter((item) => isNavigationItemLeafAuthorized(item, permissionSet))
+  const filteredItems = items.filter((item) => {
+    if (hiddenKeys?.has(item.key)) return false
+    return isNavigationItemLeafAuthorized(item, permissionSet)
+  })
 
   // Group items by their "group" property, default to "Menu Utama"
   const groupedItems = filteredItems.reduce((acc, item) => {
@@ -145,7 +152,7 @@ export function TenantNavMenu({
 
               // Nested item scenario
               if (item.items && item.items.length > 0) {
-                return <TenantNavCollapsibleItem key={item.title} item={item} permissions={permissionSet} pathname={pathname} domain={domain} disabled={disabled} />
+                return <TenantNavCollapsibleItem key={item.title} item={item} permissions={permissionSet} pathname={pathname} domain={domain} disabled={disabled} hiddenKeys={hiddenKeys} />
               }
 
               // Normal item scenario

@@ -1,5 +1,6 @@
 import { isNavigationItemAuthorized } from "@/lib/authorization/tenant-nav-item-authorization";
 import type { TenantFeatureSelection } from "@/lib/features/tenant-feature-policy";
+import type { TenantMenuVisibility } from "@/lib/features/tenant-menu-visibility";
 import type { TenantNavItem } from "@/types/components/TenantNavItem";
 
 export const TENANT_HOME_DASHBOARD = "/dashboard";
@@ -21,6 +22,8 @@ export type TenantHomeRouteContext = {
   features: TenantFeatureSelection;
   /** Whether the tenant has completed onboarding (`onboardingCompletedAt != null`). */
   onboardingCompleted: boolean;
+  /** Per-Tenant sidebar visibility; hidden items are never a redirect target. */
+  menuVisibility?: TenantMenuVisibility;
 };
 
 /**
@@ -55,7 +58,7 @@ export function resolveTenantHomeRoute(
   if (permissions.has(TENANT_DASHBOARD_PERMISSION)) {
     return { kind: "dashboard", path: TENANT_HOME_DASHBOARD };
   }
-  const firstAllowedPath = findFirstAuthorizedPagePath(menuItems, permissions, ctx.features);
+  const firstAllowedPath = findFirstAuthorizedPagePath(menuItems, permissions, ctx.features, ctx.menuVisibility);
   if (firstAllowedPath) return { kind: "redirect", path: firstAllowedPath };
   return { kind: "no-access" };
 }
@@ -64,14 +67,17 @@ function findFirstAuthorizedPagePath(
   items: readonly TenantNavItem[],
   permissions: ReadonlySet<string>,
   features: TenantFeatureSelection,
+  menuVisibility?: TenantMenuVisibility,
 ): string | null {
   for (const item of items) {
+    // A Provider-hidden menu item is never a redirect target.
+    if (menuVisibility && menuVisibility[item.key] === false) continue;
     // Mirror the sidebar's disabled logic (`item.feature && !features[item.feature]`):
     // a provider-disabled item — leaf or whole collapsible group — can never be a
     // redirect target, because the sidebar renders no reachable link for it.
     if (item.feature && !features[item.feature]) continue;
     if (item.items?.length) {
-      const childPath = findFirstAuthorizedPagePath(item.items, permissions, features);
+      const childPath = findFirstAuthorizedPagePath(item.items, permissions, features, menuVisibility);
       if (childPath) return childPath;
       continue;
     }

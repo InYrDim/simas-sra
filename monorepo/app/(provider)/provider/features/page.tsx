@@ -1,4 +1,5 @@
 import { FeatureSettingsForm } from "@/app/(provider)/provider/features/feature-settings-form";
+import { MenuVisibilityForm } from "@/app/(provider)/provider/features/menu-visibility-form";
 import { TenantFeatureCombobox } from "@/app/(provider)/provider/features/tenant-feature-combobox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -62,6 +63,25 @@ export default async function ProviderFeaturesPage({
             <FeatureSettingsForm
               features={selectedTenant.features}
               tenantId={selectedTenant.id}
+            />
+          </CardContent>
+        ) : null}
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>3. Visibilitas Menu Sidebar</CardTitle>
+          <CardDescription>
+            {selectedTenant
+              ? `Atur tombol mana yang ditampilkan di sidebar Tenant ${selectedTenant.name}.`
+              : "Pilih Tenant terlebih dahulu untuk mengatur visibilitas menu."}
+          </CardDescription>
+        </CardHeader>
+        {selectedTenant ? (
+          <CardContent>
+            <MenuVisibilityForm
+              tenantId={selectedTenant.id}
+              visibility={selectedTenant.menuVisibility}
             />
           </CardContent>
         ) : null}

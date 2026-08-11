@@ -14,12 +14,13 @@ import {
 } from "@/lib/master-data/dashboard-master-data";
 import { getUrgentMasterDataPresence } from "@/lib/master-data/dashboard-master-data-data";
 import { getResolvedTenantFeatures } from "@/lib/features/tenant-feature-access-data";
+import { readTenantMenuVisibility, resolveMenuKeyForPath } from "@/lib/features/tenant-menu-visibility";
 import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
 import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
 import { TENANT_PATHNAME_HEADER } from "@/lib/platform/proxy-routing";
 
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 
 export default async function DashboardLayout({ children, params }: {
@@ -32,7 +33,7 @@ export default async function DashboardLayout({ children, params }: {
   const layoutDecision = await evaluator.evaluate({ surface: "page", domain, operationId: "authenticated.layout" });
   const principal = enforceAuthorizedTenantOperation(layoutDecision, { domain, operationId: "authenticated.layout" });
   const [tenant] = await db
-    .select({ id: tenantTable.id, name: tenantTable.name, onboardingCompletedAt: tenantTable.onboardingCompletedAt })
+    .select({ id: tenantTable.id, name: tenantTable.name, onboardingCompletedAt: tenantTable.onboardingCompletedAt, settings: tenantTable.settings })
     .from(tenantTable)
     .where(and(eq(tenantTable.id, principal.tenantId), eq(tenantTable.domain, domain)))
     .limit(1);
@@ -40,10 +41,18 @@ export default async function DashboardLayout({ children, params }: {
   const permissions = [...principal.permissions].sort();
 
   const features = await getResolvedTenantFeatures(tenant.id);
+  const menuVisibility = readTenantMenuVisibility(tenant.settings);
   const pathname = requestHeaders.get(TENANT_PATHNAME_HEADER);
   const relativePath = pathname ? getTenantRelativePath(domain, pathname) : "/";
   if (tenant.onboardingCompletedAt === null && relativePath !== "/dashboard") {
     redirect(`/${domain}/dashboard`);
+  }
+
+  // Server-side enforcement: a hidden sidebar menu must not be reachable by
+  // typing its URL directly. The dashboard is always allowed.
+  if (relativePath !== "/dashboard") {
+    const menuKey = resolveMenuKeyForPath(relativePath);
+    if (menuKey && menuVisibility[menuKey] === false) notFound();
   }
 
   const gatedArea = pathname
@@ -57,7 +66,7 @@ export default async function DashboardLayout({ children, params }: {
     : children;
 
   return <SidebarProvider>
-    <TenantSidebar permissions={permissions} domain={domain} tenantName={tenant.name} features={features} trialStarted={tenant.onboardingCompletedAt !== null} />
+    <TenantSidebar permissions={permissions} domain={domain} tenantName={tenant.name} features={features} trialStarted={tenant.onboardingCompletedAt !== null} menuVisibility={menuVisibility} />
     <SidebarInset>
       <TrialBanner domain={domain} />
       <DashboardHeader domain={domain} />

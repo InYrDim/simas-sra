@@ -9,6 +9,7 @@ import {
   type TenantHomeRouteContext,
 } from "@/lib/authorization/tenant-home-route";
 import type { TenantFeatureSelection } from "@/lib/features/tenant-feature-policy";
+import type { TenantMenuVisibility } from "@/lib/features/tenant-menu-visibility";
 import type { TenantNavItem } from "@/types/components/TenantNavItem";
 
 /** Feature selection with every registry feature enabled (mirror of a fully-provided tenant). */
@@ -20,13 +21,19 @@ function featuresWith(overrides: Partial<TenantFeatureSelection>): TenantFeature
 }
 
 /** Home-route context for a tenant that has completed onboarding. */
-function completed(overrides: Partial<TenantFeatureSelection> = {}): TenantHomeRouteContext {
-  return { features: featuresWith(overrides), onboardingCompleted: true };
+function completed(
+  featureOverrides: Partial<TenantFeatureSelection> = {},
+  menuVisibility?: TenantMenuVisibility,
+): TenantHomeRouteContext {
+  return { features: featuresWith(featureOverrides), onboardingCompleted: true, menuVisibility };
 }
 
 /** Home-route context for a tenant whose onboarding is still incomplete. */
-function onboardingLocked(overrides: Partial<TenantFeatureSelection> = {}): TenantHomeRouteContext {
-  return { features: featuresWith(overrides), onboardingCompleted: false };
+function onboardingLocked(
+  featureOverrides: Partial<TenantFeatureSelection> = {},
+  menuVisibility?: TenantMenuVisibility,
+): TenantHomeRouteContext {
+  return { features: featuresWith(featureOverrides), onboardingCompleted: false, menuVisibility };
 }
 
 test("keeps /dashboard as the home route when the principal holds tenant.dashboard.view", () => {
@@ -191,13 +198,14 @@ test("onboarding-incomplete wins even when the only allowed page is behind a dis
 
 test("respects config ordering on a synthetic menu", () => {
   const menu: TenantNavItem[] = [
-    { title: "Home", url: "/dashboard", requiredPermissions: ["tenant.dashboard.view"] },
-    { title: "First", url: "/first", requiredPermissions: ["first.view"] },
+    { key: "home", title: "Home", url: "/dashboard", requiredPermissions: ["tenant.dashboard.view"] },
+    { key: "first", title: "First", url: "/first", requiredPermissions: ["first.view"] },
     {
+      key: "group",
       title: "Group",
       items: [
-        { title: "Nested A", url: "/nested-a", requiredPermissions: ["nested-a.view"] },
-        { title: "Nested B", url: "/nested-b", requiredPermissions: ["nested-b.view"] },
+        { key: "nested-a", title: "Nested A", url: "/nested-a", requiredPermissions: ["nested-a.view"] },
+        { key: "nested-b", title: "Nested B", url: "/nested-b", requiredPermissions: ["nested-b.view"] },
       ],
     },
   ];
@@ -214,8 +222,8 @@ test("respects config ordering on a synthetic menu", () => {
 
 test("synthetic menu: a disabled feature item is skipped while a later active item still wins", () => {
   const menu: TenantNavItem[] = [
-    { title: "Gated First", url: "/gated", requiredPermissions: ["gated.view"], feature: "ppdbRead" },
-    { title: "Second", url: "/second", requiredPermissions: ["second.view"] },
+    { key: "gated-first", title: "Gated First", url: "/gated", requiredPermissions: ["gated.view"], feature: "ppdbRead" },
+    { key: "second", title: "Second", url: "/second", requiredPermissions: ["second.view"] },
   ];
   const permissions = new Set(["gated.view", "second.view"]);
   assert.deepEqual(resolveTenantHomeRoute(permissions, menu, completed({ ppdbRead: false })), {
@@ -226,4 +234,40 @@ test("synthetic menu: a disabled feature item is skipped while a later active it
     kind: "redirect",
     path: "/gated",
   });
+});
+
+test("hidden menu items are skipped when resolving the first allowed page", () => {
+  const menu: TenantNavItem[] = [
+    { key: "first", title: "First", url: "/first", requiredPermissions: ["first.view"] },
+    { key: "second", title: "Second", url: "/second", requiredPermissions: ["second.view"] },
+    {
+      key: "group",
+      title: "Group",
+      items: [
+        { key: "nested-a", title: "Nested A", url: "/nested-a", requiredPermissions: ["nested-a.view"] },
+        { key: "nested-b", title: "Nested B", url: "/nested-b", requiredPermissions: ["nested-b.view"] },
+      ],
+    },
+  ];
+  const permissions = new Set(["first.view", "second.view", "nested-a.view", "nested-b.view"]);
+  // With nothing hidden, /first (config order) wins.
+  assert.deepEqual(resolveTenantHomeRoute(permissions, menu, completed()), {
+    kind: "redirect",
+    path: "/first",
+  });
+  // Hiding the first item falls through to /second.
+  assert.deepEqual(resolveTenantHomeRoute(permissions, menu, completed({}, { first: false })), {
+    kind: "redirect",
+    path: "/second",
+  });
+  // Hiding a whole group skips all of its children.
+  assert.deepEqual(resolveTenantHomeRoute(permissions, menu, completed({}, { group: false })), {
+    kind: "redirect",
+    path: "/first",
+  });
+  // Hiding every reachable item yields no-access.
+  assert.deepEqual(
+    resolveTenantHomeRoute(permissions, menu, completed({}, { first: false, second: false, group: false })),
+    { kind: "no-access" },
+  );
 });
