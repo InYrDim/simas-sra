@@ -37,6 +37,24 @@ function providerDisabledMessage(feature: TenantFeatureKey): string {
   if (feature === "masterDataWrite") {
     return "Pengelolaan Master Data dinonaktifkan oleh Provider untuk Tenant ini.";
   }
+  if (feature === "absensi") {
+    return "Absensi dinonaktifkan oleh Provider untuk Tenant ini.";
+  }
+  if (feature === "absensiManual") {
+    return "Mode Absensi Manual dinonaktifkan oleh Provider untuk Tenant ini.";
+  }
+  if (feature === "absensiQr") {
+    return "Mode Absensi QR dinonaktifkan oleh Provider untuk Tenant ini.";
+  }
+  if (feature === "absensiKartu") {
+    return "Mode Absensi Kartu dinonaktifkan oleh Provider untuk Tenant ini.";
+  }
+  if (feature === "absensiGerbang") {
+    return "Lapisan Absensi Gerbang dinonaktifkan oleh Provider untuk Tenant ini.";
+  }
+  if (feature === "absensiKelas") {
+    return "Lapisan Absensi Kelas dinonaktifkan oleh Provider untuk Tenant ini.";
+  }
 
   const label = TENANT_FEATURES.find(({ key }) => key === feature)?.label ?? feature;
   return `${label} dinonaktifkan oleh Provider untuk Tenant ini.`;

@@ -3,6 +3,7 @@ export const TENANT_FEATURE_DOMAINS = [
   { key: "master-data-import", label: "Impor Data Master" },
   { key: "academic-assessment", label: "Akademik · Penilaian" },
   { key: "admissions", label: "Pendaftaran · PPDB" },
+  { key: "attendance", label: "Absensi" },
   { key: "analytics", label: "Analitik" },
 ] as const;
 
@@ -118,6 +119,53 @@ export const TENANT_FEATURES = [
     description: "Menampilkan komponen analitik lanjutan pada dashboard Tenant.",
     functionalDomain: "analytics",
     routes: ["/dashboard"],
+  },
+  {
+    key: "absensi",
+    label: "Absensi",
+    description: "Fitur induk untuk seluruh akses dan operasi Absensi.",
+    functionalDomain: "attendance",
+    routes: ["/absensi/**"],
+  },
+  {
+    key: "absensiManual",
+    label: "Mode Manual",
+    description: "Mengizinkan School Admin mengaktifkan mode absensi Manual (pencatatan tangan/di mana saja).",
+    functionalDomain: "attendance",
+    routes: ["/absensi/**"],
+    requires: ["absensi"],
+  },
+  {
+    key: "absensiQr",
+    label: "Mode QR",
+    description: "Mengizinkan School Admin mengaktifkan mode absensi berbasis QR.",
+    functionalDomain: "attendance",
+    routes: ["/absensi/**"],
+    requires: ["absensi"],
+  },
+  {
+    key: "absensiKartu",
+    label: "Mode Kartu",
+    description: "Mengizinkan School Admin mengaktifkan mode absensi berbasis Kartu.",
+    functionalDomain: "attendance",
+    routes: ["/absensi/**"],
+    requires: ["absensi"],
+  },
+  {
+    key: "absensiGerbang",
+    label: "Lapisan Gerbang",
+    description: "Mengizinkan School Admin mengaktifkan lapisan absensi Gerbang (cek pertama di pintu).",
+    functionalDomain: "attendance",
+    routes: ["/absensi/**"],
+    requires: ["absensi"],
+  },
+  {
+    key: "absensiKelas",
+    label: "Lapisan Kelas",
+    description: "Mengizinkan School Admin mengaktifkan lapisan absensi Kelas (cek kedua saat pelajaran).",
+    functionalDomain: "attendance",
+    routes: ["/absensi/**"],
+    requires: ["absensi"],
   },
 ] as const;
 

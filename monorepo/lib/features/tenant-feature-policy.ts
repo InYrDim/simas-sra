@@ -47,6 +47,20 @@ export function readTenantFeatureSelection(settings: unknown): TenantFeatureSele
     if (!Object.prototype.hasOwnProperty.call(features, key)) selection[key] = true;
   }
 
+  // Absensi predates the granular mode/layer registry. Preserve the existing
+  // placeholder page access (parent `absensi`) for tenants that have not saved
+  // an absensi flag yet, while keeping the new mode/layer capabilities opt-in.
+  if (!Object.prototype.hasOwnProperty.call(features, "absensi")) selection.absensi = true;
+  for (const key of [
+    "absensiManual",
+    "absensiQr",
+    "absensiKartu",
+    "absensiGerbang",
+    "absensiKelas",
+  ] as const) {
+    if (!Object.prototype.hasOwnProperty.call(features, key)) selection[key] = false;
+  }
+
   return selection;
 }
 

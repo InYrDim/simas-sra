@@ -85,3 +85,35 @@ test("unknown, missing, and non-boolean values fail closed", () => {
     features: { masterData: "true", masterDataRead: true },
   }, "masterDataRead"), false);
 });
+
+test("legacy tenants keep the Absensi parent enabled until explicitly configured", () => {
+  assert.equal(isTenantFeatureEnabled(fullyEnabledMasterData, "absensi"), true);
+});
+
+test("Absensi mode and layer capabilities are opt-in for legacy tenants", () => {
+  assert.equal(isTenantFeatureEnabled(fullyEnabledMasterData, "absensiManual"), false);
+  assert.equal(isTenantFeatureEnabled(fullyEnabledMasterData, "absensiQr"), false);
+  assert.equal(isTenantFeatureEnabled(fullyEnabledMasterData, "absensiKartu"), false);
+  assert.equal(isTenantFeatureEnabled(fullyEnabledMasterData, "absensiGerbang"), false);
+  assert.equal(isTenantFeatureEnabled(fullyEnabledMasterData, "absensiKelas"), false);
+});
+
+test("Absensi mode and layer capabilities require the parent and fail closed when disabled", () => {
+  const settings = {
+    features: {
+      ...fullyEnabledMasterData.features,
+      absensi: true,
+      absensiManual: true,
+      absensiQr: true,
+      absensiKartu: true,
+      absensiGerbang: true,
+      absensiKelas: true,
+    },
+  };
+  assert.equal(isTenantFeatureEnabled(settings, "absensiManual"), true);
+  assert.equal(isTenantFeatureEnabled(settings, "absensiGerbang"), true);
+
+  const parentOff = { features: { ...settings.features, absensi: false } };
+  assert.equal(isTenantFeatureEnabled(parentOff, "absensiManual"), false);
+  assert.equal(isTenantFeatureEnabled(parentOff, "absensiGerbang"), false);
+});

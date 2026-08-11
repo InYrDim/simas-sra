@@ -214,6 +214,7 @@ const activeSeeds: readonly CatalogSeed[] = [
   ["quizzes.grades.adjust", [], "critical"],
   ["quizzes.grades.execute", [], "critical"],
   ["absensi.attendance.view"],
+  ["absensi.settings.update", [], "medium"],
   ["tenant.permissions.view", [], "sensitive", "school-admin-only"],
 ];
 
@@ -466,6 +467,7 @@ const seeds: OperationSeed[] = [
   { id: "authenticated.layout", entryPoints: ["layout:app/(tenant)/[domain]/(authenticated)/layout.tsx"], classification: "system-policy", context: "none", legacy: ["tenantRole"] },
   { id: "dashboard.demo-action", entryPoints: [a("dashboard/actions.ts", "dummyUpdateSettings")], classification: "placeholder", gate: "none", context: "none", legacy: ["legacy-school-admin"] },
   { id: "absensi.attendance.load", entryPoints: [p("absensi")], permissions: ["absensi.attendance.view"], legacy: [] },
+  { id: "absensi.settings.save", entryPoints: [a("absensi/actions.ts", "saveAbsensiConfigAction")], permissions: ["absensi.settings.update"], gate: "write", legacy: [] },
   { id: "e-library.load", entryPoints: [p("e-library")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },
   { id: "jadwal.mengajar.load", entryPoints: [p("jadwal/mengajar")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },
   { id: "jadwal.events.load", entryPoints: [p("jadwal/events")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },

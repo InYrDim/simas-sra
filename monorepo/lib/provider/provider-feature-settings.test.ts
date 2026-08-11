@@ -21,6 +21,12 @@ const selection = {
   ppdbWrite: true,
   ppdbPublic: true,
   advancedAnalytics: true,
+  absensi: true,
+  absensiManual: false,
+  absensiQr: false,
+  absensiKartu: false,
+  absensiGerbang: false,
+  absensiKelas: false,
 };
 
 test("feature settings preserve onboarding and unknown feature configuration", () => {
@@ -54,5 +60,11 @@ test("feature settings preserve legacy Ulangan and PPDB access until explicitly 
     ppdbWrite: true,
     ppdbPublic: true,
     advancedAnalytics: false,
+    absensi: true,
+    absensiManual: false,
+    absensiQr: false,
+    absensiKartu: false,
+    absensiGerbang: false,
+    absensiKelas: false,
   });
 });

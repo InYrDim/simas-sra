@@ -59,6 +59,27 @@ test("Import capabilities distinguish downloads from write operations", () => {
   assert.equal(availability.masterDataImportExecution.reason, "read-only");
 });
 
+test("Provider-disabled Absensi features supply Indonesian feedback", () => {
+  const availability = resolveTenantFeatureAvailability({
+    features: {
+      ...enabledSettings.features,
+      absensi: false,
+      absensiManual: false,
+      absensiQr: false,
+      absensiKartu: false,
+      absensiGerbang: false,
+      absensiKelas: false,
+    },
+  }, { write: true, downloadTemplate: true });
+
+  assert.equal(availability.absensi.message, "Absensi dinonaktifkan oleh Provider untuk Tenant ini.");
+  assert.equal(availability.absensiManual.message, "Mode Absensi Manual dinonaktifkan oleh Provider untuk Tenant ini.");
+  assert.equal(availability.absensiQr.message, "Mode Absensi QR dinonaktifkan oleh Provider untuk Tenant ini.");
+  assert.equal(availability.absensiKartu.message, "Mode Absensi Kartu dinonaktifkan oleh Provider untuk Tenant ini.");
+  assert.equal(availability.absensiGerbang.message, "Lapisan Absensi Gerbang dinonaktifkan oleh Provider untuk Tenant ini.");
+  assert.equal(availability.absensiKelas.message, "Lapisan Absensi Kelas dinonaktifkan oleh Provider untuk Tenant ini.");
+});
+
 test("Parent feature disables descendants with Provider feedback", () => {
   const availability = resolveTenantFeatureAvailability({
     features: { ...enabledSettings.features, masterData: false },

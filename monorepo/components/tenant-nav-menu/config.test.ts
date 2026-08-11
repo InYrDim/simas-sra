@@ -30,6 +30,13 @@ test("Administrasi separates Overview, Import, and Master Data", () => {
   assert.ok(administration.every((item) => item.feature === "masterDataRead"));
 });
 
+test("Absensi navigation is gated by the absensi feature", () => {
+  const absensi = tenantMenuItems.find((item) => item.title === "Absensi");
+  assert.ok(absensi);
+  assert.equal(absensi?.feature, "absensi");
+  assert.deepEqual(absensi?.requiredPermissions, ["absensi.attendance.view"]);
+});
+
 test("admin-only placeholder navigation requires tenant.authorization-audit.view", () => {
   const adminOnlyKey = ["tenant.authorization-audit.view"];
 

@@ -27,7 +27,7 @@ const legacyMinimum = [
 test("the approved registry and operation map form a valid executable contract", () => {
   assert.equal(PERMISSION_REGISTRY_VERSION, "tenant-permissions@2");
   assert.equal(OPERATION_MAP_VERSION, "tenant-operations@4");
-  assert.equal(permissionRegistry.length, 155);
+  assert.equal(permissionRegistry.length, 158);
   assert.match(permissionRegistryDigest, /^[a-f0-9]{64}$/);
   assert.match(tenantOperationMapDigest, /^[a-f0-9]{64}$/);
   assert.deepEqual(validateTenantRbacContract(), []);
@@ -71,6 +71,13 @@ test("absensi module wires a real operation and excluded placeholders become ten
   assert.ok(absensiLoad.entryPoints.some((entry) => entry === "page:app/(tenant)/[domain]/(authenticated)/absensi/page.tsx"));
 
   assert.equal(tenantOperationMap.some((operation) => operation.id === "placeholder.absensi"), false);
+
+  const absensiSave = tenantOperationMap.find((operation) => operation.id === "absensi.settings.save");
+  assert.ok(absensiSave);
+  assert.equal(absensiSave.classification, "tenant-rbac");
+  assert.equal(absensiSave.operationalGate, "write");
+  assert.deepEqual(absensiSave.requiredPermissions, ["absensi.settings.update"]);
+  assert.ok(absensiSave.entryPoints.some((entry) => entry === "action:app/(tenant)/[domain]/(authenticated)/absensi/actions.ts#saveAbsensiConfigAction"));
 
   for (const id of ["e-library.load", "jadwal.mengajar.load", "jadwal.events.load", "persuratan.load", "settings.backup-restore.load", "integrasi.whatsapp-bot.load"]) {
     const operation = tenantOperationMap.find((candidate) => candidate.id === id);
