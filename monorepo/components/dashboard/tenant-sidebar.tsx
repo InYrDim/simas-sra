@@ -46,55 +46,55 @@ export function TenantSidebar({
         } as React.CSSProperties
       }
     >
-    <Sidebar
-      collapsible="icon"
-    >
-      <SidebarHeader className="h-16 flex items-center justify-center border-b border-sidebar-border">
-        <div className="flex items-center gap-2 px-2 overflow-hidden w-full group-data-[collapsible=icon]:justify-center">
-          <div className="bg-sidebar-primary p-1.5 rounded-md shrink-0 flex items-center justify-center">
-            <BookOpen className="size-4 text-sidebar-primary-foreground" />
+      <Sidebar
+        collapsible="icon"
+      >
+        <SidebarHeader className="h-16 flex items-center justify-center border-b border-sidebar-border">
+          <div className="flex items-center gap-2 px-2 overflow-hidden w-full group-data-[collapsible=icon]:justify-center">
+            <div className="bg-sidebar-primary p-1.5 rounded-md shrink-0 flex items-center justify-center">
+              <BookOpen className="size-4 text-sidebar-primary-foreground" />
+            </div>
+            <div className="flex flex-col overflow-hidden group-data-[collapsible=icon]:hidden">
+              <span className="font-bold tracking-tight truncate">SIMAS</span>
+              {tenantName && (
+                <span className="text-xs text-sidebar-foreground/70 truncate" title={tenantName}>
+                  {tenantName}
+                </span>
+              )}
+            </div>
           </div>
-          <div className="flex flex-col overflow-hidden group-data-[collapsible=icon]:hidden">
-            <span className="font-bold tracking-tight truncate">SIMAS</span>
-            {tenantName && (
-              <span className="text-xs text-sidebar-foreground/70 truncate" title={tenantName}>
-                {tenantName}
-              </span>
-            )}
-          </div>
-        </div>
-      </SidebarHeader>
+        </SidebarHeader>
 
-      <SidebarContent>
-        {trialStarted !== false ? (
-          <TenantNavMenu items={tenantMenuItems} permissions={permissions} domain={domain} features={features} menuVisibility={menuVisibility} />
-        ) : (
-          <div className="flex flex-col items-center justify-center p-6 text-center text-sidebar-foreground/60 h-32 gap-3 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:h-auto">
-            <AlertCircle className="size-6 text-amber-500/80" />
-            <p className="text-sm font-medium group-data-[collapsible=icon]:hidden">
-              Selesaikan Onboarding untuk mengakses menu
-            </p>
-          </div>
-        )}
-      </SidebarContent>
+        <SidebarContent>
+          {trialStarted !== false ? (
+            <TenantNavMenu items={tenantMenuItems} permissions={permissions} domain={domain} features={features} menuVisibility={menuVisibility} />
+          ) : (
+            <div className="flex flex-col items-center justify-center p-6 text-center text-sidebar-foreground/60 h-32 gap-3 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:h-auto">
+              <AlertCircle className="size-6 text-amber-500/80" />
+              <p className="text-sm font-medium group-data-[collapsible=icon]:hidden">
+                Selesaikan Onboarding untuk mengakses menu
+              </p>
+            </div>
+          )}
+        </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border p-4">
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              onClick={() => authClient.signOut({ fetchOptions: { onSuccess: () => window.location.assign("/login") } })}
-              tooltip="Keluar"
-              variant="outline"
-              className="border-red-400/20 bg-red-500/5 text-red-300 hover:border-red-400/40 hover:bg-red-500/15 hover:text-red-100"
-            >
-              <LogOut />
-              <span>Keluar</span>
-              <span>Keluar</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
-      </SidebarFooter>
-    </Sidebar>
-  </div>
+        <SidebarFooter className="border-t border-sidebar-border p-4">
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => authClient.signOut({ fetchOptions: { onSuccess: () => window.location.assign("/login") } })}
+                tooltip="Keluar"
+                variant="outline"
+                className="border-red-400/20 bg-red-500/5 text-red-300 hover:border-red-400/40 hover:bg-red-500/15 hover:text-red-100"
+              >
+                <LogOut />
+                <span>Keluar</span>
+                <span>Keluar</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarFooter>
+      </Sidebar>
+    </div>
   )
 }

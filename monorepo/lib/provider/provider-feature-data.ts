@@ -34,10 +34,10 @@ export async function getTenantFeatureConfiguration(tenantId: string) {
 
   return row
     ? {
-        ...row,
-        features: readProviderFeatureSelection(row.settings),
-        menuVisibility: readTenantMenuVisibility(row.settings),
-      }
+      ...row,
+      features: readProviderFeatureSelection(row.settings),
+      menuVisibility: readTenantMenuVisibility(row.settings),
+    }
     : null;
 }
 

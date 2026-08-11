@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
 
 import {
@@ -26,6 +26,21 @@ export function MenuVisibilityForm({
     initialState,
   );
 
+  // Controlled switch state. Initialized once from the server-provided
+  // visibility so toggles survive `revalidatePath` re-renders without the
+  // uncontrolled `defaultChecked` warning. The parent page remounts this
+  // form (via `key={tenantId}`) when the selected Tenant changes.
+  const [checked, setChecked] = useState<Record<string, boolean>>(() => {
+    const map: Record<string, boolean> = {};
+    for (const item of tenantMenuItems) {
+      map[item.key] = visibility[item.key] !== false;
+      for (const child of item.items ?? []) {
+        map[child.key] = visibility[child.key] !== false;
+      }
+    }
+    return map;
+  });
+
   return (
     <form action={formAction} className="space-y-4">
       <p className="text-sm text-muted-foreground">
@@ -36,7 +51,8 @@ export function MenuVisibilityForm({
 
       <div className="space-y-3">
         {tenantMenuItems.map((item) => {
-          const parentHidden = visibility[item.key] === false;
+          const parentOn = checked[item.key];
+          const parentHidden = !parentOn;
           return (
             <div key={item.key} className="rounded-lg border">
               <label className="flex items-center justify-between gap-3 p-4">
@@ -45,8 +61,11 @@ export function MenuVisibilityForm({
                   {item.title}
                 </span>
                 <Switch
-                  defaultChecked={!parentHidden}
+                  checked={parentOn}
                   name={item.key}
+                  onCheckedChange={(next) =>
+                    setChecked((prev) => ({ ...prev, [item.key]: next }))
+                  }
                   uncheckedValue="off"
                   value="on"
                 />
@@ -54,7 +73,8 @@ export function MenuVisibilityForm({
               {item.items?.length ? (
                 <div className="space-y-2 border-t bg-muted/20 p-4 pl-8">
                   {item.items.map((child) => {
-                    const childHidden = parentHidden || visibility[child.key] === false;
+                    const childOn = checked[child.key];
+                    const childHidden = parentHidden || !childOn;
                     return (
                       <label
                         key={child.key}
@@ -64,34 +84,35 @@ export function MenuVisibilityForm({
                           {child.title}
                         </span>
                         <Switch
-                          defaultChecked={!childHidden}
+                          checked={childOn}
                           disabled={parentHidden}
                           name={child.key}
-                          uncheckedValue="off"
-                          value="on"
-                        />
-                      </label>
+                          onCheckedChange={(next) =>
+                            setChecked((prev) => ({ ...prev, [child.key]: next }))
+                          }
+                                                />
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            ) : null}
+                        </div>
                     );
-                  })}
-                </div>
-              ) : null}
+                })}
             </div>
-          );
-        })}
-      </div>
 
-      {state.status !== "idle" ? (
-        <p
-          className={state.status === "error" ? "text-sm text-destructive" : "text-sm text-primary"}
-          role="status"
-        >
-          {state.message}
-        </p>
-      ) : null}
+            {state.status !== "idle" ? (
+                <p
+                    className={state.status === "error" ? "text-sm text-destructive" : "text-sm text-primary"}
+                    role="status"
+                >
+                    {state.message}
+                </p>
+            ) : null}
 
-      <Button disabled={pending} type="submit">
-        {pending ? "Menyimpan…" : "Simpan visibilitas menu"}
-      </Button>
-    </form>
-  );
+            <Button disabled={pending} type="submit">
+                {pending ? "Menyimpan…" : "Simpan visibilitas menu"}
+            </Button>
+        </form>
+    );
 }

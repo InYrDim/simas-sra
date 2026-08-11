@@ -68,7 +68,7 @@ export default async function DashboardPage({
             const now = new Date();
             const isExpired = now > tenantData.trialEndsAt;
             const daysLeft = Math.ceil((tenantData.trialEndsAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-            
+
             if (isExpired) {
               trialStatusText = "Trial berakhir";
             } else {
@@ -82,7 +82,7 @@ export default async function DashboardPage({
           );
         })()}
       </div>
-      
+
       <SessionInfo />
 
       <MasterDataWarningBanner tenantId={tenantData.id} domain={domain} />
@@ -90,7 +90,7 @@ export default async function DashboardPage({
       {needsAdminOnboarding && onboarding?.kind === "authorized" ? (
         <OnboardingForm domain={domain} defaultSchoolYear={defaultSchoolYear} />
       ) : null}
-      
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="rounded-2xl border bg-card text-card-foreground shadow-sm p-6 flex flex-col gap-2 relative overflow-hidden group">
@@ -100,13 +100,13 @@ export default async function DashboardPage({
           </div>
         ))}
       </div>
-      
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <AdvancedAnalytics tenantId={tenantData.id} />
         <div className="col-span-3 rounded-2xl border bg-card text-card-foreground shadow-sm p-6 h-[400px] flex flex-col gap-4">
           <div className="text-lg font-semibold">Aktivitas Terbaru</div>
           <div className="flex-1 space-y-4">
-             {Array.from({ length: 5 }).map((_, i) => (
+            {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="flex items-center gap-4">
                 <div className="size-10 rounded-full bg-muted animate-pulse shrink-0" />
                 <div className="space-y-2 flex-1">

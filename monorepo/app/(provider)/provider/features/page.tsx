@@ -80,6 +80,7 @@ export default async function ProviderFeaturesPage({
         {selectedTenant ? (
           <CardContent>
             <MenuVisibilityForm
+              key={selectedTenant.id}
               tenantId={selectedTenant.id}
               visibility={selectedTenant.menuVisibility}
             />

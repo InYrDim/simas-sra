@@ -18,18 +18,18 @@ export type TenantMenuVisibility = Record<string, boolean>;
 
 /** Every menu key defined in the static tenant navigation config. */
 export const TENANT_MENU_KEYS: readonly string[] = (() => {
-  const keys: string[] = [];
-  for (const item of tenantMenuItems) {
-    keys.push(item.key);
-    for (const child of item.items ?? []) keys.push(child.key);
-  }
-  return keys;
+    const keys: string[] = [];
+    for (const item of tenantMenuItems) {
+        keys.push(item.key);
+        for (const child of item.items ?? []) keys.push(child.key);
+    }
+    return keys;
 })();
 
 const menuKeySet = new Set(TENANT_MENU_KEYS);
 
 export function isKnownMenuKey(key: string): boolean {
-  return menuKeySet.has(key);
+    return menuKeySet.has(key);
 }
 
 /**
@@ -40,38 +40,38 @@ export function isKnownMenuKey(key: string): boolean {
  * settings are ignored.
  */
 export function readTenantMenuVisibility(settings: unknown): TenantMenuVisibility {
-  const root = settings && typeof settings === "object"
-    ? settings as Record<string, unknown>
-    : {};
-  const menu = root.menu && typeof root.menu === "object"
-    ? root.menu as Record<string, unknown>
-    : {};
+    const root = settings && typeof settings === "object"
+        ? settings as Record<string, unknown>
+        : {};
+    const menu = root.menu && typeof root.menu === "object"
+        ? root.menu as Record<string, unknown>
+        : {};
 
-  const visibility: TenantMenuVisibility = {};
-  for (const key of TENANT_MENU_KEYS) {
-    visibility[key] = menu[key] !== false;
-  }
-  return visibility;
+    const visibility: TenantMenuVisibility = {};
+    for (const key of TENANT_MENU_KEYS) {
+        visibility[key] = menu[key] !== false;
+    }
+    return visibility;
 }
 
 /** Merge a partial visibility selection into existing tenant settings. */
 export function mergeTenantMenuVisibility(
-  settings: unknown,
-  visibility: TenantMenuVisibility,
+    settings: unknown,
+    visibility: TenantMenuVisibility,
 ): Record<string, unknown> {
-  const root = settings && typeof settings === "object"
-    ? { ...settings as Record<string, unknown> }
-    : {};
-  const existingMenu = root.menu && typeof root.menu === "object"
-    ? root.menu as Record<string, unknown>
-    : {};
+    const root = settings && typeof settings === "object"
+        ? { ...settings as Record<string, unknown> }
+        : {};
+    const existingMenu = root.menu && typeof root.menu === "object"
+        ? root.menu as Record<string, unknown>
+        : {};
 
-  const nextMenu: Record<string, unknown> = { ...existingMenu };
-  for (const [key, visible] of Object.entries(visibility)) {
-    if (isKnownMenuKey(key)) nextMenu[key] = visible !== false;
-  }
+    const nextMenu: Record<string, unknown> = { ...existingMenu };
+    for (const [key, visible] of Object.entries(visibility)) {
+        if (isKnownMenuKey(key)) nextMenu[key] = visible !== false;
+    }
 
-  return { ...root, menu: nextMenu };
+    return { ...root, menu: nextMenu };
 }
 
 /**
@@ -80,18 +80,18 @@ export function mergeTenantMenuVisibility(
  * sub-item key is explicitly `true`.
  */
 export function resolveHiddenMenuKeys(visibility: TenantMenuVisibility): Set<string> {
-  const hidden = new Set<string>();
-  for (const item of tenantMenuItems) {
-    if (visibility[item.key] === false) {
-      hidden.add(item.key);
-      for (const child of item.items ?? []) hidden.add(child.key);
-    } else {
-      for (const child of item.items ?? []) {
-        if (visibility[child.key] === false) hidden.add(child.key);
-      }
+    const hidden = new Set<string>();
+    for (const item of tenantMenuItems) {
+        if (visibility[item.key] === false) {
+            hidden.add(item.key);
+            for (const child of item.items ?? []) hidden.add(child.key);
+        } else {
+            for (const child of item.items ?? []) {
+                if (visibility[child.key] === false) hidden.add(child.key);
+            }
+        }
     }
-  }
-  return hidden;
+    return hidden;
 }
 
 /**
@@ -99,14 +99,14 @@ export function resolveHiddenMenuKeys(visibility: TenantMenuVisibility): Set<str
  * sidebar to drop items and by the server guard to block direct URL access.
  */
 export function isMenuKeyHidden(visibility: TenantMenuVisibility, key: string): boolean {
-  return resolveHiddenMenuKeys(visibility).has(key);
+    return resolveHiddenMenuKeys(visibility).has(key);
 }
 
 /** Collect every menu key reachable from a navigation item (item + sub-items). */
 export function collectMenuKeys(item: TenantNavItem): string[] {
-  const keys = [item.key];
-  for (const child of item.items ?? []) keys.push(child.key);
-  return keys;
+    const keys = [item.key];
+    for (const child of item.items ?? []) keys.push(child.key);
+    return keys;
 }
 
 /**
@@ -117,28 +117,28 @@ export function collectMenuKeys(item: TenantNavItem): string[] {
  * it. Returns `null` when no menu item owns the path.
  */
 export function resolveMenuKeyForPath(relativePath: string): string | null {
-  const normalized = relativePath === "/" ? "/" : relativePath.replace(/\/+$/, "");
-  let exactKey: string | null = null;
-  let bestPrefixKey: string | null = null;
-  let bestPrefixLength = -1;
+    const normalized = relativePath === "/" ? "/" : relativePath.replace(/\/+$/, "");
+    let exactKey: string | null = null;
+    let bestPrefixKey: string | null = null;
+    let bestPrefixLength = -1;
 
-  const consider = (item: TenantNavItem) => {
-    if (!item.url) return;
-    const url = item.url === "/" ? "/" : item.url.replace(/\/+$/, "");
-    if (url === normalized) {
-      exactKey = item.key;
-    } else if (normalized === url || normalized.startsWith(`${url}/`)) {
-      if (url.length > bestPrefixLength) {
-        bestPrefixLength = url.length;
-        bestPrefixKey = item.key;
-      }
+    const consider = (item: TenantNavItem) => {
+        if (!item.url) return;
+        const url = item.url === "/" ? "/" : item.url.replace(/\/+$/, "");
+        if (url === normalized) {
+            exactKey = item.key;
+        } else if (normalized === url || normalized.startsWith(`${url}/`)) {
+            if (url.length > bestPrefixLength) {
+                bestPrefixLength = url.length;
+                bestPrefixKey = item.key;
+            }
+        }
+    };
+
+    for (const item of tenantMenuItems) {
+        consider(item);
+        for (const child of item.items ?? []) consider(child);
     }
-  };
 
-  for (const item of tenantMenuItems) {
-    consider(item);
-    for (const child of item.items ?? []) consider(child);
-  }
-
-  return exactKey ?? bestPrefixKey;
+    return exactKey ?? bestPrefixKey;
 }
