@@ -110,3 +110,28 @@ export function mergeAbsensiSettings(
 
     return { activeLayers };
 }
+/**
+ * Returns only the active layer→mode bindings that the Provider still allows.
+ *
+ * Reads stay tolerant: a binding may reference a layer/mode the Provider later
+ * disabled, so the stored value is NOT mutated. This filter is applied at read
+ * time so the UI never shows a layer the Provider switched off, while the raw
+ * binding survives in the DB (and returns automatically if the Provider
+ * re-enables it). Pruning from the DB still happens on the next save via
+ * `mergeAbsensiSettings`.
+ */
+export function filterAllowedActiveLayers(
+  settings: unknown,
+  allowedModes: readonly AttendanceMode[],
+  allowedLayers: readonly AttendanceLayer[],
+): Partial<Record<AttendanceLayer, AttendanceMode>> {
+  const stored = readAbsensiSettings(settings).activeLayers;
+  const activeLayers: Partial<Record<AttendanceLayer, AttendanceMode>> = {};
+  for (const layer of allowedLayers) {
+    const mode = stored[layer];
+    if (mode && (allowedModes as readonly string[]).includes(mode)) {
+      activeLayers[layer] = mode;
+    }
+  }
+  return activeLayers;
+}

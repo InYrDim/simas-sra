@@ -11,8 +11,8 @@ import {
     ATTENDANCE_LAYER_FEATURE,
     ATTENDANCE_MODES,
     ATTENDANCE_MODE_FEATURE,
+    filterAllowedActiveLayers,
     mergeAbsensiSettings,
-    readAbsensiSettings,
     type AbsensiConfig,
     type AttendanceLayer,
     type AttendanceMode,
@@ -39,10 +39,12 @@ export async function getAbsensiConfig(tenantId: string): Promise<AbsensiConfig>
         .limit(1);
 
     const settings = row?.settings;
+    const allowedModes = resolveAllowedModes(settings);
+    const allowedLayers = resolveAllowedLayers(settings);
     return {
-        allowedModes: resolveAllowedModes(settings),
-        allowedLayers: resolveAllowedLayers(settings),
-        activeLayers: readAbsensiSettings(settings).activeLayers,
+        allowedModes,
+        allowedLayers,
+        activeLayers: filterAllowedActiveLayers(settings, allowedModes, allowedLayers),
     };
 }
 

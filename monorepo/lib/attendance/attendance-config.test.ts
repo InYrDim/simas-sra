@@ -4,6 +4,7 @@ import test from "node:test";
 import {
     ATTENDANCE_LAYERS,
     ATTENDANCE_MODES,
+    filterAllowedActiveLayers,
     isAttendanceLayer,
     isAttendanceMode,
     mergeAbsensiSettings,
@@ -93,4 +94,33 @@ test("mergeAbsensiSettings never mutates the input settings", () => {
     const input = { absensi: base };
     mergeAbsensiSettings(input, { kelas: "qr" }, ATTENDANCE_MODES, ATTENDANCE_LAYERS);
     assert.deepEqual(input.absensi.activeLayers, { gerbang: "manual" });
+});
+
+test("filterAllowedActiveLayers drops a layer not in allowedLayers", () => {
+    const settings = { absensi: { activeLayers: { gerbang: "manual", kelas: "qr" } } };
+    const result = filterAllowedActiveLayers(settings, ATTENDANCE_MODES, ["kelas"]);
+    assert.deepEqual(result, { kelas: "qr" });
+});
+
+test("filterAllowedActiveLayers drops a binding whose mode is not allowed", () => {
+    const settings = { absensi: { activeLayers: { gerbang: "manual", kelas: "qr" } } };
+    const result = filterAllowedActiveLayers(settings, ["kartu"], ATTENDANCE_LAYERS);
+    assert.deepEqual(result, {});
+});
+
+test("filterAllowedActiveLayers keeps bindings that are both layer- and mode-allowed", () => {
+    const settings = { absensi: { activeLayers: { gerbang: "manual", kelas: "qr" } } };
+    const result = filterAllowedActiveLayers(settings, ["manual", "qr"], ["gerbang", "kelas"]);
+    assert.deepEqual(result, { gerbang: "manual", kelas: "qr" });
+});
+
+test("filterAllowedActiveLayers returns empty when nothing is allowed", () => {
+    const settings = { absensi: { activeLayers: { gerbang: "manual" } } };
+    const result = filterAllowedActiveLayers(settings, [], []);
+    assert.deepEqual(result, {});
+});
+
+test("filterAllowedActiveLayers tolerates missing absensi settings", () => {
+    const result = filterAllowedActiveLayers({}, ATTENDANCE_MODES, ATTENDANCE_LAYERS);
+    assert.deepEqual(result, {});
 });

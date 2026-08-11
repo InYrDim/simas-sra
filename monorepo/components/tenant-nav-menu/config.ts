@@ -15,7 +15,11 @@ export const tenantMenuItems: TenantNavItem[] = [
     icon: ClipboardCheck,
     url: "/absensi",
     requiredPermissions: ["absensi.attendance.view"],
-    feature: "absensi"
+    feature: "absensi",
+    items: [
+      { key: "absensi-overview", title: "Ikhtisar", url: "/absensi", requiredPermissions: ["absensi.attendance.view"] },
+      { key: "absensi-settings", title: "Pengaturan", url: "/absensi/settings", requiredPermissions: ["absensi.settings.update"] },
+    ]
   },
   {
     key: "e-library",
