@@ -67,6 +67,28 @@ Subjek kehadiran adalah **Siswa** (`student_profile`).
 - Server-only module: `import "server-only"`.
 - Issue lokal: `.scratch/absensi/issues/NN-<slug>.md`, `Status:` line di atas.
 
+## Konvensi mode QR & Kartu (diputuskan, berlaku Fase 3)
+
+- **Self-service**: QR & Kartu dioperasikan oleh *service/kiosk principal* (akun gate per-tenant),
+  bukan operator manusia yang memilih siswa. Operator Manual (Fase 2) tetap memilih siswa & arah.
+- **Format token** (QR dinamis / Kartu statis membawa `cardId`):
+  ```
+  SIMAS|<npsn>|<layer>|<studentRef>|<direction>
+  ```
+  - `npsn` — NPSN tenant; kiosk/reader **hanya** menerima token yang cocok NPSN-nya
+    (tolak lintas-tenant di level decode, sebelum lookup siswa).
+  - `layer` — `GERBANG` | `KELAS`.
+  - `studentRef` — NIS atau `studentId` (resolvable dalam tenant tersebut).
+  - `direction` — `IN` | `OUT` (hanya gerbang). Kelas pakai status sendiri di Fase 3.
+  - Kartu: token fisik bawa `cardId` → lookup registry per-tenant (sudah terikat NPSN) →
+    `studentRef`; arah dari reader endpoint (gate-in vs gate-out).
+- **Actor** (`recordedByUserId`): Manual = user login operator; QR/Kartu = akun service gate.
+  Action harus menerima `actorUserId` (default user login) agar tidak hardcode.
+- **Resolusi identitas**: dipusatkan di `resolveStudentIdentity(tenantId, ref)` supaya Manual
+  (path `studentId`) dan QR/Kartu (path `studentRef`) nyambung tanpa refactor.
+- **Arah masuk/keluar**: Manual dari tombol eksplisit; QR dari token `direction`; Kartu dari
+  reader. Action menerima `status` eksplisit, tidak mengasumsi sumber tombol.
+
 ## Out of scope tracking
 
 - Fase 3: Mode QR (`absensi.qr.record`), Mode Kartu (`absensi.kartu.record`)

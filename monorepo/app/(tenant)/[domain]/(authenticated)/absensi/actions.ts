@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { enforceTenantOperation } from "@/lib/features/tenant-feature-route-access";
 import { tenantAuthorizationStore } from "@/lib/authorization/tenant-authorization-data";
 import { saveAbsensiConfig } from "@/lib/attendance/attendance-config-data";
+import { recordAttendance } from "@/lib/attendance/attendance-record-data";
 import {
     ATTENDANCE_LAYERS,
     isAttendanceLayer,
@@ -13,6 +14,7 @@ import {
     type AttendanceLayer,
     type AttendanceMode,
 } from "@/lib/attendance/attendance-config";
+import { isAttendanceRecordStatus } from "@/lib/attendance/attendance-record";
 
 export type SaveAbsensiConfigResult = {
     ok: boolean;
@@ -68,4 +70,48 @@ export async function saveAbsensiConfigAction(
     revalidatePath(`/${domain}/absensi`);
     revalidatePath(`/${domain}/absensi/settings`);
     redirect(`/${domain}/absensi/settings?result=saved`);
+}
+
+export type RecordGerbangResult = {
+    ok: boolean;
+    code?: "invalid-input" | "student-not-found" | "invalid-status" | "not-found" | "error";
+};
+
+/**
+ * Records a Gerbang (gate) attendance event in Manual mode. The operator (the
+ * logged-in user) selects the student and the direction (masuk/keluar). The
+ * write path is shared with QR/Kartu via `recordAttendance`; only the identity
+ * resolution and actor differ in Fase 3.
+ */
+export async function recordGerbangAction(
+    domain: string,
+    formData: FormData,
+): Promise<RecordGerbangResult> {
+    const principal = await enforceTenantOperation(domain, "absensi.gerbang.record");
+
+    const studentId = String(formData.get("studentId") ?? "").trim();
+    const status = String(formData.get("status") ?? "").trim();
+
+    if (studentId === "" || !isAttendanceRecordStatus(status) || (status !== "masuk" && status !== "keluar")) {
+        return { ok: false, code: "invalid-input" };
+    }
+
+    const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
+    if (!tenant) return { ok: false, code: "not-found" };
+
+    const result = await recordAttendance({
+        tenantId: tenant.id,
+        studentId,
+        layer: "gerbang",
+        mode: "manual",
+        status,
+        actorUserId: principal.userId,
+    });
+
+    if (!result.ok) {
+        return { ok: false, code: result.code === "student-not-found" ? "student-not-found" : result.code === "invalid-status" ? "invalid-status" : "error" };
+    }
+
+    revalidatePath(`/${domain}/absensi/gerbang`);
+    return { ok: true };
 }
