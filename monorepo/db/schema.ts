@@ -431,6 +431,38 @@ export const studentProfile = mysqlTable(
   ],
 );
 
+export const attendanceRecord = mysqlTable(
+  "attendance_record",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    studentId: varchar("student_id", { length: 36 }).notNull(),
+    layer: mysqlEnum("layer", ["gerbang", "kelas"]).notNull(),
+    mode: mysqlEnum("mode", ["manual", "qr", "kartu"]).notNull(),
+    recordedAt: timestamp("recorded_at", { fsp: 3 }).notNull(),
+    status: mysqlEnum("status", ["masuk", "keluar", "hadir", "izin", "sakit", "alpa"]).notNull(),
+    recordedByUserId: varchar("recorded_by_user_id", { length: 36 }).notNull(),
+    notes: varchar("notes", { length: 500 }),
+    version: int("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("attendance_record_tenant_id_id_unique").on(table.tenantId, table.id),
+    foreignKey({ columns: [table.tenantId, table.studentId], foreignColumns: [studentProfile.tenantId, studentProfile.id], name: "attendance_record_tenant_student_fkey" }),
+    foreignKey({ columns: [table.tenantId, table.recordedByUserId], foreignColumns: [user.tenantId, user.id], name: "attendance_record_tenant_actor_fkey" }),
+    index("attendance_record_tenant_student_layer_recorded_idx").on(table.tenantId, table.studentId, table.layer, table.recordedAt),
+    check("attendance_record_version_check", sql`${table.version} > 0`),
+    check(
+      "attendance_record_layer_status_check",
+      sql`(
+        (${table.layer} = 'gerbang' AND ${table.status} IN ('masuk', 'keluar'))
+        OR (${table.layer} = 'kelas' AND ${table.status} IN ('hadir', 'izin', 'sakit', 'alpa'))
+      )`,
+    ),
+  ],
+);
+
 export const studentLifecyclePeriod = mysqlTable(
   "student_lifecycle_period",
   {
@@ -1649,6 +1681,7 @@ export const schemaRelations = defineRelations(
     classGroupHistory,
     classGroupRelationship,
     studentProfile,
+    attendanceRecord,
     subject,
     subjectHistory,
     user,
@@ -1724,6 +1757,17 @@ export const schemaRelations = defineRelations(
       }),
       sessions: r.many.session(),
       accounts: r.many.account(),
+      attendanceRecords: r.many.attendanceRecord({
+        from: [r.user.tenantId, r.user.id],
+        to: [r.attendanceRecord.tenantId, r.attendanceRecord.recordedByUserId],
+      }),
+    },
+    studentProfile: {
+      tenant: r.one.tenant({ from: r.studentProfile.tenantId, to: r.tenant.id }),
+      attendanceRecords: r.many.attendanceRecord({
+        from: [r.studentProfile.tenantId, r.studentProfile.id],
+        to: [r.attendanceRecord.tenantId, r.attendanceRecord.studentId],
+      }),
     },
     providerAdmin: {
       user: r.one.user({ from: r.providerAdmin.userId, to: r.user.id }),
