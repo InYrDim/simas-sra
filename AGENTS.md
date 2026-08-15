@@ -27,6 +27,9 @@ The loader should provide clear visual feedback to the user that the system is p
 ### Clarifying Reconfirmations
 When the user reconfirms an ambiguous point, briefly define the relevant domain terms and explain the concrete alternatives before asking another question. Keep the explanation to the minimum needed to prevent another misunderstanding; do not add speculative process or policy.
 
+### Icons
+Use `lucide-react` (already a dependency) for all UI icons — tabs, buttons, list items, empty states, status indicators. Prefer a meaningful icon per distinct action/mode/category rather than text-only. Keep icons `aria-hidden` when the adjacent text already labels them. Match the icon style already used across `monorepo/components/ui` and `monorepo/components/**`.
+
 ## Agent skills
 
 ### Custom skills

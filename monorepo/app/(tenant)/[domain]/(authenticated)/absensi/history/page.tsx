@@ -11,9 +11,12 @@ import {
 import {
     ATTENDANCE_LAYER_LABELS,
     ATTENDANCE_LAYERS,
+    ATTENDANCE_MODE_LABELS,
+    ATTENDANCE_MODES,
     ATTENDANCE_STATUS_LABELS,
     readTenantTimezone,
     type AttendanceLayer,
+    type AttendanceMode,
 } from "@/lib/attendance/attendance-config";
 import { localHHMMInZone } from "@/lib/attendance/attendance-date";
 import { db } from "@/db";
@@ -22,12 +25,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { MasterDataFilterForm } from "@/components/master-data/master-data-filter-form";
 import { MasterDataDetailDialog } from "@/components/master-data/master-data-detail-dialog";
+import { Hand, QrCode, IdCard, LayoutGrid } from "lucide-react";
 
 type HistorySearchParams = {
     classGroupId?: string;
     entryYear?: string;
     from?: string;
     to?: string;
+    mode?: string;
     session?: string;
 };
 
@@ -56,6 +61,14 @@ export default async function AbsensiHistoryPage({
         (layer): layer is AttendanceLayer => Boolean(config.activeLayers[layer]),
     );
     const timezone = readTenantTimezone(tenant.settings);
+
+    // Modes actually in use: each active layer is bound to one mode in config.
+    const activeModes = ATTENDANCE_MODES.filter((mode): mode is AttendanceMode =>
+        activeLayers.some((layer) => config.activeLayers[layer] === mode),
+    );
+    const modeFilter = sp.mode && activeModes.includes(sp.mode as AttendanceMode)
+        ? (sp.mode as AttendanceMode)
+        : null;
 
     // Option lists for the filters (independent of the active session filter).
     const [rombelOptions, entryYearOptions] = await Promise.all([
@@ -87,7 +100,11 @@ export default async function AbsensiHistoryPage({
         entryYear: sp.entryYear || undefined,
         dateFrom: sp.from || undefined,
         dateTo: sp.to || undefined,
-    });
+    }).then((rows) =>
+        modeFilter
+            ? rows.filter((s) => config.activeLayers[s.layer] === modeFilter)
+            : rows,
+    );
 
     const selectedSession = sp.session
         ? sessions.find((s) => s.id === sp.session) ?? null
@@ -99,6 +116,24 @@ export default async function AbsensiHistoryPage({
     const basePath = `/${domain}/absensi/history`;
     const filterAction = basePath; // GET form; drops `session` so filtering closes the modal
 
+    // Preserves every active filter except `session` (which closes the modal).
+    const tabHref = (mode: string | null) => {
+        const q = new URLSearchParams();
+        if (sp.classGroupId) q.set("classGroupId", sp.classGroupId);
+        if (sp.entryYear) q.set("entryYear", sp.entryYear);
+        if (sp.from) q.set("from", sp.from);
+        if (sp.to) q.set("to", sp.to);
+        if (mode) q.set("mode", mode);
+        const s = q.toString();
+        return s ? `${basePath}?${s}` : basePath;
+    };
+
+    const modeIcon: Record<AttendanceMode, React.ReactNode> = {
+        manual: <Hand className="size-4" aria-hidden />,
+        qr: <QrCode className="size-4" aria-hidden />,
+        kartu: <IdCard className="size-4" aria-hidden />,
+    };
+
     return (
         <div className="flex flex-col gap-4 p-4">
             <div className="flex items-center justify-between">
@@ -109,6 +144,36 @@ export default async function AbsensiHistoryPage({
                 >
                     Kembali
                 </Link>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+                <Link
+                    href={tabHref(null)}
+                    className={
+                        "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium " +
+                        (!modeFilter
+                            ? "bg-primary text-primary-foreground"
+                            : "border hover:bg-muted")
+                    }
+                >
+                    <LayoutGrid className="size-4" aria-hidden />
+                    Semua
+                </Link>
+                {activeModes.map((mode) => (
+                    <Link
+                        key={mode}
+                        href={tabHref(mode)}
+                        className={
+                            "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium " +
+                            (modeFilter === mode
+                                ? "bg-primary text-primary-foreground"
+                                : "border hover:bg-muted")
+                        }
+                    >
+                        {modeIcon[mode]}
+                        {ATTENDANCE_MODE_LABELS[mode]}
+                    </Link>
+                ))}
             </div>
 
             <MasterDataFilterForm action={filterAction} className="flex flex-wrap items-end gap-3">
@@ -164,7 +229,7 @@ export default async function AbsensiHistoryPage({
                     />
                 </label>
 
-                {(sp.classGroupId || sp.entryYear || sp.from || sp.to) && (
+                {(sp.classGroupId || sp.entryYear || sp.from || sp.to || sp.mode) && (
                     <Link
                         href={basePath}
                         className="h-9 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted"
