@@ -216,6 +216,7 @@ const activeSeeds: readonly CatalogSeed[] = [
   ["absensi.attendance.view"],
   ["absensi.settings.update", [], "medium"],
   ["absensi.gerbang.record", [], "medium"],
+  ["absensi.gerbang.session.manage", [], "medium"],
   ["tenant.permissions.view", [], "sensitive", "school-admin-only"],
 ];
 
@@ -470,6 +471,8 @@ const seeds: OperationSeed[] = [
   { id: "absensi.attendance.load", entryPoints: [p("absensi"), p("absensi/gerbang"), p("absensi/kelas")], permissions: ["absensi.attendance.view"], legacy: ["entitlement"] },
   { id: "absensi.settings.save", entryPoints: [a("absensi/actions.ts", "saveAbsensiConfigAction"), p("absensi/settings")], permissions: ["absensi.settings.update"], gate: "write", legacy: [] },
   { id: "absensi.gerbang.record", entryPoints: [a("absensi/actions.ts", "recordGerbangAction")], permissions: ["absensi.gerbang.record"], gate: "write", legacy: ["entitlement"] },
+  { id: "absensi.gerbang.session.manage", entryPoints: [a("absensi/actions.ts", "openGerbangSessionAction"), a("absensi/actions.ts", "closeGerbangSessionAction"), a("absensi/actions.ts", "deleteGerbangSessionAction")], permissions: ["absensi.gerbang.session.manage"], gate: "write", legacy: [] },
+  { id: "absensi.history.load", entryPoints: [p("absensi/history")], permissions: ["absensi.attendance.view"], legacy: ["entitlement"] },
   { id: "e-library.load", entryPoints: [p("e-library")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },
   { id: "jadwal.mengajar.load", entryPoints: [p("jadwal/mengajar")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },
   { id: "jadwal.events.load", entryPoints: [p("jadwal/events")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },

@@ -4,12 +4,14 @@ import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tena
 import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
 import { enforceTenantFeatureAccess } from "@/lib/features/tenant-feature-route-access";
 import { getAbsensiConfig } from "@/lib/attendance/attendance-config-data";
-import { listGerbangRecordsForDay } from "@/lib/attendance/attendance-record-data";
+import { readTenantTimezone } from "@/lib/attendance/attendance-config";
+import { listGerbangRecordsForDay, resolveOpenSession, resolveTodaysSession } from "@/lib/attendance/attendance-record-data";
 import { tenantAuthorizationStore } from "@/lib/authorization/tenant-authorization-data";
 import { ATTENDANCE_MODE_LABELS } from "@/lib/attendance/attendance-config";
 import { db } from "@/db";
 import { studentProfile, schoolPerson } from "@/db/schema";
 import { GerbangRecordForm } from "./gerbang-record-form";
+import { GerbangSessionPanel } from "./gerbang-session-panel";
 
 export default async function AbsensiGerbangPage({
     params,
@@ -57,7 +59,20 @@ export default async function AbsensiGerbangPage({
         )
         .orderBy(schoolPerson.fullName);
 
-    const today = await listGerbangRecordsForDay(tenant.id);
+    const timezone = readTenantTimezone(tenant.settings);
+    const today = await listGerbangRecordsForDay(tenant.id, new Date(), timezone);
+    const openSession = await resolveOpenSession(tenant.id, "gerbang", new Date(), timezone);
+    // Any session for today (open or closed) blocks creating a new one, so the
+    // panel must reflect it instead of offering "Buat Sesi".
+    const todaysSession = await resolveTodaysSession(tenant.id, "gerbang", new Date(), timezone);
+
+    const inSession = today.filter((r) => !r.outOfSession);
+    const outOfSession = today.filter((r) => r.outOfSession);
+
+    // Students who already have a "masuk" record today cannot be picked again for entry.
+    const alreadyMasukStudentIds = today
+        .filter((r) => r.status === "masuk")
+        .map((r) => r.studentId);
 
     return (
         <div className="flex flex-col gap-4 p-4">
@@ -66,23 +81,81 @@ export default async function AbsensiGerbangPage({
                 Mode {ATTENDANCE_MODE_LABELS[mode]}. Pilih siswa lalu catat Masuk atau Keluar.
             </p>
 
-            <GerbangRecordForm domain={domain} students={students} />
+            <GerbangSessionPanel
+                domain={domain}
+                openSession={
+                    openSession
+                        ? {
+                            id: openSession.id,
+                            plannedStart: openSession.plannedStart,
+                            plannedEnd: openSession.plannedEnd,
+                            openedAt: openSession.openedAt,
+                        }
+                        : null
+                }
+                todaysSession={
+                    todaysSession
+                        ? {
+                            id: todaysSession.id,
+                            status: todaysSession.status,
+                            plannedStart: todaysSession.plannedStart,
+                            plannedEnd: todaysSession.plannedEnd,
+                            openedAt: todaysSession.openedAt,
+                        }
+                        : null
+                }
+            />
+
+            <GerbangRecordForm
+                domain={domain}
+                students={students}
+                alreadyMasukStudentIds={alreadyMasukStudentIds}
+            />
 
             <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
                 <h2 className="text-lg font-semibold mb-3">Hari ini</h2>
                 {today.length === 0 ? (
                     <p className="text-muted-foreground">Belum ada rekam Gerbang hari ini.</p>
                 ) : (
-                    <ul className="divide-y">
-                        {today.map((record) => (
-                            <li key={record.id} className="flex items-center justify-between py-2">
-                                <span>{record.status === "masuk" ? "Masuk" : "Keluar"}</span>
-                                <span className="text-muted-foreground text-sm">
-                                    {record.recordedAt.toLocaleTimeString("id-ID")}
-                                </span>
-                            </li>
-                        ))}
-                    </ul>
+                    <div className="space-y-4">
+                        <div>
+                            <h3 className="text-sm font-medium text-muted-foreground mb-2">
+                                Dalam Sesi ({inSession.length})
+                            </h3>
+                            <ul className="divide-y">
+                                {inSession.map((record) => (
+                                    <li key={record.id} className="flex items-center justify-between py-2">
+                                        <span>{record.status === "masuk" ? "Masuk" : "Keluar"}</span>
+                                        <span className="text-muted-foreground text-sm">
+                                            {record.recordedAt.toLocaleTimeString("id-ID")}
+                                        </span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                        {outOfSession.length > 0 && (
+                            <div>
+                                <h3 className="text-sm font-medium text-muted-foreground mb-2">
+                                    Luar Sesi ({outOfSession.length})
+                                </h3>
+                                <ul className="divide-y">
+                                    {outOfSession.map((record) => (
+                                        <li key={record.id} className="flex items-center justify-between py-2">
+                                            <span className="inline-flex items-center gap-2">
+                                                {record.status === "masuk" ? "Masuk" : "Keluar"}
+                                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                                    Luar Sesi
+                                                </span>
+                                            </span>
+                                            <span className="text-muted-foreground text-sm">
+                                                {record.recordedAt.toLocaleTimeString("id-ID")}
+                                            </span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+                    </div>
                 )}
             </div>
         </div>

@@ -6,11 +6,13 @@ import { redirect } from "next/navigation";
 import { enforceTenantOperation } from "@/lib/features/tenant-feature-route-access";
 import { tenantAuthorizationStore } from "@/lib/authorization/tenant-authorization-data";
 import { saveAbsensiConfig } from "@/lib/attendance/attendance-config-data";
-import { recordAttendance } from "@/lib/attendance/attendance-record-data";
+import { recordAttendance, openSession, closeSession, deleteSession } from "@/lib/attendance/attendance-record-data";
+import { getSessionWindow, readAbsensiSettings, readTenantTimezone } from "@/lib/attendance/attendance-config";
 import {
     ATTENDANCE_LAYERS,
     isAttendanceLayer,
     isAttendanceMode,
+    isSessionWindow,
     type AttendanceLayer,
     type AttendanceMode,
 } from "@/lib/attendance/attendance-config";
@@ -91,6 +93,7 @@ export async function recordGerbangAction(
 
     const studentId = String(formData.get("studentId") ?? "").trim();
     const status = String(formData.get("status") ?? "").trim();
+    const notes = String(formData.get("notes") ?? "").trim() || undefined;
 
     if (studentId === "" || !isAttendanceRecordStatus(status) || (status !== "masuk" && status !== "keluar")) {
         return { ok: false, code: "invalid-input" };
@@ -106,11 +109,99 @@ export async function recordGerbangAction(
         mode: "manual",
         status,
         actorUserId: principal.userId,
+        timezone: readTenantTimezone(tenant.settings),
+        notes,
     });
 
     if (!result.ok) {
         return { ok: false, code: result.code === "student-not-found" ? "student-not-found" : result.code === "invalid-status" ? "invalid-status" : "error" };
     }
+
+    revalidatePath(`/${domain}/absensi/gerbang`);
+    return { ok: true };
+}
+
+export type OpenGerbangSessionResult = {
+    ok: boolean;
+    code?: "already-open" | "invalid-window" | "not-found" | "error";
+};
+
+/**
+ * Opens a Gerbang attendance session for today. The planned window defaults to
+ * the tenant's configured `sessionWindow.gerbang`, falling back to the default
+ * Gerbang window when unset or invalid.
+ */
+export async function openGerbangSessionAction(
+    domain: string,
+    formData?: FormData,
+): Promise<OpenGerbangSessionResult> {
+    const principal = await enforceTenantOperation(domain, "absensi.gerbang.session.manage");
+
+    const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
+    if (!tenant) return { ok: false, code: "not-found" };
+
+    const settings = readAbsensiSettings(tenant.settings);
+    const fallback = getSessionWindow(settings, "gerbang");
+
+    // Allow the operator to override the planned window for today's session.
+    const rawStart = formData ? String(formData.get("plannedStart") ?? "").trim() : "";
+    const rawEnd = formData ? String(formData.get("plannedEnd") ?? "").trim() : "";
+    const window = isSessionWindow({ start: rawStart, end: rawEnd }) ? { start: rawStart, end: rawEnd } : fallback;
+
+    const result = await openSession({
+        tenantId: tenant.id,
+        layer: "gerbang",
+        openedByUserId: principal.userId,
+        plannedStart: window.start,
+        plannedEnd: window.end,
+        timezone: readTenantTimezone(tenant.settings),
+        notes: formData ? String(formData.get("notes") ?? "").trim() || undefined : undefined,
+    });
+
+    if (!result.ok) return { ok: false, code: result.code };
+    revalidatePath(`/${domain}/absensi/gerbang`);
+    return { ok: true };
+}
+
+export type CloseGerbangSessionResult = {
+    ok: boolean;
+    code?: "not-found" | "error";
+};
+
+/** Closes an open Gerbang session. */
+export async function closeGerbangSessionAction(
+    domain: string,
+    sessionId: string,
+): Promise<CloseGerbangSessionResult> {
+    await enforceTenantOperation(domain, "absensi.gerbang.session.manage");
+
+    const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
+    if (!tenant) return { ok: false, code: "not-found" };
+
+    const result = await closeSession(tenant.id, sessionId);
+    if (!result.ok) return { ok: false, code: result.code };
+
+    revalidatePath(`/${domain}/absensi/gerbang`);
+    return { ok: true };
+}
+
+export type DeleteGerbangSessionResult = {
+    ok: boolean;
+    code?: "not-found" | "error";
+};
+
+/** Deletes today's Gerbang session and detaches its linked records. */
+export async function deleteGerbangSessionAction(
+    domain: string,
+    sessionId: string,
+): Promise<DeleteGerbangSessionResult> {
+    await enforceTenantOperation(domain, "absensi.gerbang.session.manage");
+
+    const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
+    if (!tenant) return { ok: false, code: "not-found" };
+
+    const result = await deleteSession(tenant.id, sessionId);
+    if (!result.ok) return { ok: false, code: result.code };
 
     revalidatePath(`/${domain}/absensi/gerbang`);
     return { ok: true };

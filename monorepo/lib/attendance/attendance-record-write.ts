@@ -1,8 +1,9 @@
-import { and, between, eq } from "drizzle-orm";
+import { and, between, desc, eq, inArray, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import { db } from "@/db";
-import { studentProfile, attendanceRecord } from "@/db/schema";
+import { studentProfile, attendanceRecord, attendanceSession } from "@/db/schema";
+import { civilDateInZone, localHHMMInZone, zonedWallClockToUtc } from "@/lib/attendance/attendance-date";
 import {
     isAttendanceRecordStatus,
     isStatusValidForLayer,
@@ -35,6 +36,8 @@ export type RecordAttendanceInput = {
     /** Who performed the write. Manual = operator login; QR/Kartu = gate service. */
     actorUserId: string;
     recordedAt?: Date;
+    /** Tenant IANA timezone (e.g. "Asia/Jakarta"); defaults to WIB. */
+    timezone?: string;
     notes?: string;
 };
 
@@ -75,8 +78,81 @@ export async function resolveStudentIdentity(
 }
 
 /**
+ * Resolves the currently open session for a tenant + layer on a given day.
+ *
+ * Returns the open `attendance_session` row, or `null` when no session is open
+ * (never opened, or already closed). The caller uses this to decide whether a
+ * recording falls inside or outside the session window.
+ */
+export async function resolveOpenSession(
+    tenantId: string,
+    layer: AttendanceRecordLayer,
+    day: Date = new Date(),
+    timezone: string = "Asia/Jakarta",
+): Promise<{ id: string; plannedStart: string; plannedEnd: string; openedAt: Date } | null> {
+    const dateStr = civilDateInZone(day, timezone);
+    const [row] = await db
+        .select({
+            id: attendanceSession.id,
+            plannedStart: attendanceSession.plannedStart,
+            plannedEnd: attendanceSession.plannedEnd,
+            openedAt: attendanceSession.openedAt,
+        })
+        .from(attendanceSession)
+        .where(
+            and(
+                eq(attendanceSession.tenantId, tenantId),
+                eq(attendanceSession.layer, layer),
+                eq(attendanceSession.sessionDate, dateStr),
+                eq(attendanceSession.status, "open"),
+            ),
+        )
+        .limit(1);
+    return row ?? null;
+}
+
+/**
+ * Resolves the session for a tenant/layer on a given day regardless of status.
+ * Used by the UI to decide whether a "Buat Sesi" affordance should be shown:
+ * one session per day is allowed (open OR closed), so once any session exists
+ * for today the create action will reject with "already-open".
+ */
+export async function resolveTodaysSession(
+    tenantId: string,
+    layer: AttendanceRecordLayer,
+    day: Date = new Date(),
+    timezone: string = "Asia/Jakarta",
+): Promise<{ id: string; status: "open" | "closed"; plannedStart: string; plannedEnd: string; openedAt: Date } | null> {
+    const dateStr = civilDateInZone(day, timezone);
+    const [row] = await db
+        .select({
+            id: attendanceSession.id,
+            status: attendanceSession.status,
+            plannedStart: attendanceSession.plannedStart,
+            plannedEnd: attendanceSession.plannedEnd,
+            openedAt: attendanceSession.openedAt,
+        })
+        .from(attendanceSession)
+        .where(
+            and(
+                eq(attendanceSession.tenantId, tenantId),
+                eq(attendanceSession.layer, layer),
+                eq(attendanceSession.sessionDate, dateStr),
+            ),
+        )
+        .limit(1);
+    return row ?? null;
+}
+
+/**
  * Persists an attendance record. Fails closed on any invariant violation so the
  * database CHECK constraint is a backstop, not the only guard.
+ *
+ * Session resolution: when an open session exists for the tenant/layer on the
+ * recorded day and the recorded time falls within its planned window, the record
+ * is linked to that session (`sessionId` set, `outOfSession = false`). Otherwise
+ * it is marked `outOfSession = true` with `sessionId = null` (e.g. student
+ * arrived late, before/after the window, or no session was opened).
  */
 export async function recordAttendance(
     input: RecordAttendanceInput,
@@ -88,18 +164,33 @@ export async function recordAttendance(
     const resolved = await resolveStudentIdentity(input.tenantId, input.studentId);
     if (!resolved) return { ok: false, code: "student-not-found" };
 
-    const id = randomUUID();
     const now = input.recordedAt ?? new Date();
+    const timezone = input.timezone ?? "Asia/Jakarta";
+    const session = await resolveOpenSession(input.tenantId, input.layer, now, timezone);
+
+    let sessionId: string | null = null;
+    let outOfSession = true;
+    if (session) {
+        const hhmm = localHHMMInZone(now, timezone);
+        if (hhmm >= session.plannedStart && hhmm <= session.plannedEnd) {
+            sessionId = session.id;
+            outOfSession = false;
+        }
+    }
+
+    const id = randomUUID();
     try {
         await db.insert(attendanceRecord).values({
             id,
             tenantId: input.tenantId,
             studentId: resolved.studentId,
+            sessionId,
             layer: input.layer,
             mode: input.mode,
             recordedAt: now,
             status: input.status,
             recordedByUserId: input.actorUserId,
+            outOfSession,
             notes: input.notes,
             version: 1,
             createdAt: now,
@@ -115,6 +206,7 @@ export async function recordAttendance(
 export async function listGerbangRecordsForDay(
     tenantId: string,
     day: Date = new Date(),
+    timezone: string = "Asia/Jakarta",
 ): Promise<
     Array<{
         id: string;
@@ -123,12 +215,12 @@ export async function listGerbangRecordsForDay(
         recordedAt: Date;
         recordedByUserId: string;
         notes: string | null;
+        outOfSession: boolean;
+        sessionId: string | null;
     }>
 > {
-    const start = new Date(day);
-    start.setHours(0, 0, 0, 0);
-    const end = new Date(day);
-    end.setHours(23, 59, 59, 999);
+    const start = zonedWallClockToUtc(new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 0, 0, 0)), timezone);
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
 
     return db
         .select({
@@ -138,6 +230,8 @@ export async function listGerbangRecordsForDay(
             recordedAt: attendanceRecord.recordedAt,
             recordedByUserId: attendanceRecord.recordedByUserId,
             notes: attendanceRecord.notes,
+            outOfSession: attendanceRecord.outOfSession,
+            sessionId: attendanceRecord.sessionId,
         })
         .from(attendanceRecord)
         .where(
@@ -148,4 +242,258 @@ export async function listGerbangRecordsForDay(
             ),
         )
         .orderBy(attendanceRecord.recordedAt);
+}
+
+/** Returns the Gerbang records linked to a specific session. */
+export async function listGerbangRecordsBySession(
+    tenantId: string,
+    sessionId: string,
+): Promise<
+    Array<{
+        id: string;
+        studentId: string;
+        status: AttendanceRecordStatus;
+        recordedAt: Date;
+        recordedByUserId: string;
+        notes: string | null;
+        outOfSession: boolean;
+    }>
+> {
+    return db
+        .select({
+            id: attendanceRecord.id,
+            studentId: attendanceRecord.studentId,
+            status: attendanceRecord.status,
+            recordedAt: attendanceRecord.recordedAt,
+            recordedByUserId: attendanceRecord.recordedByUserId,
+            notes: attendanceRecord.notes,
+            outOfSession: attendanceRecord.outOfSession,
+        })
+        .from(attendanceRecord)
+        .where(
+            and(
+                eq(attendanceRecord.tenantId, tenantId),
+                eq(attendanceRecord.layer, "gerbang"),
+                eq(attendanceRecord.sessionId, sessionId),
+            ),
+        )
+        .orderBy(attendanceRecord.recordedAt);
+}
+
+export type OpenSessionInput = {
+    tenantId: string;
+    layer: AttendanceRecordLayer;
+    openedByUserId: string;
+    /** "HH:MM" planned window for the session. */
+    plannedStart: string;
+    plannedEnd: string;
+    /** Session date (defaults to the tenant's civil date today, "YYYY-MM-DD"). */
+    sessionDate?: string;
+    /** Tenant IANA timezone (e.g. "Asia/Jakarta"); defaults to WIB. */
+    timezone?: string;
+    notes?: string;
+};
+
+export type OpenSessionResult =
+    | { ok: true; id: string }
+    | { ok: false; code: "already-open" | "invalid-window" | "error" };
+
+/**
+ * Opens a new attendance session for a tenant/layer on a day. "Open" means the
+ * session starts immediately (`openedAt = now`). Per "satu sesi per lapisan per
+ * hari", a second session for the same day (open or already closed) is rejected
+ * with `already-open`. The unique constraint on (tenantId, layer, sessionDate)
+ * is a backstop against races.
+ */
+/**
+ * Returns any attendance session (open or closed) for a tenant/layer on a day.
+ * Used by `openSession` to enforce "satu sesi per lapisan per hari" — a second
+ * session for the same day is rejected even after the first one was closed.
+ */
+async function hasSessionForDay(
+    tenantId: string,
+    layer: AttendanceRecordLayer,
+    day: string,
+): Promise<boolean> {
+    const [row] = await db
+        .select({ id: attendanceSession.id })
+        .from(attendanceSession)
+        .where(
+            and(
+                eq(attendanceSession.tenantId, tenantId),
+                eq(attendanceSession.layer, layer),
+                eq(attendanceSession.sessionDate, day),
+            ),
+        )
+        .limit(1);
+    return row != null;
+}
+
+export async function openSession(input: OpenSessionInput): Promise<OpenSessionResult> {
+    if (input.plannedEnd <= input.plannedStart) return { ok: false, code: "invalid-window" };
+    const now = new Date();
+    const dateStr = input.sessionDate ?? civilDateInZone(now, input.timezone ?? "Asia/Jakarta");
+    if (await hasSessionForDay(input.tenantId, input.layer, dateStr)) {
+        return { ok: false, code: "already-open" };
+    }
+
+    const id = randomUUID();
+    try {
+        await db.insert(attendanceSession).values({
+            id,
+            tenantId: input.tenantId,
+            layer: input.layer,
+            sessionDate: dateStr,
+            plannedStart: input.plannedStart,
+            plannedEnd: input.plannedEnd,
+            openedAt: now,
+            status: "open",
+            openedByUserId: input.openedByUserId,
+            notes: input.notes,
+            version: 1,
+            createdAt: now,
+            updatedAt: now,
+        });
+        return { ok: true, id };
+    } catch (error) {
+        // Backstop: the unique constraint on (tenantId, layer, sessionDate) can
+        // still race. Surface it as already-open rather than a generic error.
+        if (isDuplicateEntryError(error)) return { ok: false, code: "already-open" };
+        return { ok: false, code: "error" };
+    }
+}
+
+/** True for MySQL ER_DUP_ENTRY (errno 1062). */
+function isDuplicateEntryError(error: unknown): boolean {
+    return (
+        typeof error === "object" &&
+        error != null &&
+        "errno" in error &&
+        (error as { errno?: number }).errno === 1062
+    );
+}
+
+export type CloseSessionResult = { ok: true } | { ok: false; code: "not-found" | "error" };
+
+/**
+ * Summary of an attendance session for history listing. `recordCount` is the
+ * number of attendance records linked to the session (always 0 for sessions
+ * that were opened but never received a recording).
+ */
+export type AttendanceSessionSummary = {
+    id: string;
+    layer: AttendanceRecordLayer;
+    sessionDate: string;
+    plannedStart: string;
+    plannedEnd: string;
+    openedAt: Date;
+    closedAt: Date | null;
+    status: "open" | "closed";
+    notes: string | null;
+    recordCount: number;
+};
+
+/**
+ * Lists attendance sessions for a tenant, newest first. When `layers` is
+ * provided, only sessions for those layers are returned (used to scope history
+ * to the tenant's active absensi layers).
+ */
+export async function listAttendanceSessions(
+    tenantId: string,
+    options: { layers?: readonly AttendanceRecordLayer[]; limit?: number } = {},
+): Promise<AttendanceSessionSummary[]> {
+    const layerFilter = options.layers && options.layers.length > 0
+        ? inArray(attendanceSession.layer, [...options.layers])
+        : undefined;
+    const limit = options.limit && options.limit > 0 ? options.limit : 50;
+
+    const rows = await db
+        .select({
+            id: attendanceSession.id,
+            layer: attendanceSession.layer,
+            sessionDate: attendanceSession.sessionDate,
+            plannedStart: attendanceSession.plannedStart,
+            plannedEnd: attendanceSession.plannedEnd,
+            openedAt: attendanceSession.openedAt,
+            closedAt: attendanceSession.closedAt,
+            status: attendanceSession.status,
+            notes: attendanceSession.notes,
+            recordCount: sql<number>`cast(count(${attendanceRecord.id}) as unsigned)`.as("record_count"),
+        })
+        .from(attendanceSession)
+        .leftJoin(
+            attendanceRecord,
+            and(
+                eq(attendanceRecord.tenantId, attendanceSession.tenantId),
+                eq(attendanceRecord.sessionId, attendanceSession.id),
+            ),
+        )
+        .where(layerFilter ? and(eq(attendanceSession.tenantId, tenantId), layerFilter) : eq(attendanceSession.tenantId, tenantId))
+        .groupBy(attendanceSession.id)
+        .orderBy(desc(attendanceSession.sessionDate), desc(attendanceSession.openedAt))
+        .limit(limit);
+
+    return rows.map((row) => ({
+        id: row.id,
+        layer: row.layer,
+        sessionDate: row.sessionDate,
+        plannedStart: row.plannedStart,
+        plannedEnd: row.plannedEnd,
+        openedAt: row.openedAt,
+        closedAt: row.closedAt,
+        status: row.status,
+        notes: row.notes,
+        recordCount: Number(row.recordCount ?? 0),
+    }));
+}
+
+/** Closes an open session (sets closedAt + status = "closed"). */
+export async function closeSession(
+    tenantId: string,
+    sessionId: string,
+): Promise<CloseSessionResult> {
+    try {
+        const result = await db
+            .update(attendanceSession)
+            .set({ status: "closed", closedAt: new Date(), updatedAt: new Date() })
+            .where(
+                and(
+                    eq(attendanceSession.tenantId, tenantId),
+                    eq(attendanceSession.id, sessionId),
+                    eq(attendanceSession.status, "open"),
+                ),
+            );
+        const affected = ((result as unknown[])[0] as { affectedRows?: number } | undefined)?.affectedRows ?? 0;
+        if (affected === 0) return { ok: false, code: "not-found" };
+        return { ok: true };
+    } catch {
+        return { ok: false, code: "error" };
+    }
+}
+
+export type DeleteSessionResult = { ok: true } | { ok: false; code: "not-found" | "error" };
+
+/**
+ * Deletes a session and detaches its linked records (sets their `sessionId` to
+ * null so they remain as out-of-session history). The FK on `attendance_record`
+ * is RESTRICT, so the detach must happen before the delete.
+ */
+export async function deleteSession(
+    tenantId: string,
+    sessionId: string,
+): Promise<DeleteSessionResult> {
+    try {
+        await db
+            .update(attendanceRecord)
+            .set({ sessionId: null, updatedAt: new Date() })
+            .where(and(eq(attendanceRecord.tenantId, tenantId), eq(attendanceRecord.sessionId, sessionId)));
+        const result = await db
+            .delete(attendanceSession)
+            .where(and(eq(attendanceSession.tenantId, tenantId), eq(attendanceSession.id, sessionId)));
+        const affected = ((result as unknown[])[0] as { affectedRows?: number } | undefined)?.affectedRows ?? 0;
+        if (affected === 0) return { ok: false, code: "not-found" };
+        return { ok: true };
+    } catch {
+        return { ok: false, code: "error" };
+    }
 }

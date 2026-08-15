@@ -18,6 +18,7 @@ export const tenantMenuItems: TenantNavItem[] = [
     feature: "absensi",
     items: [
       { key: "absensi-overview", title: "Ikhtisar", url: "/absensi", requiredPermissions: ["absensi.attendance.view"] },
+      { key: "absensi-history", title: "Riwayat", url: "/absensi/history", requiredPermissions: ["absensi.attendance.view"] },
       { key: "absensi-settings", title: "Pengaturan", url: "/absensi/settings", requiredPermissions: ["absensi.settings.update"] },
     ]
   },

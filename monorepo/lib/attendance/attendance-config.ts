@@ -40,13 +40,42 @@ export const ATTENDANCE_LAYER_FEATURE: Record<AttendanceLayer, string> = {
 };
 
 /**
+ * A planned session window for a layer, expressed as "HH:MM" (24h) local time.
+ * Used as the default `plannedStart`/`plannedEnd` when a School Admin opens a
+ * session for the day.
+ */
+export type SessionWindow = {
+    start: string;
+    end: string;
+};
+
+/** Default gerbang window when none is configured (06:00–07:30). */
+export const DEFAULT_GERBANG_SESSION_WINDOW: SessionWindow = { start: "06:00", end: "07:30" };
+
+/**
  * Active configuration: which mode is bound to which layer. A layer is only
  * present when the School Admin activated it. Reads stay tolerant — a layer may
  * reference a mode that the Provider later disables; pruning happens on save.
  */
 export type AbsensiSettings = {
     activeLayers: Partial<Record<AttendanceLayer, AttendanceMode>>;
+    sessionWindow?: Partial<Record<AttendanceLayer, SessionWindow>>;
 };
+
+/** Matches "HH:MM" with hours 00–23 and minutes 00–59. */
+const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+export function isSessionWindow(value: unknown): value is SessionWindow {
+    if (!value || typeof value !== "object") return false;
+    const v = value as Record<string, unknown>;
+    return (
+        typeof v.start === "string" &&
+        typeof v.end === "string" &&
+        TIME_PATTERN.test(v.start) &&
+        TIME_PATTERN.test(v.end) &&
+        v.end > v.start
+    );
+}
 
 export type AbsensiConfig = {
     allowedModes: readonly AttendanceMode[];
@@ -62,6 +91,18 @@ export function isAttendanceLayer(value: unknown): value is AttendanceLayer {
     return typeof value === "string" && (ATTENDANCE_LAYERS as readonly string[]).includes(value);
 }
 
+/**
+ * Reads the tenant's IANA timezone from its settings JSON. SIMAS is an
+ * Indonesian school system, so an unset timezone defaults to WIB (Asia/Jakarta)
+ * rather than UTC — otherwise early-morning sessions would be filed under the
+ * wrong civil date and become invisible to session resolution.
+ */
+export function readTenantTimezone(settings: unknown): string {
+    const safe = settings && typeof settings === "object" ? settings : {};
+    const tz = (safe as Record<string, unknown>).timezone;
+    return typeof tz === "string" && tz.trim() !== "" ? tz : "Asia/Jakarta";
+}
+
 /** Reads the stored settings, defaulting to an empty (no active layers) config. */
 export function readAbsensiSettings(settings: unknown): AbsensiSettings {
     const safe = settings && typeof settings === "object" ? settings : {};
@@ -75,7 +116,29 @@ export function readAbsensiSettings(settings: unknown): AbsensiSettings {
             if (isAttendanceMode(mode)) activeLayers[layer] = mode;
         }
     }
-    return { activeLayers };
+    const storedWindow = (source as Record<string, unknown>).sessionWindow;
+    const sessionWindow: Partial<Record<AttendanceLayer, SessionWindow>> = {};
+    if (storedWindow && typeof storedWindow === "object") {
+        for (const layer of ATTENDANCE_LAYERS) {
+            const win = (storedWindow as Record<string, unknown>)[layer];
+            if (isSessionWindow(win)) sessionWindow[layer] = win;
+        }
+    }
+    return { activeLayers, sessionWindow };
+}
+
+/**
+ * Returns the effective session window for a layer: the configured window if
+ * valid, otherwise the layer default. Gerbang defaults to 06:30–07:30.
+ */
+export function getSessionWindow(
+    settings: unknown,
+    layer: AttendanceLayer,
+): SessionWindow {
+    const configured = readAbsensiSettings(settings).sessionWindow?.[layer];
+    if (isSessionWindow(configured)) return configured;
+    if (layer === "gerbang") return DEFAULT_GERBANG_SESSION_WINDOW;
+    return { start: "07:00", end: "15:00" };
 }
 
 /**
@@ -121,17 +184,17 @@ export function mergeAbsensiSettings(
  * `mergeAbsensiSettings`.
  */
 export function filterAllowedActiveLayers(
-  settings: unknown,
-  allowedModes: readonly AttendanceMode[],
-  allowedLayers: readonly AttendanceLayer[],
+    settings: unknown,
+    allowedModes: readonly AttendanceMode[],
+    allowedLayers: readonly AttendanceLayer[],
 ): Partial<Record<AttendanceLayer, AttendanceMode>> {
-  const stored = readAbsensiSettings(settings).activeLayers;
-  const activeLayers: Partial<Record<AttendanceLayer, AttendanceMode>> = {};
-  for (const layer of allowedLayers) {
-    const mode = stored[layer];
-    if (mode && (allowedModes as readonly string[]).includes(mode)) {
-      activeLayers[layer] = mode;
+    const stored = readAbsensiSettings(settings).activeLayers;
+    const activeLayers: Partial<Record<AttendanceLayer, AttendanceMode>> = {};
+    for (const layer of allowedLayers) {
+        const mode = stored[layer];
+        if (mode && (allowedModes as readonly string[]).includes(mode)) {
+            activeLayers[layer] = mode;
+        }
     }
-  }
-  return activeLayers;
+    return activeLayers;
 }

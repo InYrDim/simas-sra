@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import test, { after } from "node:test";
 import mysql from "mysql2/promise";
 import { closeDatabasePool } from "@/db";
-import { recordAttendance, resolveStudentIdentity } from "@/lib/attendance/attendance-record-write";
+import { recordAttendance, resolveStudentIdentity, openSession, closeSession, resolveOpenSession, listGerbangRecordsBySession } from "@/lib/attendance/attendance-record-write";
+import { civilDateInZone, zonedWallClockToUtc } from "@/lib/attendance/attendance-date";
 
 const databaseUrl = process.env.DATABASE_URL;
 const mysqlTest = databaseUrl ? test : test.skip;
@@ -51,6 +52,7 @@ async function seedTenant(connection: mysql.Connection, ids: { tenant: string; o
 async function cleanup(connection: mysql.Connection, ids: { tenant: string; owner: string; student: string; person: string; application: string; binding: string; provider: string }) {
     await connection.execute("SET FOREIGN_KEY_CHECKS=0");
     await connection.execute("DELETE FROM `attendance_record` WHERE tenant_id=?", [ids.tenant]);
+    await connection.execute("DELETE FROM `attendance_session` WHERE tenant_id=?", [ids.tenant]);
     await connection.execute("DELETE FROM `student_profile` WHERE tenant_id=?", [ids.tenant]);
     await connection.execute("DELETE FROM `school_person` WHERE tenant_id=?", [ids.tenant]);
     await connection.execute("DELETE FROM `tenant` WHERE id=?", [ids.tenant]);
@@ -179,6 +181,274 @@ mysqlTest("recordAttendance rejects invalid status for layer", async () => {
         assert.equal(result.ok, false);
         if (result.ok) return;
         assert.equal(result.code, "invalid-status");
+    } finally {
+        await cleanup(connection, ids);
+        await connection.end();
+    }
+});
+
+mysqlTest("openSession creates an open session and rejects a second open on the same day", async () => {
+    const connection = await mysql.createConnection(databaseUrl!);
+    const ids = {
+        tenant: randomUUID(),
+        owner: randomUUID(),
+        student: randomUUID(),
+        person: randomUUID(),
+        application: randomUUID(),
+        binding: randomUUID(),
+        provider: randomUUID(),
+        npsn: String(Math.floor(10_000_000 + Math.random() * 90_000_000)),
+    };
+    try {
+        await seedTenant(connection, ids);
+
+        const first = await openSession({
+            tenantId: ids.tenant,
+            layer: "gerbang",
+            openedByUserId: ids.owner,
+            plannedStart: "06:30",
+            plannedEnd: "07:30",
+        });
+        assert.equal(first.ok, true);
+        if (!first.ok) return;
+
+        const second = await openSession({
+            tenantId: ids.tenant,
+            layer: "gerbang",
+            openedByUserId: ids.owner,
+            plannedStart: "06:30",
+            plannedEnd: "07:30",
+        });
+        assert.equal(second.ok, false);
+        if (second.ok) return;
+        assert.equal(second.code, "already-open");
+
+        const resolved = await resolveOpenSession(ids.tenant, "gerbang");
+        assert.equal(resolved?.id, first.id);
+        assert.ok(resolved?.plannedStart.startsWith("06:30"));
+        assert.ok(resolved?.plannedEnd.startsWith("07:30"));
+    } finally {
+        await cleanup(connection, ids);
+        await connection.end();
+    }
+});
+
+mysqlTest("openSession rejects invalid window (end <= start)", async () => {
+    const connection = await mysql.createConnection(databaseUrl!);
+    const ids = {
+        tenant: randomUUID(),
+        owner: randomUUID(),
+        student: randomUUID(),
+        person: randomUUID(),
+        application: randomUUID(),
+        binding: randomUUID(),
+        provider: randomUUID(),
+        npsn: String(Math.floor(10_000_000 + Math.random() * 90_000_000)),
+    };
+    try {
+        await seedTenant(connection, ids);
+        const result = await openSession({
+            tenantId: ids.tenant,
+            layer: "gerbang",
+            openedByUserId: ids.owner,
+            plannedStart: "07:30",
+            plannedEnd: "07:30",
+        });
+        assert.equal(result.ok, false);
+        if (result.ok) return;
+        assert.equal(result.code, "invalid-window");
+    } finally {
+        await cleanup(connection, ids);
+        await connection.end();
+    }
+});
+
+mysqlTest("closeSession flips status and resolveOpenSession returns null afterwards", async () => {
+    const connection = await mysql.createConnection(databaseUrl!);
+    const ids = {
+        tenant: randomUUID(),
+        owner: randomUUID(),
+        student: randomUUID(),
+        person: randomUUID(),
+        application: randomUUID(),
+        binding: randomUUID(),
+        provider: randomUUID(),
+        npsn: String(Math.floor(10_000_000 + Math.random() * 90_000_000)),
+    };
+    try {
+        await seedTenant(connection, ids);
+        const opened = await openSession({
+            tenantId: ids.tenant,
+            layer: "gerbang",
+            openedByUserId: ids.owner,
+            plannedStart: "06:30",
+            plannedEnd: "07:30",
+        });
+        assert.equal(opened.ok, true);
+        if (!opened.ok) return;
+
+        const closed = await closeSession(ids.tenant, opened.id);
+        assert.equal(closed.ok, true);
+
+        const resolved = await resolveOpenSession(ids.tenant, "gerbang");
+        assert.equal(resolved, null);
+
+        const [rows] = await connection.execute(
+            "SELECT `status`,`closed_at` FROM `attendance_session` WHERE `id`=?",
+            [opened.id],
+        );
+        const row = (rows as unknown[])[0] as Record<string, string | null>;
+        assert.equal(row.status, "closed");
+        assert.ok(row.closed_at !== null);
+    } finally {
+        await cleanup(connection, ids);
+        await connection.end();
+    }
+});
+
+mysqlTest("recordAttendance inside an open window links session and clears outOfSession", async () => {
+    const connection = await mysql.createConnection(databaseUrl!);
+    const ids = {
+        tenant: randomUUID(),
+        owner: randomUUID(),
+        student: randomUUID(),
+        person: randomUUID(),
+        application: randomUUID(),
+        binding: randomUUID(),
+        provider: randomUUID(),
+        npsn: String(Math.floor(10_000_000 + Math.random() * 90_000_000)),
+    };
+    try {
+        await seedTenant(connection, ids);
+        const opened = await openSession({
+            tenantId: ids.tenant,
+            layer: "gerbang",
+            openedByUserId: ids.owner,
+            plannedStart: "06:30",
+            plannedEnd: "07:30",
+        });
+        assert.equal(opened.ok, true);
+        if (!opened.ok) return;
+
+        // Record at 06:45 WIB (inside the 06:30–07:30 window) on the session's
+        // civil date, so resolveOpenSession finds the same day's session.
+        const day = civilDateInZone(new Date(), "Asia/Jakarta");
+        const [y, m, d] = day.split("-").map(Number);
+        const recordedAt = zonedWallClockToUtc(new Date(Date.UTC(y, m - 1, d, 6, 45, 0)), "Asia/Jakarta");
+        const result = await recordAttendance({
+            tenantId: ids.tenant,
+            studentId: ids.student,
+            layer: "gerbang",
+            mode: "manual",
+            status: "masuk",
+            actorUserId: ids.owner,
+            timezone: "Asia/Jakarta",
+            recordedAt,
+        });
+        assert.equal(result.ok, true);
+        if (!result.ok) return;
+
+        const [rows] = await connection.execute(
+            "SELECT `session_id`,`out_of_session` FROM `attendance_record` WHERE `id`=?",
+            [result.id],
+        );
+        const row = (rows as unknown[])[0] as Record<string, string | number>;
+        assert.equal(row.session_id, opened.id);
+        assert.equal(row.out_of_session, 0);
+
+        const bySession = await listGerbangRecordsBySession(ids.tenant, opened.id);
+        assert.equal(bySession.length, 1);
+        assert.equal(bySession[0].id, result.id);
+    } finally {
+        await cleanup(connection, ids);
+        await connection.end();
+    }
+});
+
+mysqlTest("recordAttendance outside an open window marks outOfSession and leaves session null", async () => {
+    const connection = await mysql.createConnection(databaseUrl!);
+    const ids = {
+        tenant: randomUUID(),
+        owner: randomUUID(),
+        student: randomUUID(),
+        person: randomUUID(),
+        application: randomUUID(),
+        binding: randomUUID(),
+        provider: randomUUID(),
+        npsn: String(Math.floor(10_000_000 + Math.random() * 90_000_000)),
+    };
+    try {
+        await seedTenant(connection, ids);
+        const opened = await openSession({
+            tenantId: ids.tenant,
+            layer: "gerbang",
+            openedByUserId: ids.owner,
+            plannedStart: "06:30",
+            plannedEnd: "07:30",
+        });
+        assert.equal(opened.ok, true);
+        if (!opened.ok) return;
+
+        // Record at 09:00 UTC (outside the window).
+        const recordedAt = new Date();
+        recordedAt.setUTCHours(9, 0, 0, 0);
+        const result = await recordAttendance({
+            tenantId: ids.tenant,
+            studentId: ids.student,
+            layer: "gerbang",
+            mode: "manual",
+            status: "masuk",
+            actorUserId: ids.owner,
+            recordedAt,
+        });
+        assert.equal(result.ok, true);
+        if (!result.ok) return;
+
+        const [rows] = await connection.execute(
+            "SELECT `session_id`,`out_of_session` FROM `attendance_record` WHERE `id`=?",
+            [result.id],
+        );
+        const row = (rows as unknown[])[0] as Record<string, string | number>;
+        assert.equal(row.session_id, null);
+        assert.equal(row.out_of_session, 1);
+    } finally {
+        await cleanup(connection, ids);
+        await connection.end();
+    }
+});
+
+mysqlTest("recordAttendance without any open session marks outOfSession", async () => {
+    const connection = await mysql.createConnection(databaseUrl!);
+    const ids = {
+        tenant: randomUUID(),
+        owner: randomUUID(),
+        student: randomUUID(),
+        person: randomUUID(),
+        application: randomUUID(),
+        binding: randomUUID(),
+        provider: randomUUID(),
+        npsn: String(Math.floor(10_000_000 + Math.random() * 90_000_000)),
+    };
+    try {
+        await seedTenant(connection, ids);
+        const result = await recordAttendance({
+            tenantId: ids.tenant,
+            studentId: ids.student,
+            layer: "gerbang",
+            mode: "manual",
+            status: "masuk",
+            actorUserId: ids.owner,
+        });
+        assert.equal(result.ok, true);
+        if (!result.ok) return;
+
+        const [rows] = await connection.execute(
+            "SELECT `session_id`,`out_of_session` FROM `attendance_record` WHERE `id`=?",
+            [result.id],
+        );
+        const row = (rows as unknown[])[0] as Record<string, string | number>;
+        assert.equal(row.session_id, null);
+        assert.equal(row.out_of_session, 1);
     } finally {
         await cleanup(connection, ids);
         await connection.end();

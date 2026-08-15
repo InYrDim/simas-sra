@@ -89,6 +89,19 @@ Subjek kehadiran adalah **Siswa** (`student_profile`).
 - **Arah masuk/keluar**: Manual dari tombol eksplisit; QR dari token `direction`; Kartu dari
   reader. Action menerima `status` eksplisit, tidak mengasumsi sumber tombol.
 
+## Sesi Absensi (diputuskan, berlaku Fase 2+)
+
+- **Sesi** = jendela waktu per lapisan per hari, instance eksplisit (`attendance_session`
+  dengan `openedAt`/`closedAt`). "Buat sesi" = langsung buka; "Selesai sesi" = tutup.
+- **Luar sesi** = perekaman di luar jendela sesi terbuka. Disimpan sebagai flag
+  `outOfSession` boolean + `sessionId` FK nullable pada `attendance_record`.
+  Enum `status` **tidak** diubah; CHECK `attendance_record_layer_status_check` tetap utuh.
+- **Jendela** disimpan di `tenant.settings` (`AbsensiSettings.sessionWindow` per lapisan,
+  format `"HH:MM"`), dipakai sebagai `plannedStart`/`plannedEnd` saat buka sesi.
+- **Catatan terlambat** reuse kolom `notes` (varchar 500) yang sudah ada.
+- **Cakupan**: gerbang dulu (issue `05`); tabel sesi sudah mendukung `layer` untuk kelas nanti.
+- **RBAC**: `absensi.gerbang.session.manage` (buka/tutup sesi), `requires: ["absensiGerbang"]`.
+
 ## Out of scope tracking
 
 - Fase 3: Mode QR (`absensi.qr.record`), Mode Kartu (`absensi.kartu.record`)
