@@ -12,6 +12,8 @@
 export const ATTENDANCE_MODES = ["manual", "qr", "kartu"] as const;
 export type AttendanceMode = (typeof ATTENDANCE_MODES)[number];
 
+import type { AttendanceRecordStatus } from "@/lib/attendance/attendance-record";
+
 export const ATTENDANCE_LAYERS = ["gerbang", "kelas"] as const;
 export type AttendanceLayer = (typeof ATTENDANCE_LAYERS)[number];
 
@@ -24,6 +26,15 @@ export const ATTENDANCE_MODE_LABELS: Record<AttendanceMode, string> = {
 export const ATTENDANCE_LAYER_LABELS: Record<AttendanceLayer, string> = {
     gerbang: "Gerbang",
     kelas: "Kelas",
+};
+
+export const ATTENDANCE_STATUS_LABELS: Record<AttendanceRecordStatus, string> = {
+    masuk: "Masuk",
+    keluar: "Keluar",
+    hadir: "Hadir",
+    izin: "Izin",
+    sakit: "Sakit",
+    alpa: "Alpa",
 };
 
 /** Maps each attendance mode to the Provider-gated feature key that enables it. */

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import test, { after } from "node:test";
 import mysql from "mysql2/promise";
 import { closeDatabasePool } from "@/db";
-import { recordAttendance, resolveStudentIdentity, openSession, closeSession, resolveOpenSession, listGerbangRecordsBySession } from "@/lib/attendance/attendance-record-write";
+import { recordAttendance, resolveStudentIdentity, openSession, closeSession, resolveOpenSession, listGerbangRecordsBySession, listAttendanceSessions, listSessionRecordsWithStudents } from "@/lib/attendance/attendance-record-write";
 import { civilDateInZone, zonedWallClockToUtc } from "@/lib/attendance/attendance-date";
 
 const databaseUrl = process.env.DATABASE_URL;
@@ -53,6 +53,9 @@ async function cleanup(connection: mysql.Connection, ids: { tenant: string; owne
     await connection.execute("SET FOREIGN_KEY_CHECKS=0");
     await connection.execute("DELETE FROM `attendance_record` WHERE tenant_id=?", [ids.tenant]);
     await connection.execute("DELETE FROM `attendance_session` WHERE tenant_id=?", [ids.tenant]);
+    await connection.execute("DELETE FROM `class_membership` WHERE tenant_id=?", [ids.tenant]);
+    await connection.execute("DELETE FROM `class_group` WHERE tenant_id=?", [ids.tenant]);
+    await connection.execute("DELETE FROM `academic_year` WHERE tenant_id=?", [ids.tenant]);
     await connection.execute("DELETE FROM `student_profile` WHERE tenant_id=?", [ids.tenant]);
     await connection.execute("DELETE FROM `school_person` WHERE tenant_id=?", [ids.tenant]);
     await connection.execute("DELETE FROM `tenant` WHERE id=?", [ids.tenant]);
@@ -365,7 +368,7 @@ mysqlTest("recordAttendance inside an open window links session and clears outOf
     }
 });
 
-mysqlTest("recordAttendance outside an open window marks outOfSession and leaves session null", async () => {
+mysqlTest("recordAttendance outside an open window still links the session but flags outOfSession", async () => {
     const connection = await mysql.createConnection(databaseUrl!);
     const ids = {
         tenant: randomUUID(),
@@ -409,7 +412,7 @@ mysqlTest("recordAttendance outside an open window marks outOfSession and leaves
             [result.id],
         );
         const row = (rows as unknown[])[0] as Record<string, string | number>;
-        assert.equal(row.session_id, null);
+        assert.equal(row.session_id, opened.id);
         assert.equal(row.out_of_session, 1);
     } finally {
         await cleanup(connection, ids);
@@ -449,6 +452,215 @@ mysqlTest("recordAttendance without any open session marks outOfSession", async 
         const row = (rows as unknown[])[0] as Record<string, string | number>;
         assert.equal(row.session_id, null);
         assert.equal(row.out_of_session, 1);
+    } finally {
+        await cleanup(connection, ids);
+        await connection.end();
+    }
+});
+
+// Seeds an active academic year + two rombel, each with one student, so the
+// filter tests can exercise classGroupId / entryYear scoping. `ids.student`
+// (entry 2026-07-01) goes to rombel A; the second student (entry 2025-07-01)
+// goes to rombel B.
+async function seedClassData(connection: mysql.Connection, ids: { tenant: string; owner: string; student: string; person: string }, rombelA: string, rombelB: string, studentB: string, personB: string) {
+    await connection.execute(
+        "INSERT INTO `academic_year` (`id`,`tenant_id`,`label`,`start_date`,`end_date`,`lifecycle`,`archived`,`version`,`created_at`,`updated_at`) VALUES (?, ?, '2026/2027', '2026-07-01', '2027-06-30', 'active', false, 1, NOW(3), NOW(3))",
+        [ids.tenant, ids.tenant],
+    );
+    await connection.execute(
+        "INSERT INTO `class_group` (`id`,`tenant_id`,`academic_year_id`,`education_level`,`grade`,`group_name`,`normalized_group_name`,`lifecycle`,`archived`,`version`,`created_at`,`updated_at`) VALUES (?, ?, ?, 'SMA', 10, 'X-A', 'x-a', 'active', false, 1, NOW(3), NOW(3)), (?, ?, ?, 'SMA', 10, 'X-B', 'x-b', 'active', false, 1, NOW(3), NOW(3))",
+        [rombelA, ids.tenant, ids.tenant, rombelB, ids.tenant, ids.tenant],
+    );
+    await connection.execute(
+        "INSERT INTO `school_person` (`id`,`tenant_id`,`full_name`,`normalized_name`,`birth_place`,`normalized_birth_place`,`birth_date`,`gender`,`street`,`created_at`,`updated_at`) VALUES (?, ?, 'Siswa B', 'siswa b', 'Palu', 'palu', '2011-01-01', 'male', 'Jalan', NOW(3), NOW(3))",
+        [personB, ids.tenant],
+    );
+    await connection.execute(
+        "INSERT INTO `student_profile` (`id`,`tenant_id`,`person_id`,`nis`,`normalized_nis`,`entry_date`,`status`,`archived`,`version`,`created_at`,`updated_at`) VALUES (?, ?, ?, '67890', '67890', '2025-07-01', 'active', false, 1, NOW(3), NOW(3))",
+        [studentB, ids.tenant, personB],
+    );
+    await connection.execute(
+        "INSERT INTO `class_membership` (`id`,`tenant_id`,`student_id`,`class_group_id`,`academic_year_id`,`planned`,`started_at`,`ended_at`,`reason`,`created_by_user_id`,`created_at`) VALUES (?, ?, ?, ?, ?, false, '2026-07-01', NULL, 'seed', ?, NOW(3)), (?, ?, ?, ?, ?, false, '2026-07-01', NULL, 'seed', ?, NOW(3))",
+        [randomUUID(), ids.tenant, ids.student, rombelA, ids.tenant, ids.owner, randomUUID(), ids.tenant, studentB, rombelB, ids.tenant, ids.owner],
+    );
+}
+
+mysqlTest("listAttendanceSessions filters by classGroupId and entryYear", async () => {
+    const connection = await mysql.createConnection(databaseUrl!);
+    const ids = {
+        tenant: randomUUID(),
+        owner: randomUUID(),
+        student: randomUUID(),
+        person: randomUUID(),
+        application: randomUUID(),
+        binding: randomUUID(),
+        provider: randomUUID(),
+        npsn: String(Math.floor(10_000_000 + Math.random() * 90_000_000)),
+    };
+    const rombelA = randomUUID();
+    const rombelB = randomUUID();
+    const studentB = randomUUID();
+    const personB = randomUUID();
+    try {
+        await seedTenant(connection, ids);
+        await seedClassData(connection, ids, rombelA, rombelB, studentB, personB);
+
+        const opened = await openSession({
+            tenantId: ids.tenant,
+            layer: "gerbang",
+            openedByUserId: ids.owner,
+            plannedStart: "06:30",
+            plannedEnd: "07:30",
+        });
+        assert.equal(opened.ok, true);
+        if (!opened.ok) return;
+
+        const day = civilDateInZone(new Date(), "Asia/Jakarta");
+        const [y, m, d] = day.split("-").map(Number);
+        const recordedAt = zonedWallClockToUtc(new Date(Date.UTC(y, m - 1, d, 6, 45, 0)), "Asia/Jakarta");
+        for (const studentId of [ids.student, studentB]) {
+            const r = await recordAttendance({
+                tenantId: ids.tenant,
+                studentId,
+                layer: "gerbang",
+                mode: "manual",
+                status: "masuk",
+                actorUserId: ids.owner,
+                timezone: "Asia/Jakarta",
+                recordedAt,
+            });
+            assert.equal(r.ok, true);
+        }
+
+        const all = await listAttendanceSessions(ids.tenant, { layers: ["gerbang"], limit: 50 });
+        assert.equal(all.length, 1);
+        assert.equal(all[0].recordCount, 2);
+
+        // Filtering by rombel narrows which sessions appear (a session is kept
+        // when it has at least one record from that rombel); recordCount stays
+        // the session's full total.
+        const onlyA = await listAttendanceSessions(ids.tenant, { layers: ["gerbang"], limit: 50, classGroupId: rombelA });
+        assert.equal(onlyA.length, 1);
+        assert.equal(onlyA[0].recordCount, 2);
+
+        const onlyB = await listAttendanceSessions(ids.tenant, { layers: ["gerbang"], limit: 50, classGroupId: rombelB });
+        assert.equal(onlyB.length, 1);
+        assert.equal(onlyB[0].recordCount, 2);
+
+        const entry2025 = await listAttendanceSessions(ids.tenant, { layers: ["gerbang"], limit: 50, entryYear: "2025" });
+        assert.equal(entry2025.length, 1);
+        assert.equal(entry2025[0].recordCount, 2);
+
+        const entry2024 = await listAttendanceSessions(ids.tenant, { layers: ["gerbang"], limit: 50, entryYear: "2024" });
+        assert.equal(entry2024.length, 0);
+    } finally {
+        await cleanup(connection, ids);
+        await connection.end();
+    }
+});
+
+mysqlTest("listAttendanceSessions filters by date range", async () => {
+    const connection = await mysql.createConnection(databaseUrl!);
+    const ids = {
+        tenant: randomUUID(),
+        owner: randomUUID(),
+        student: randomUUID(),
+        person: randomUUID(),
+        application: randomUUID(),
+        binding: randomUUID(),
+        provider: randomUUID(),
+        npsn: String(Math.floor(10_000_000 + Math.random() * 90_000_000)),
+    };
+    try {
+        await seedTenant(connection, ids);
+        const opened = await openSession({
+            tenantId: ids.tenant,
+            layer: "gerbang",
+            openedByUserId: ids.owner,
+            plannedStart: "06:30",
+            plannedEnd: "07:30",
+        });
+        assert.equal(opened.ok, true);
+        if (!opened.ok) return;
+
+        const day = civilDateInZone(new Date(), "Asia/Jakarta");
+        const [y, m, d] = day.split("-").map(Number);
+        const recordedAt = zonedWallClockToUtc(new Date(Date.UTC(y, m - 1, d, 6, 45, 0)), "Asia/Jakarta");
+        const r = await recordAttendance({
+            tenantId: ids.tenant,
+            studentId: ids.student,
+            layer: "gerbang",
+            mode: "manual",
+            status: "masuk",
+            actorUserId: ids.owner,
+            timezone: "Asia/Jakarta",
+            recordedAt,
+        });
+        assert.equal(r.ok, true);
+
+        const inRange = await listAttendanceSessions(ids.tenant, { layers: ["gerbang"], limit: 50, dateFrom: day, dateTo: day });
+        assert.equal(inRange.length, 1);
+
+        const outOfRange = await listAttendanceSessions(ids.tenant, { layers: ["gerbang"], limit: 50, dateFrom: "2000-01-01", dateTo: "2000-12-31" });
+        assert.equal(outOfRange.length, 0);
+    } finally {
+        await cleanup(connection, ids);
+        await connection.end();
+    }
+});
+
+mysqlTest("listSessionRecordsWithStudents joins student identity and rombel", async () => {
+    const connection = await mysql.createConnection(databaseUrl!);
+    const ids = {
+        tenant: randomUUID(),
+        owner: randomUUID(),
+        student: randomUUID(),
+        person: randomUUID(),
+        application: randomUUID(),
+        binding: randomUUID(),
+        provider: randomUUID(),
+        npsn: String(Math.floor(10_000_000 + Math.random() * 90_000_000)),
+    };
+    const rombelA = randomUUID();
+    const rombelB = randomUUID();
+    const studentB = randomUUID();
+    const personB = randomUUID();
+    try {
+        await seedTenant(connection, ids);
+        await seedClassData(connection, ids, rombelA, rombelB, studentB, personB);
+
+        const opened = await openSession({
+            tenantId: ids.tenant,
+            layer: "gerbang",
+            openedByUserId: ids.owner,
+            plannedStart: "06:30",
+            plannedEnd: "07:30",
+        });
+        assert.equal(opened.ok, true);
+        if (!opened.ok) return;
+
+        const day = civilDateInZone(new Date(), "Asia/Jakarta");
+        const [y, m, d] = day.split("-").map(Number);
+        const recordedAt = zonedWallClockToUtc(new Date(Date.UTC(y, m - 1, d, 6, 45, 0)), "Asia/Jakarta");
+        const r = await recordAttendance({
+            tenantId: ids.tenant,
+            studentId: ids.student,
+            layer: "gerbang",
+            mode: "manual",
+            status: "masuk",
+            actorUserId: ids.owner,
+            timezone: "Asia/Jakarta",
+            recordedAt,
+        });
+        assert.equal(r.ok, true);
+
+        const records = await listSessionRecordsWithStudents(ids.tenant, opened.id);
+        assert.equal(records.length, 1);
+        assert.equal(records[0].studentName, "Siswa Uji");
+        assert.equal(records[0].nis, "12345");
+        assert.equal(records[0].rombel, "X-A");
+        assert.equal(records[0].status, "masuk");
+        assert.equal(records[0].outOfSession, false);
     } finally {
         await cleanup(connection, ids);
         await connection.end();

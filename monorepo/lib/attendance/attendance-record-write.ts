@@ -1,8 +1,15 @@
-import { and, between, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, between, desc, eq, exists, inArray, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import { db } from "@/db";
-import { studentProfile, attendanceRecord, attendanceSession } from "@/db/schema";
+import {
+    studentProfile,
+    schoolPerson,
+    classMembership,
+    classGroup,
+    attendanceRecord,
+    attendanceSession,
+} from "@/db/schema";
 import { civilDateInZone, localHHMMInZone, zonedWallClockToUtc } from "@/lib/attendance/attendance-date";
 import {
     isAttendanceRecordStatus,
@@ -149,10 +156,11 @@ export async function resolveTodaysSession(
  * database CHECK constraint is a backstop, not the only guard.
  *
  * Session resolution: when an open session exists for the tenant/layer on the
- * recorded day and the recorded time falls within its planned window, the record
- * is linked to that session (`sessionId` set, `outOfSession = false`). Otherwise
- * it is marked `outOfSession = true` with `sessionId = null` (e.g. student
- * arrived late, before/after the window, or no session was opened).
+ * recorded day, the record is linked to it (`sessionId` set). `outOfSession`
+ * flags only a recorded time outside the planned window (e.g. a late arrival);
+ * the record is still attached so it appears in session history. When no open
+ * session exists for the day, the record stays unlinked (`sessionId = null`,
+ * `outOfSession = true`).
  */
 export async function recordAttendance(
     input: RecordAttendanceInput,
@@ -168,14 +176,16 @@ export async function recordAttendance(
     const timezone = input.timezone ?? "Asia/Jakarta";
     const session = await resolveOpenSession(input.tenantId, input.layer, now, timezone);
 
+    // Always attach the record to the open session for the day so it surfaces in
+    // session history. `outOfSession` only flags a time outside the planned
+    // window (e.g. a late arrival) — it no longer orphans the record. A record
+    // with no open session at all stays unlinked (sessionId = null).
     let sessionId: string | null = null;
     let outOfSession = true;
     if (session) {
+        sessionId = session.id;
         const hhmm = localHHMMInZone(now, timezone);
-        if (hhmm >= session.plannedStart && hhmm <= session.plannedEnd) {
-            sessionId = session.id;
-            outOfSession = false;
-        }
+        outOfSession = !(hhmm >= session.plannedStart && hhmm <= session.plannedEnd);
     }
 
     const id = randomUUID();
@@ -397,15 +407,78 @@ export type AttendanceSessionSummary = {
  * Lists attendance sessions for a tenant, newest first. When `layers` is
  * provided, only sessions for those layers are returned (used to scope history
  * to the tenant's active absensi layers).
+ *
+ * The optional `classGroupId` / `entryYear` filters scope the result to sessions
+ * that actually received a recording from a student in that rombel / entry year
+ * (resolved via an EXISTS subquery over the session's linked records). This lets
+ * the history table answer "show me sessions involving rombel X" without loading
+ * every record. `dateFrom`/`dateTo` (inclusive, "YYYY-MM-DD") bound the session
+ * date.
  */
 export async function listAttendanceSessions(
     tenantId: string,
-    options: { layers?: readonly AttendanceRecordLayer[]; limit?: number } = {},
+    options: {
+        layers?: readonly AttendanceRecordLayer[];
+        limit?: number;
+        classGroupId?: string;
+        entryYear?: string;
+        dateFrom?: string;
+        dateTo?: string;
+    } = {},
 ): Promise<AttendanceSessionSummary[]> {
     const layerFilter = options.layers && options.layers.length > 0
         ? inArray(attendanceSession.layer, [...options.layers])
         : undefined;
     const limit = options.limit && options.limit > 0 ? options.limit : 50;
+
+    const filters: ReturnType<typeof eq>[] = [eq(attendanceSession.tenantId, tenantId)];
+    if (layerFilter) filters.push(layerFilter);
+    if (options.dateFrom) filters.push(sql`${attendanceSession.sessionDate} >= ${options.dateFrom}`);
+    if (options.dateTo) filters.push(sql`${attendanceSession.sessionDate} <= ${options.dateTo}`);
+    if (options.classGroupId) {
+        // Session has a linked record from a student currently in this rombel.
+        filters.push(
+            exists(
+                db
+                    .select({ id: sql`1` })
+                    .from(attendanceRecord)
+                    .innerJoin(studentProfile, eq(studentProfile.id, attendanceRecord.studentId))
+                    .innerJoin(
+                        classMembership,
+                        and(
+                            eq(classMembership.tenantId, tenantId),
+                            eq(classMembership.studentId, studentProfile.id),
+                            eq(classMembership.classGroupId, options.classGroupId),
+                            sql`${classMembership.endedAt} IS NULL`,
+                        ),
+                    )
+                    .where(
+                        and(
+                            eq(attendanceRecord.tenantId, tenantId),
+                            eq(attendanceRecord.sessionId, attendanceSession.id),
+                        ),
+                    ),
+            ),
+        );
+    }
+    if (options.entryYear) {
+        // Session has a linked record from a student whose entry year matches.
+        filters.push(
+            exists(
+                db
+                    .select({ id: sql`1` })
+                    .from(attendanceRecord)
+                    .innerJoin(studentProfile, eq(studentProfile.id, attendanceRecord.studentId))
+                    .where(
+                        and(
+                            eq(attendanceRecord.tenantId, tenantId),
+                            eq(attendanceRecord.sessionId, attendanceSession.id),
+                            sql`${studentProfile.entryDate} LIKE ${`${options.entryYear}%`}`,
+                        ),
+                    ),
+            ),
+        );
+    }
 
     const rows = await db
         .select({
@@ -428,7 +501,7 @@ export async function listAttendanceSessions(
                 eq(attendanceRecord.sessionId, attendanceSession.id),
             ),
         )
-        .where(layerFilter ? and(eq(attendanceSession.tenantId, tenantId), layerFilter) : eq(attendanceSession.tenantId, tenantId))
+        .where(and(...filters))
         .groupBy(attendanceSession.id)
         .orderBy(desc(attendanceSession.sessionDate), desc(attendanceSession.openedAt))
         .limit(limit);
@@ -444,6 +517,72 @@ export async function listAttendanceSessions(
         status: row.status,
         notes: row.notes,
         recordCount: Number(row.recordCount ?? 0),
+    }));
+}
+
+/**
+ * Returns the attendance records linked to a session, joined to the student's
+ * identity (name, NIS) and current rombel (active `class_membership`). Used by
+ * the history detail modal to show who actually recorded for the session.
+ */
+export type SessionRecordView = {
+    id: string;
+    studentId: string;
+    studentName: string;
+    nis: string;
+    rombel: string | null;
+    status: AttendanceRecordStatus;
+    recordedAt: Date;
+    outOfSession: boolean;
+    notes: string | null;
+};
+
+export async function listSessionRecordsWithStudents(
+    tenantId: string,
+    sessionId: string,
+): Promise<SessionRecordView[]> {
+    const rows = await db
+        .select({
+            id: attendanceRecord.id,
+            studentId: attendanceRecord.studentId,
+            studentName: schoolPerson.fullName,
+            nis: studentProfile.nis,
+            rombel: classGroup.groupName,
+            status: attendanceRecord.status,
+            recordedAt: attendanceRecord.recordedAt,
+            outOfSession: attendanceRecord.outOfSession,
+            notes: attendanceRecord.notes,
+        })
+        .from(attendanceRecord)
+        .innerJoin(studentProfile, eq(studentProfile.id, attendanceRecord.studentId))
+        .innerJoin(schoolPerson, eq(schoolPerson.id, studentProfile.personId))
+        .leftJoin(
+            classMembership,
+            and(
+                eq(classMembership.tenantId, tenantId),
+                eq(classMembership.studentId, studentProfile.id),
+                sql`${classMembership.endedAt} IS NULL`,
+            ),
+        )
+        .leftJoin(classGroup, eq(classGroup.id, classMembership.classGroupId))
+        .where(
+            and(
+                eq(attendanceRecord.tenantId, tenantId),
+                eq(attendanceRecord.sessionId, sessionId),
+            ),
+        )
+        .orderBy(attendanceRecord.recordedAt);
+
+    return rows.map((row) => ({
+        id: row.id,
+        studentId: row.studentId,
+        studentName: row.studentName,
+        nis: row.nis,
+        rombel: row.rombel ?? null,
+        status: row.status,
+        recordedAt: row.recordedAt,
+        outOfSession: row.outOfSession,
+        notes: row.notes,
     }));
 }
 

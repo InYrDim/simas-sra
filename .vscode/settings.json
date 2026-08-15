@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^cd \"c:/Users/iyede/code/___sra___\\\\simas/monorepo\" && node -e \"require\\('dotenv'\\)\\.config\\(\\);const m=require\\('mysql2/promise'\\);\\(async\\(\\)=>\\{const c=await m\\.createConnection\\(process\\.env\\.DATABASE_URL\\);const \\[r\\]=await c\\.query\\(\\\\\"select distinct cast\\(year\\(entry_date\\) as char\\) y from student_profile where tenant_id=\\? order by cast\\(year\\(entry_date\\) as char\\) desc\\\\\",\\['a0c4d7f5-4180-4285-b79f-2c7bb7a44813'\\]\\);console\\.log\\(JSON\\.stringify\\(r\\)\\);await c\\.end\\(\\);\\}\\)\\(\\)\\.catch\\(e=>\\{console\\.error\\(e\\.message\\);process\\.exit\\(1\\)\\}\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

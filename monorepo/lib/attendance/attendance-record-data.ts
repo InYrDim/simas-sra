@@ -14,6 +14,7 @@ export {
     listGerbangRecordsForDay,
     listGerbangRecordsBySession,
     listAttendanceSessions,
+    listSessionRecordsWithStudents,
     resolveOpenSession,
     resolveTodaysSession,
     openSession,
@@ -26,4 +27,5 @@ export {
     type CloseSessionResult,
     type DeleteSessionResult,
     type AttendanceSessionSummary,
+    type SessionRecordView,
 } from "@/lib/attendance/attendance-record-write";

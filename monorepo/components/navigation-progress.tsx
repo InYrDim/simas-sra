@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useSyncExternalStore } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 
 type ProgressState = {
   visible: boolean;
@@ -11,9 +12,7 @@ type ProgressState = {
 const TRICKLE_INTERVAL_MS = 200;
 const TRICKLE_MAX = 90;
 const MIN_DISPLAY_MS = 250; // minimum time the bar stays visible (avoid flash on fast navs)
-const SETTLE_MS = 300; // no DOM mutations for this long => navigation committed
 const HARD_CAP_MS = 15_000; // safety net so the bar never gets stuck
-const SETTLE_CHECK_INTERVAL_MS = 100;
 const HIDE_DELAY_MS = 120;
 
 let state: ProgressState = { visible: false, value: 0 };
@@ -39,8 +38,7 @@ function getSnapshot() {
 let trickleTimer: ReturnType<typeof setInterval> | null = null;
 let finishTimer: ReturnType<typeof setTimeout> | null = null;
 let startedAt = 0;
-let lastMutationAt = 0;
-let barRoot: HTMLElement | null = null;
+let hardCapTimer: ReturnType<typeof setTimeout> | null = null;
 let historyPatched = false;
 
 function trickle() {
@@ -54,6 +52,10 @@ function finish() {
   if (trickleTimer) {
     clearInterval(trickleTimer);
     trickleTimer = null;
+  }
+  if (hardCapTimer) {
+    clearTimeout(hardCapTimer);
+    hardCapTimer = null;
   }
   setState({ value: 100 });
   finishTimer = setTimeout(() => {
@@ -71,11 +73,16 @@ function start() {
     clearInterval(trickleTimer);
     trickleTimer = null;
   }
+  if (hardCapTimer) {
+    clearTimeout(hardCapTimer);
+    hardCapTimer = null;
+  }
   if (state.visible) return;
   startedAt = Date.now();
-  lastMutationAt = startedAt;
   setState({ visible: true, value: 8 });
   trickleTimer = setInterval(trickle, TRICKLE_INTERVAL_MS);
+  // Safety net: never let the bar get stuck if the route-commit signal is missed.
+  hardCapTimer = setTimeout(finish, HARD_CAP_MS);
 }
 
 /**
@@ -83,19 +90,25 @@ function start() {
  *
  * Next.js App Router runs every navigation (Link clicks, router.push/replace,
  * back/forward) through history.pushState/replaceState, so we patch those to
- * detect the START of a navigation. The App Router COMMITS the new page by
- * applying the RSC payload to the DOM, so a MutationObserver on <body> tells
- * us when the page has actually rendered — once mutations stop for a moment,
- * the bar finishes. This works regardless of usePathname/useSearchParams
- * timing and without any external dependency.
+ * detect the START of a navigation. The App Router COMMITS the new route by
+ * re-rendering this component with a new pathname/searchParams — that is the
+ * reliable "page finished" signal (see the effect below). We deliberately do
+ * NOT infer completion from DOM-mutation silence, because any widget that keeps
+ * mutating the page (live clocks, polling) would keep the bar stuck.
  */
 export function NavigationProgress() {
   const barRef = useRef<HTMLDivElement | null>(null);
   const { visible, value } = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  // The App Router commits the new route by re-rendering this component with a
+  // new pathname/searchParams. That is the reliable "page finished" signal.
+  useEffect(() => {
+    finish();
+  }, [pathname, searchParams]);
 
   useEffect(() => {
-    barRoot = barRef.current;
-
     if (!historyPatched) {
       historyPatched = true;
       const originalPush = history.pushState.bind(history);
@@ -113,37 +126,8 @@ export function NavigationProgress() {
     const onPopState = () => start();
     window.addEventListener("popstate", onPopState);
 
-    const observer = new MutationObserver((mutations) => {
-      for (const mutation of mutations) {
-        // Ignore mutations caused by the progress bar's own re-renders.
-        const target = mutation.target;
-        if (barRoot && (target === barRoot || barRoot.contains(target))) continue;
-        lastMutationAt = Date.now();
-        return;
-      }
-    });
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      characterData: true,
-      attributes: true,
-    });
-
-    const settleCheck = setInterval(() => {
-      if (!state.visible) return;
-      const now = Date.now();
-      if (
-        now - startedAt > HARD_CAP_MS ||
-        (now - startedAt >= MIN_DISPLAY_MS && now - lastMutationAt >= SETTLE_MS)
-      ) {
-        finish();
-      }
-    }, SETTLE_CHECK_INTERVAL_MS);
-
     return () => {
       window.removeEventListener("popstate", onPopState);
-      observer.disconnect();
-      clearInterval(settleCheck);
     };
   }, []);
 
