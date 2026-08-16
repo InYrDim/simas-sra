@@ -16,13 +16,12 @@ export const ATTENDANCE_RECORD_MODES = ["manual", "qr", "kartu"] as const;
 export type AttendanceRecordMode = (typeof ATTENDANCE_RECORD_MODES)[number];
 
 /** Status values allowed for the Gerbang (gate) layer. */
-export const GERBANG_STATUSES = ["masuk", "keluar"] as const;
+export const GERBANG_STATUSES = ["masuk", "keluar", "izin", "sakit"] as const;
 /** Status values allowed for the Kelas (classroom) layer. */
 export const KELAS_STATUSES = ["hadir", "izin", "sakit", "alpa"] as const;
 
 export const ATTENDANCE_RECORD_STATUSES = [
-    ...GERBANG_STATUSES,
-    ...KELAS_STATUSES,
+    ...new Set([...GERBANG_STATUSES, ...KELAS_STATUSES]),
 ] as const;
 export type AttendanceRecordStatus = (typeof ATTENDANCE_RECORD_STATUSES)[number];
 

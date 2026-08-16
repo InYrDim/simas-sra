@@ -488,7 +488,7 @@ export const attendanceRecord = mysqlTable(
     check(
       "attendance_record_layer_status_check",
       sql`(
-        (${table.layer} = 'gerbang' AND ${table.status} IN ('masuk', 'keluar'))
+        (${table.layer} = 'gerbang' AND ${table.status} IN ('masuk', 'keluar', 'izin', 'sakit'))
         OR (${table.layer} = 'kelas' AND ${table.status} IN ('hadir', 'izin', 'sakit', 'alpa'))
       )`,
     ),

@@ -37,6 +37,8 @@ test("status guard accepts the union of gerbang and kelas statuses", () => {
 test("isStatusValidForLayer enforces the layer/status invariant", () => {
     assert.equal(isStatusValidForLayer("gerbang", "masuk"), true);
     assert.equal(isStatusValidForLayer("gerbang", "keluar"), true);
+    assert.equal(isStatusValidForLayer("gerbang", "izin"), true);
+    assert.equal(isStatusValidForLayer("gerbang", "sakit"), true);
     assert.equal(isStatusValidForLayer("gerbang", "hadir"), false);
     assert.equal(isStatusValidForLayer("kelas", "hadir"), true);
     assert.equal(isStatusValidForLayer("kelas", "alpa"), true);
@@ -69,9 +71,9 @@ test("constants expose the full vocabulary", () => {
     assert.deepEqual([...ATTENDANCE_RECORD_STATUSES], [
         "masuk",
         "keluar",
-        "hadir",
         "izin",
         "sakit",
+        "hadir",
         "alpa",
     ]);
 });

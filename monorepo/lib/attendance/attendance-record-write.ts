@@ -254,6 +254,55 @@ export async function listGerbangRecordsForDay(
         .orderBy(attendanceRecord.recordedAt);
 }
 
+/**
+ * Like `listGerbangRecordsForDay`, but joined to the student's identity
+ * (name, NIS) so the day view can list who was recorded, not just a count.
+ */
+export async function listGerbangRecordsForDayWithStudents(
+    tenantId: string,
+    day: Date = new Date(),
+    timezone: string = "Asia/Jakarta",
+): Promise<
+    Array<{
+        id: string;
+        studentId: string;
+        studentName: string;
+        nis: string;
+        status: AttendanceRecordStatus;
+        recordedAt: Date;
+        notes: string | null;
+        outOfSession: boolean;
+        sessionId: string | null;
+    }>
+> {
+    const start = zonedWallClockToUtc(new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 0, 0, 0)), timezone);
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+
+    return db
+        .select({
+            id: attendanceRecord.id,
+            studentId: attendanceRecord.studentId,
+            studentName: schoolPerson.fullName,
+            nis: studentProfile.nis,
+            status: attendanceRecord.status,
+            recordedAt: attendanceRecord.recordedAt,
+            notes: attendanceRecord.notes,
+            outOfSession: attendanceRecord.outOfSession,
+            sessionId: attendanceRecord.sessionId,
+        })
+        .from(attendanceRecord)
+        .innerJoin(studentProfile, eq(studentProfile.id, attendanceRecord.studentId))
+        .innerJoin(schoolPerson, eq(schoolPerson.id, studentProfile.personId))
+        .where(
+            and(
+                eq(attendanceRecord.tenantId, tenantId),
+                eq(attendanceRecord.layer, "gerbang"),
+                between(attendanceRecord.recordedAt, start, end),
+            ),
+        )
+        .orderBy(attendanceRecord.recordedAt);
+}
+
 /** Returns the Gerbang records linked to a specific session. */
 export async function listGerbangRecordsBySession(
     tenantId: string,

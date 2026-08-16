@@ -95,7 +95,7 @@ export async function recordGerbangAction(
     const status = String(formData.get("status") ?? "").trim();
     const notes = String(formData.get("notes") ?? "").trim() || undefined;
 
-    if (studentId === "" || !isAttendanceRecordStatus(status) || (status !== "masuk" && status !== "keluar")) {
+    if (studentId === "" || !isAttendanceRecordStatus(status) || (status !== "masuk" && status !== "keluar" && status !== "izin" && status !== "sakit")) {
         return { ok: false, code: "invalid-input" };
     }
 

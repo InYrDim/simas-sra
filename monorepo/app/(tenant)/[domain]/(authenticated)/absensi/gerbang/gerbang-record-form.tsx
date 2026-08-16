@@ -6,6 +6,7 @@ import { recordGerbangAction, type RecordGerbangResult } from "@/app/(tenant)/[d
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
+import { LogIn, LogOut, FileClock, Stethoscope } from "lucide-react";
 import {
     Combobox,
     ComboboxContent,
@@ -76,7 +77,6 @@ export function GerbangRecordForm({
                     required
                 >
                     <ComboboxInput className="w-full" placeholder="Cari nama atau NIS siswa…" />
-                    <ComboboxValue placeholder="Pilih siswa" />
                     <ComboboxContent>
                         <ComboboxEmpty>Siswa tidak ditemukan.</ComboboxEmpty>
                         <ComboboxList>
@@ -116,14 +116,22 @@ export function GerbangRecordForm({
                 </p>
             )}
 
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
                 <Button type="submit" name="status" value="masuk" disabled={pending || isResetting || studentId === "" || (selectedStudent ? alreadyMasuk.has(selectedStudent.id) : false)}>
-                    {pending ? <Spinner /> : null}
+                    {pending ? <Spinner /> : <LogIn aria-hidden />}
                     Masuk
                 </Button>
                 <Button type="submit" name="status" value="keluar" disabled={pending || isResetting || studentId === ""} variant="secondary">
-                    {pending ? <Spinner /> : null}
+                    {pending ? <Spinner /> : <LogOut aria-hidden />}
                     Keluar
+                </Button>
+                <Button type="submit" name="status" value="izin" disabled={pending || isResetting || studentId === ""} variant="outline">
+                    {pending ? <Spinner /> : <FileClock aria-hidden />}
+                    Izin
+                </Button>
+                <Button type="submit" name="status" value="sakit" disabled={pending || isResetting || studentId === ""} variant="outline">
+                    {pending ? <Spinner /> : <Stethoscope aria-hidden />}
+                    Sakit
                 </Button>
             </div>
         </form>
