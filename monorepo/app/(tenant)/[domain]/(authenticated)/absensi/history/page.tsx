@@ -23,8 +23,16 @@ import { db } from "@/db";
 import { classGroup, academicYear, studentProfile } from "@/db/schema";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import { MasterDataFilterForm } from "@/components/master-data/master-data-filter-form";
 import { MasterDataDetailDialog } from "@/components/master-data/master-data-detail-dialog";
+import { PrintSessionButton } from "./print-session-button";
 import { Hand, QrCode, IdCard, LayoutGrid } from "lucide-react";
 
 type HistorySearchParams = {
@@ -179,34 +187,36 @@ export default async function AbsensiHistoryPage({
             <MasterDataFilterForm action={filterAction} className="flex flex-wrap items-end gap-3">
                 <label className="flex flex-col gap-1 text-sm">
                     <span className="font-medium">Rombel</span>
-                    <select
-                        name="classGroupId"
-                        defaultValue={sp.classGroupId ?? ""}
-                        className="h-9 rounded-md border border-input bg-input/30 px-2 text-sm"
-                    >
-                        <option value="">Semua</option>
-                        {rombelOptions.map((r) => (
-                            <option key={r.id} value={r.id}>
-                                {r.name}
-                            </option>
-                        ))}
-                    </select>
+                    <Select name="classGroupId" defaultValue={sp.classGroupId ?? ""}>
+                        <SelectTrigger className="h-9 w-48 bg-input/30">
+                            <SelectValue placeholder="Semua" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="">Semua</SelectItem>
+                            {rombelOptions.map((r) => (
+                                <SelectItem key={r.id} value={r.id}>
+                                    {r.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </label>
 
                 <label className="flex flex-col gap-1 text-sm">
                     <span className="font-medium">Tahun Masuk</span>
-                    <select
-                        name="entryYear"
-                        defaultValue={sp.entryYear ?? ""}
-                        className="h-9 rounded-md border border-input bg-input/30 px-2 text-sm"
-                    >
-                        <option value="">Semua</option>
-                        {entryYearOptions.map((e) => (
-                            <option key={e.year} value={e.year}>
-                                {e.year}
-                            </option>
-                        ))}
-                    </select>
+                    <Select name="entryYear" defaultValue={sp.entryYear ?? ""}>
+                        <SelectTrigger className="h-9 w-32 bg-input/30">
+                            <SelectValue placeholder="Semua" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="">Semua</SelectItem>
+                            {entryYearOptions.map((e) => (
+                                <SelectItem key={e.year} value={e.year}>
+                                    {e.year}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
                 </label>
 
                 <label className="flex flex-col gap-1 text-sm">
@@ -324,6 +334,14 @@ export default async function AbsensiHistoryPage({
                     title={`Detail Sesi ${ATTENDANCE_LAYER_LABELS[selectedSession.layer]} · ${selectedSession.sessionDate}`}
                     description={`${selectedSession.plannedStart}–${selectedSession.plannedEnd} · ${sessionRecords.length} rekam`}
                 >
+                    <div className="mb-4 flex justify-end">
+                        <PrintSessionButton
+                            domain={domain}
+                            session={selectedSession}
+                            records={sessionRecords}
+                            timezone={timezone}
+                        />
+                    </div>
                     {sessionRecords.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
                             Belum ada rekam terkait sesi ini.
