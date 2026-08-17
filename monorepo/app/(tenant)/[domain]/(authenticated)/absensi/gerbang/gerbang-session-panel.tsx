@@ -38,7 +38,7 @@ export function GerbangSessionPanel({
     todaysSession: TodaysSessionView;
 }) {
     const [openState, openAction, openPending] = useActionState<OpenGerbangSessionResult, FormData>(
-        () => openGerbangSessionAction(domain),
+        (_, formData) => openGerbangSessionAction(domain, formData),
         { ok: true },
     );
     const [closeState, closeAction, closePending] = useActionState<CloseGerbangSessionResult, FormData>(
