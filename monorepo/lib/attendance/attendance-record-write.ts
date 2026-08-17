@@ -581,6 +581,7 @@ export type SessionRecordView = {
     nis: string;
     rombel: string | null;
     status: AttendanceRecordStatus;
+    mode: AttendanceRecordMode;
     recordedAt: Date;
     outOfSession: boolean;
     notes: string | null;
@@ -598,6 +599,7 @@ export async function listSessionRecordsWithStudents(
             nis: studentProfile.nis,
             rombel: classGroup.groupName,
             status: attendanceRecord.status,
+            mode: attendanceRecord.mode,
             recordedAt: attendanceRecord.recordedAt,
             outOfSession: attendanceRecord.outOfSession,
             notes: attendanceRecord.notes,
@@ -629,6 +631,7 @@ export async function listSessionRecordsWithStudents(
         nis: row.nis,
         rombel: row.rombel ?? null,
         status: row.status,
+        mode: row.mode,
         recordedAt: row.recordedAt,
         outOfSession: row.outOfSession,
         notes: row.notes,

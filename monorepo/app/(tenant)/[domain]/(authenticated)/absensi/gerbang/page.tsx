@@ -12,6 +12,7 @@ import { db } from "@/db";
 import { studentProfile, schoolPerson } from "@/db/schema";
 import { GerbangRecordForm } from "./gerbang-record-form";
 import { GerbangSessionPanel } from "./gerbang-session-panel";
+import { ExternalLink } from "lucide-react";
 
 export default async function AbsensiGerbangPage({
     params,
@@ -105,6 +106,18 @@ export default async function AbsensiGerbangPage({
                         : null
                 }
             />
+
+            {openSession ? (
+                <a
+                    href={`/${domain}/monitoring/absensi/${openSession.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+                >
+                    <ExternalLink className="size-4" aria-hidden />
+                    Buka Monitoring Publik
+                </a>
+            ) : null}
 
             {openSession ? (
                 <>

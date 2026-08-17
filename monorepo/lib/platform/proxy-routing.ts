@@ -70,7 +70,7 @@ function resolvePathBasedTenantRoute(host: string, pathname: string, appDomain?:
  * Everything else under `/{tenantDomain}/...` lives in the `(authenticated)`
  * route group and requires a session.
  */
-export const TENANT_PUBLIC_PATH_SEGMENTS = new Set(["login", "continue", "account-lifecycle"]);
+export const TENANT_PUBLIC_PATH_SEGMENTS = new Set(["login", "continue", "account-lifecycle", "monitoring"]);
 
 /**
  * True when a rewritten Tenant request targets the `(authenticated)` route group.
