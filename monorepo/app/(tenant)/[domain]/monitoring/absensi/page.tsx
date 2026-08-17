@@ -2,27 +2,27 @@ import { and, eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
 import { db } from "@/db";
-import { tenant, attendanceSession } from "@/db/schema";
+import { attendanceSession } from "@/db/schema";
 import { tenantAuthorizationStore } from "@/lib/authorization/tenant-authorization-data";
 import { readTenantTimezone } from "@/lib/attendance/attendance-config";
-import {
-    ATTENDANCE_LAYER_LABELS,
-    ATTENDANCE_MODE_LABELS,
-    ATTENDANCE_STATUS_LABELS,
-} from "@/lib/attendance/attendance-config";
-import { localHHMMInZone } from "@/lib/attendance/attendance-date";
+import { ATTENDANCE_LAYER_LABELS, ATTENDANCE_MODE_LABELS, ATTENDANCE_STATUS_LABELS } from "@/lib/attendance/attendance-config";
+import { civilDateInZone, localHHMMInZone } from "@/lib/attendance/attendance-date";
 import { listSessionRecordsWithStudents } from "@/lib/attendance/attendance-record-data";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export default async function PublicAbsensiMonitoringPage({
     params,
 }: {
-    params: Promise<{ domain: string; sessionId: string }>;
+    params: Promise<{ domain: string }>;
 }) {
-    const { domain, sessionId } = await params;
+    const { domain } = await params;
     const tenantRow = await tenantAuthorizationStore.loadTenantByDomain(domain);
     if (!tenantRow) notFound();
 
+    const timezone = readTenantTimezone(tenantRow.settings);
+    const today = civilDateInZone(new Date(), timezone);
+
+    // Auto-follow the currently open Gerbang session for today.
     const [session] = await db
         .select({
             id: attendanceSession.id,
@@ -33,12 +33,33 @@ export default async function PublicAbsensiMonitoringPage({
             status: attendanceSession.status,
         })
         .from(attendanceSession)
-        .where(and(eq(attendanceSession.tenantId, tenantRow.id), eq(attendanceSession.id, sessionId)))
+        .where(
+            and(
+                eq(attendanceSession.tenantId, tenantRow.id),
+                eq(attendanceSession.layer, "gerbang"),
+                eq(attendanceSession.sessionDate, today),
+                eq(attendanceSession.status, "open"),
+            ),
+        )
         .limit(1);
-    if (!session) notFound();
 
-    const timezone = readTenantTimezone(tenantRow.settings);
-    const records = await listSessionRecordsWithStudents(tenantRow.id, sessionId);
+    if (!session) {
+        return (
+            <main className="flex min-h-svh items-center justify-center bg-slate-50 p-6">
+                <section className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                        Monitoring Absensi
+                    </p>
+                    <h1 className="mt-1 text-xl font-bold text-slate-900">Gerbang</h1>
+                    <p className="mt-3 text-sm leading-6 text-slate-500">
+                        Belum ada sesi Gerbang yang aktif saat ini.
+                    </p>
+                </section>
+            </main>
+        );
+    }
+
+    const records = await listSessionRecordsWithStudents(tenantRow.id, session.id);
 
     const counts = records.reduce<Record<string, number>>((acc, rec) => {
         acc[rec.status] = (acc[rec.status] ?? 0) + 1;
