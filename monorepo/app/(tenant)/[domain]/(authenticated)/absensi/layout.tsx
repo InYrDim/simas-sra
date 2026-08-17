@@ -1,4 +1,6 @@
 import { enforceTenantFeatureAccess } from "@/lib/features/tenant-feature-route-access";
+import { tenantAuthorizationStore } from "@/lib/authorization/tenant-authorization-data";
+import { MasterDataWarningBanner } from "@/components/dashboard/master-data-warning-banner";
 
 export default async function AbsensiLayout({
     children,
@@ -9,5 +11,13 @@ export default async function AbsensiLayout({
 }>) {
     const { domain } = await params;
     await enforceTenantFeatureAccess(domain, "absensi", "read");
-    return children;
+
+    const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
+
+    return (
+        <div className="flex flex-col gap-4">
+            {tenant ? <MasterDataWarningBanner tenantId={tenant.id} domain={domain} /> : null}
+            {children}
+        </div>
+    );
 }
