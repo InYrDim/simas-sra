@@ -27,7 +27,7 @@ const legacyMinimum = [
 test("the approved registry and operation map form a valid executable contract", () => {
   assert.equal(PERMISSION_REGISTRY_VERSION, "tenant-permissions@2");
   assert.equal(OPERATION_MAP_VERSION, "tenant-operations@4");
-  assert.equal(permissionRegistry.length, 160);
+  assert.equal(permissionRegistry.length, 161);
   assert.match(permissionRegistryDigest, /^[a-f0-9]{64}$/);
   assert.match(tenantOperationMapDigest, /^[a-f0-9]{64}$/);
   assert.deepEqual(validateTenantRbacContract(), []);
@@ -69,6 +69,14 @@ test("absensi module wires a real operation and excluded placeholders become ten
   assert.equal(absensiLoad.classification, "tenant-rbac");
   assert.deepEqual(absensiLoad.requiredPermissions, ["absensi.attendance.view"]);
   assert.ok(absensiLoad.entryPoints.some((entry) => entry === "page:app/(tenant)/[domain]/(authenticated)/absensi/page.tsx"));
+
+  const absensiDelete = tenantOperationMap.find((operation) => operation.id === "absensi.history.delete");
+  assert.ok(absensiDelete);
+  assert.equal(absensiDelete.classification, "tenant-rbac");
+  assert.equal(absensiDelete.operationalGate, "write");
+  assert.deepEqual(absensiDelete.requiredPermissions, ["absensi.history.delete"]);
+  assert.ok(absensiDelete.entryPoints.some((entry) => entry === "action:app/(tenant)/[domain]/(authenticated)/absensi/actions.ts#deleteHistorySessionAction"));
+  assert.ok(absensiDelete.entryPoints.some((entry) => entry === "action:app/(tenant)/[domain]/(authenticated)/absensi/actions.ts#deleteHistoryRecordAction"));
 
   assert.equal(tenantOperationMap.some((operation) => operation.id === "placeholder.absensi"), false);
 

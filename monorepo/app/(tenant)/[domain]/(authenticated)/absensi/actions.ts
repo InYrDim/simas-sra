@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { enforceTenantOperation } from "@/lib/features/tenant-feature-route-access";
 import { tenantAuthorizationStore } from "@/lib/authorization/tenant-authorization-data";
 import { saveAbsensiConfig } from "@/lib/attendance/attendance-config-data";
-import { recordAttendance, openSession, closeSession, deleteSession } from "@/lib/attendance/attendance-record-data";
+import { recordAttendance, openSession, closeSession, deleteSession, deleteAttendanceRecord } from "@/lib/attendance/attendance-record-data";
 import { getSessionWindow, readAbsensiSettings, readTenantTimezone } from "@/lib/attendance/attendance-config";
 import {
     ATTENDANCE_LAYERS,
@@ -135,7 +135,7 @@ export async function openGerbangSessionAction(
     domain: string,
     formData?: FormData,
 ): Promise<OpenGerbangSessionResult> {
-    const principal = await enforceTenantOperation(domain, "absensi.gerbang.session.manage");
+    const principal = await enforceTenantOperation(domain, "absensi.gerbang.manage");
 
     const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
     if (!tenant) return { ok: false, code: "not-found" };
@@ -173,7 +173,7 @@ export async function closeGerbangSessionAction(
     domain: string,
     sessionId: string,
 ): Promise<CloseGerbangSessionResult> {
-    await enforceTenantOperation(domain, "absensi.gerbang.session.manage");
+    await enforceTenantOperation(domain, "absensi.gerbang.manage");
 
     const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
     if (!tenant) return { ok: false, code: "not-found" };
@@ -195,7 +195,7 @@ export async function deleteGerbangSessionAction(
     domain: string,
     sessionId: string,
 ): Promise<DeleteGerbangSessionResult> {
-    await enforceTenantOperation(domain, "absensi.gerbang.session.manage");
+    await enforceTenantOperation(domain, "absensi.gerbang.manage");
 
     const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
     if (!tenant) return { ok: false, code: "not-found" };
@@ -204,5 +204,49 @@ export async function deleteGerbangSessionAction(
     if (!result.ok) return { ok: false, code: result.code };
 
     revalidatePath(`/${domain}/absensi/gerbang`);
+    return { ok: true };
+}
+
+export type DeleteHistorySessionResult = {
+    ok: boolean;
+    code?: "not-found" | "error";
+};
+
+/** Deletes a session from the history view (detaches its records, keeps them as out-of-session). */
+export async function deleteHistorySessionAction(
+    domain: string,
+    sessionId: string,
+): Promise<DeleteHistorySessionResult> {
+    await enforceTenantOperation(domain, "absensi.history.delete");
+
+    const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
+    if (!tenant) return { ok: false, code: "not-found" };
+
+    const result = await deleteSession(tenant.id, sessionId);
+    if (!result.ok) return { ok: false, code: result.code };
+
+    revalidatePath(`/${domain}/absensi/history`);
+    return { ok: true };
+}
+
+export type DeleteHistoryRecordResult = {
+    ok: boolean;
+    code?: "not-found" | "error";
+};
+
+/** Deletes a single attendance record from the history detail view. */
+export async function deleteHistoryRecordAction(
+    domain: string,
+    recordId: string,
+): Promise<DeleteHistoryRecordResult> {
+    await enforceTenantOperation(domain, "absensi.history.delete");
+
+    const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
+    if (!tenant) return { ok: false, code: "not-found" };
+
+    const result = await deleteAttendanceRecord(tenant.id, recordId);
+    if (!result.ok) return { ok: false, code: result.code };
+
+    revalidatePath(`/${domain}/absensi/history`);
     return { ok: true };
 }

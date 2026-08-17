@@ -143,6 +143,9 @@ export default async function AbsensiGerbangPage({
                                                 <span className="min-w-0">
                                                     <span className="font-medium">{record.studentName}</span>
                                                     <span className="ml-2 text-xs text-muted-foreground">{record.nis}</span>
+                                                    {record.rombel && (
+                                                        <span className="ml-2 text-xs text-muted-foreground">{record.rombel}</span>
+                                                    )}
                                                 </span>
                                                 <span className="inline-flex shrink-0 items-center gap-2 text-sm">
                                                     <span>{record.status === "masuk" ? "Masuk" : record.status === "keluar" ? "Keluar" : record.status === "izin" ? "Izin" : "Sakit"}</span>
@@ -166,6 +169,9 @@ export default async function AbsensiGerbangPage({
                                                         <span className="min-w-0">
                                                             <span className="font-medium">{record.studentName}</span>
                                                             <span className="ml-2 text-xs text-muted-foreground">{record.nis}</span>
+                                                            {record.rombel && (
+                                                                <span className="ml-2 text-xs text-muted-foreground">{record.rombel}</span>
+                                                            )}
                                                         </span>
                                                         <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
                                                             Luar Sesi

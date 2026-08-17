@@ -33,6 +33,8 @@ import {
 import { MasterDataFilterForm } from "@/components/master-data/master-data-filter-form";
 import { MasterDataDetailDialog } from "@/components/master-data/master-data-detail-dialog";
 import { PrintSessionButton } from "./print-session-button";
+import { DeleteHistoryButton } from "./delete-history-button";
+import { deleteHistorySessionAction, deleteHistoryRecordAction } from "../actions";
 import { Hand, QrCode, IdCard, LayoutGrid } from "lucide-react";
 
 type HistorySearchParams = {
@@ -267,6 +269,7 @@ export default async function AbsensiHistoryPage({
                                 <TableHead>Status</TableHead>
                                 <TableHead>Catatan</TableHead>
                                 <TableHead className="text-right">Jumlah Rekam</TableHead>
+                                <TableHead className="w-12" />
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -319,6 +322,15 @@ export default async function AbsensiHistoryPage({
                                             <Link href={href} className="block font-medium">
                                                 {session.recordCount} rekam
                                             </Link>
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <DeleteHistoryButton
+                                                domain={domain}
+                                                action={deleteHistorySessionAction}
+                                                id={session.id}
+                                                label="Hapus sesi"
+                                                description={`Hapus sesi ${ATTENDANCE_LAYER_LABELS[session.layer]} · ${session.sessionDate}? Rekam terkait tetap tersimpan sebagai luar sesi.`}
+                                            />
                                         </TableCell>
                                     </TableRow>
                                 );
@@ -375,6 +387,15 @@ export default async function AbsensiHistoryPage({
                                         <TableCell>{localHHMMInZone(rec.recordedAt, timezone)}</TableCell>
                                         <TableCell className="text-muted-foreground">
                                             {rec.notes || "—"}
+                                        </TableCell>
+                                        <TableCell className="text-right">
+                                            <DeleteHistoryButton
+                                                domain={domain}
+                                                action={deleteHistoryRecordAction}
+                                                id={rec.id}
+                                                label="Hapus rekam"
+                                                description={`Hapus rekam absensi ${rec.studentName}?`}
+                                            />
                                         </TableCell>
                                     </TableRow>
                                 ))}

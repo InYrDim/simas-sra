@@ -268,6 +268,7 @@ export async function listGerbangRecordsForDayWithStudents(
         studentId: string;
         studentName: string;
         nis: string;
+        rombel: string | null;
         status: AttendanceRecordStatus;
         recordedAt: Date;
         notes: string | null;
@@ -278,12 +279,13 @@ export async function listGerbangRecordsForDayWithStudents(
     const start = zonedWallClockToUtc(new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 0, 0, 0)), timezone);
     const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
 
-    return db
+    const rows = await db
         .select({
             id: attendanceRecord.id,
             studentId: attendanceRecord.studentId,
             studentName: schoolPerson.fullName,
             nis: studentProfile.nis,
+            rombel: classGroup.groupName,
             status: attendanceRecord.status,
             recordedAt: attendanceRecord.recordedAt,
             notes: attendanceRecord.notes,
@@ -293,6 +295,15 @@ export async function listGerbangRecordsForDayWithStudents(
         .from(attendanceRecord)
         .innerJoin(studentProfile, eq(studentProfile.id, attendanceRecord.studentId))
         .innerJoin(schoolPerson, eq(schoolPerson.id, studentProfile.personId))
+        .leftJoin(
+            classMembership,
+            and(
+                eq(classMembership.tenantId, tenantId),
+                eq(classMembership.studentId, studentProfile.id),
+                sql`${classMembership.endedAt} IS NULL`,
+            ),
+        )
+        .leftJoin(classGroup, eq(classGroup.id, classMembership.classGroupId))
         .where(
             and(
                 eq(attendanceRecord.tenantId, tenantId),
@@ -301,6 +312,19 @@ export async function listGerbangRecordsForDayWithStudents(
             ),
         )
         .orderBy(attendanceRecord.recordedAt);
+
+    return rows.map((row) => ({
+        id: row.id,
+        studentId: row.studentId,
+        studentName: row.studentName,
+        nis: row.nis,
+        rombel: row.rombel ?? null,
+        status: row.status,
+        recordedAt: row.recordedAt,
+        notes: row.notes,
+        outOfSession: row.outOfSession,
+        sessionId: row.sessionId,
+    }));
 }
 
 /** Returns the Gerbang records linked to a specific session. */
@@ -681,6 +705,25 @@ export async function deleteSession(
         const result = await db
             .delete(attendanceSession)
             .where(and(eq(attendanceSession.tenantId, tenantId), eq(attendanceSession.id, sessionId)));
+        const affected = ((result as unknown[])[0] as { affectedRows?: number } | undefined)?.affectedRows ?? 0;
+        if (affected === 0) return { ok: false, code: "not-found" };
+        return { ok: true };
+    } catch {
+        return { ok: false, code: "error" };
+    }
+}
+
+export type DeleteRecordResult = { ok: true } | { ok: false; code: "not-found" | "error" };
+
+/** Deletes a single attendance record (tenant-scoped). Safe even when linked to a session. */
+export async function deleteAttendanceRecord(
+    tenantId: string,
+    recordId: string,
+): Promise<DeleteRecordResult> {
+    try {
+        const result = await db
+            .delete(attendanceRecord)
+            .where(and(eq(attendanceRecord.tenantId, tenantId), eq(attendanceRecord.id, recordId)));
         const affected = ((result as unknown[])[0] as { affectedRows?: number } | undefined)?.affectedRows ?? 0;
         if (affected === 0) return { ok: false, code: "not-found" };
         return { ok: true };
