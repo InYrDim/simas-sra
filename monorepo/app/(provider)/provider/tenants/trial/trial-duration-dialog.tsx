@@ -28,6 +28,16 @@ export function TrialDurationDialog({
 }) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [newEndDate, setNewEndDate] = useState(
+    currentEndsAt ? currentEndsAt.toISOString().split("T")[0] : "",
+  );
+
+  function handleOpenChange(next: boolean) {
+    setOpen(next);
+    if (next) {
+      setNewEndDate(currentEndsAt ? currentEndsAt.toISOString().split("T")[0] : "");
+    }
+  }
 
   function handleSubmit(formData: FormData) {
     startTransition(async () => {
@@ -42,7 +52,7 @@ export function TrialDurationDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger render={<Button variant="outline" size="sm" />}>
         {isEnded ? "Aktifkan Kembali" : "Ubah Durasi"}
       </DialogTrigger>
@@ -81,7 +91,8 @@ export function TrialDurationDialog({
                 id="newEndDate"
                 name="newEndDate"
                 type="date"
-                defaultValue={currentEndsAt ? currentEndsAt.toISOString().split("T")[0] : ""}
+                value={newEndDate}
+                onChange={(e) => setNewEndDate(e.target.value)}
               />
             </div>
           </div>

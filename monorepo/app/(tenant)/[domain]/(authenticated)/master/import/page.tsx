@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { DemoDataImportDialog } from "@/app/(tenant)/[domain]/(authenticated)/master/import/demo-data-import-dialog";
+import { DemoDataCleanDialog } from "@/app/(tenant)/[domain]/(authenticated)/master/import/demo-data-clean-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { getTenantFeatureAvailability } from "@/lib/features/tenant-feature-access-data";
@@ -11,6 +12,8 @@ const demoMessages: Record<string, string> = {
   success: "Master data demo berhasil diisi. Halaman Akademik dan Pendaftaran sekarang dapat digunakan.",
   "invalid-school-level": "Data demo tidak dapat dibuat karena jenjang sekolah belum valid.",
   error: "Data demo gagal diisi. Tidak ada perubahan parsial yang disimpan.",
+  "clean-success": "Master data demo berhasil dibersihkan.",
+  "clean-error": "Data demo gagal dibersihkan. Tidak ada perubahan parsial yang dihapus.",
 };
 
 export default async function PeopleImportPage({
@@ -52,7 +55,10 @@ export default async function PeopleImportPage({
               Isi master data urgent secara otomatis untuk mencoba alur Akademik dan Pendaftaran.
             </p>
           </div>
-          <DemoDataImportDialog domain={domain} availability={availability.masterDataWrite} />
+          <div className="flex flex-wrap gap-3">
+            <DemoDataImportDialog domain={domain} availability={availability.masterDataWrite} />
+            <DemoDataCleanDialog domain={domain} availability={availability.masterDataWrite} />
+          </div>
         </section>
       ) : null}
 

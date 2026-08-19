@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -157,4 +157,38 @@ export async function importDemoMasterData(
   });
 
   return { imported: DEMO_MASTER_DATA_TYPES } as const;
+}
+
+export async function cleanDemoMasterData(principal: MasterDataPrincipal, now = new Date()) {
+  const tenantId = principal.tenantId;
+  const id = (key: string) => deterministicId(tenantId, key);
+  const yearId = id("academic-year");
+  const teacherPersonId = id("person:teacher-1");
+  const teacherId = id("teacher:1");
+  const studentPersonIds = ["student-1", "student-2"].map((key) => id(`person:${key}`));
+  const studentProfileIds = ["student-1", "student-2"].map((key) => id(`student:${key}`));
+  const subjectIds = ["subject-math", "subject-language", "subject-science"].map((key) => id(key));
+  const classGroupId = id("class-group:1");
+
+  await db.transaction(async (tx) => {
+    await tx.delete(classGroup).where(and(eq(classGroup.tenantId, tenantId), eq(classGroup.id, classGroupId)));
+    await tx.delete(subject).where(and(eq(subject.tenantId, tenantId), inArray(subject.id, subjectIds)));
+    await tx
+      .delete(studentLifecyclePeriod)
+      .where(and(eq(studentLifecyclePeriod.tenantId, tenantId), inArray(studentLifecyclePeriod.studentId, studentProfileIds)));
+    await tx.delete(studentProfile).where(and(eq(studentProfile.tenantId, tenantId), inArray(studentProfile.id, studentProfileIds)));
+    await tx
+      .delete(teacherServicePeriod)
+      .where(and(eq(teacherServicePeriod.tenantId, tenantId), eq(teacherServicePeriod.teacherId, teacherId)));
+    await tx.delete(teacherProfile).where(and(eq(teacherProfile.tenantId, tenantId), eq(teacherProfile.id, teacherId)));
+    await tx
+      .delete(schoolPerson)
+      .where(and(eq(schoolPerson.tenantId, tenantId), inArray(schoolPerson.id, [teacherPersonId, ...studentPersonIds])));
+    await tx
+      .delete(academicSemester)
+      .where(and(eq(academicSemester.tenantId, tenantId), eq(academicSemester.academicYearId, yearId)));
+    await tx.delete(academicYear).where(and(eq(academicYear.tenantId, tenantId), eq(academicYear.id, yearId)));
+  });
+
+  return { cleaned: DEMO_MASTER_DATA_TYPES } as const;
 }
