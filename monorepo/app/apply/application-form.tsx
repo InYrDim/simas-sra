@@ -1,21 +1,59 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 
 import {
   submitSimasApplicationAction,
   type ApplicationFormState,
 } from "@/app/apply/actions";
+import { lookupSchoolAction, type SchoolLookupState } from "@/app/apply/lookup-school";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 const initialState: ApplicationFormState = { success: false };
+const lookupInitial: SchoolLookupState = { status: "idle" };
 
 function FieldError({ message }: { message?: string }) {
   if (!message) return null;
   return <p className="text-sm text-destructive">{message}</p>;
+}
+
+// Triggers the NPSN lookup without nesting a <form> inside the main form.
+// Reads the NPSN value from the main form via formRef and calls the server
+// action directly inside a transition.
+function SchoolLookupButton({
+  disabled,
+  formRef,
+  onResult,
+}: {
+  disabled: boolean;
+  formRef: React.RefObject<HTMLFormElement | null>;
+  onResult: (state: SchoolLookupState) => void;
+}) {
+  const [lookup, lookupAction, lookupPending] = useActionState(lookupSchoolAction, lookupInitial);
+  const [transitioning, startTransition] = useTransition();
+  useEffect(() => {
+    if (lookup.status !== "idle") onResult(lookup);
+  }, [lookup, onResult]);
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      disabled={disabled || lookupPending || transitioning}
+      onClick={() => {
+        const el = formRef.current?.elements.namedItem("npsn") as HTMLInputElement | null;
+        const fd = new FormData();
+        fd.set("npsn", el?.value ?? "");
+        startTransition(() => {
+          void lookupAction(fd);
+        });
+      }}
+    >
+      {lookupPending || transitioning ? "Mencari…" : "Cari data sekolah"}
+    </Button>
+  );
 }
 
 export function ApplicationForm({
@@ -39,6 +77,23 @@ export function ApplicationForm({
     submitSimasApplicationAction,
     initialState,
   );
+  const [lookup, setLookup] = useState<SchoolLookupState>(lookupInitial);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Autofill the form fields once a school is found.
+  useEffect(() => {
+    if (lookup.status !== "found") return;
+    const f = formRef.current;
+    if (!f) return;
+    const set = (name: string, value: string) => {
+      const el = f.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | null;
+      if (el && !el.readOnly) el.value = value;
+    };
+    set("schoolName", lookup.schoolName);
+    set("npsn", lookup.npsn);
+    set("educationLevel", lookup.educationLevel);
+    set("address", lookup.address);
+  }, [lookup]);
 
   if (state.success) {
     return (
@@ -50,7 +105,7 @@ export function ApplicationForm({
   }
 
   return (
-    <form action={formAction} className="space-y-8">
+    <form ref={formRef} action={formAction} className="space-y-8">
       <input name="idempotencyKey" type="hidden" value={idempotencyKey} />
       {state.message ? (
         <p className="rounded-lg bg-destructive/10 p-3 text-sm text-destructive" role="alert">
@@ -67,7 +122,15 @@ export function ApplicationForm({
         </div>
         <div className="space-y-2">
           <Label htmlFor="npsn">NPSN</Label>
-          <Input id="npsn" name="npsn" inputMode="numeric" maxLength={20} defaultValue={initial?.npsn ?? ""} readOnly={Boolean(initial?.npsn)} required />
+          <div className="flex items-end gap-2">
+            <Input id="npsn" name="npsn" inputMode="numeric" maxLength={20} defaultValue={initial?.npsn ?? ""} readOnly={Boolean(initial?.npsn)} required />
+            <SchoolLookupButton disabled={Boolean(initial?.npsn)} formRef={formRef} onResult={setLookup} />
+          </div>
+          {lookup.status === "not-found" ? (
+            <p className="text-sm text-destructive">NPSN tidak ditemukan di data resmi sekolah.</p>
+          ) : lookup.status === "error" ? (
+            <p className="text-sm text-destructive">Gagal mengambil data sekolah. Coba lagi nanti.</p>
+          ) : null}
           <FieldError message={state.errors?.npsn} />
         </div>
         <div className="space-y-2">
