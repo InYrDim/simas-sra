@@ -40,13 +40,14 @@ const store = (connection?: mysql.PoolConnection): TenantAuthorizationStore => (
   async loadTenantByDomain(domain): Promise<TenantAuthorizationTenant | null> {
     const sql = connection ?? db();
     const [rows] = await sql.query<mysql.RowDataPacket[]>(
-      "SELECT id,domain,operational_status,trial_ends_at,settings FROM tenant WHERE domain=? LIMIT 1",
+      "SELECT id,domain,npsn,operational_status,trial_ends_at,settings FROM tenant WHERE domain=? LIMIT 1",
       [domain],
     );
     const row = rows[0];
     return row ? {
       id: String(row.id),
       domain: String(row.domain),
+      npsn: String(row.npsn),
       operationalStatus: row.operational_status,
       trialEndsAt: date(row.trial_ends_at),
       settings: row.settings,

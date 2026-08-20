@@ -217,6 +217,7 @@ const activeSeeds: readonly CatalogSeed[] = [
   ["absensi.settings.update", [], "medium"],
   ["absensi.gerbang.record", [], "medium"],
   ["absensi.gerbang.manage", [], "medium"],
+  ["absensi.qr.record", [], "medium"],
   ["absensi.history.delete", [], "medium"],
   ["tenant.permissions.view", [], "sensitive", "school-admin-only"],
 ];
@@ -472,6 +473,7 @@ const seeds: OperationSeed[] = [
   { id: "absensi.attendance.load", entryPoints: [p("absensi"), p("absensi/gerbang"), p("absensi/kelas")], permissions: ["absensi.attendance.view"], legacy: ["entitlement"] },
   { id: "absensi.settings.save", entryPoints: [a("absensi/actions.ts", "saveAbsensiConfigAction"), p("absensi/settings")], permissions: ["absensi.settings.update"], gate: "write", legacy: [] },
   { id: "absensi.gerbang.record", entryPoints: [a("absensi/actions.ts", "recordGerbangAction")], permissions: ["absensi.gerbang.record"], gate: "write", legacy: ["entitlement"] },
+  { id: "absensi.qr.record", entryPoints: [p("scan/absensi/[sessionId]"), a("absensi/actions.ts", "recordQrAction")], permissions: ["absensi.qr.record"], gate: "write", legacy: [] },
   { id: "absensi.gerbang.manage", entryPoints: [a("absensi/actions.ts", "openGerbangSessionAction"), a("absensi/actions.ts", "closeGerbangSessionAction"), a("absensi/actions.ts", "deleteGerbangSessionAction")], permissions: ["absensi.gerbang.manage"], gate: "write", legacy: [] },
   { id: "absensi.history.load", entryPoints: [p("absensi/history")], permissions: ["absensi.attendance.view"], legacy: ["entitlement"] },
   { id: "absensi.history.delete", entryPoints: [a("absensi/actions.ts", "deleteHistorySessionAction"), a("absensi/actions.ts", "deleteHistoryRecordAction")], permissions: ["absensi.history.delete"], gate: "write", legacy: [] },

@@ -29,6 +29,7 @@ const activeAccount: TenantAuthorizationAccount = {
 const activeTenant: TenantAuthorizationTenant = {
   id: "tenant-1",
   domain: "school.example",
+  npsn: "20100001",
   operationalStatus: "active",
   trialEndsAt: null,
   settings: allFeatures,

@@ -72,6 +72,7 @@ export const tenantAuthorizationStore: TenantAuthorizationStore = {
       .select({
         id: tenant.id,
         domain: tenant.domain,
+        npsn: tenant.npsn,
         operationalStatus: tenant.operationalStatus,
         trialEndsAt: tenant.trialEndsAt,
         settings: tenant.settings,

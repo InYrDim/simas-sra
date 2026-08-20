@@ -86,6 +86,7 @@ export type TenantAuthorizationAccount = Readonly<{
 export type TenantAuthorizationTenant = Readonly<{
   id: string;
   domain: string;
+  npsn: string;
   operationalStatus: string | null;
   trialEndsAt: Date | null;
   settings: unknown;

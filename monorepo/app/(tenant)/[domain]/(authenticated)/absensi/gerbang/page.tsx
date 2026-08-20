@@ -8,11 +8,12 @@ import { readTenantTimezone } from "@/lib/attendance/attendance-config";
 import { listGerbangRecordsForDayWithStudents, resolveOpenSession, resolveTodaysSession } from "@/lib/attendance/attendance-record-data";
 import { tenantAuthorizationStore } from "@/lib/authorization/tenant-authorization-data";
 import { ATTENDANCE_MODE_LABELS } from "@/lib/attendance/attendance-config";
+import { isTenantFeatureEnabled } from "@/lib/features/tenant-feature-policy";
 import { db } from "@/db";
 import { studentProfile, schoolPerson } from "@/db/schema";
 import { GerbangRecordForm } from "./gerbang-record-form";
 import { GerbangSessionPanel } from "./gerbang-session-panel";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, QrCode } from "lucide-react";
 
 export default async function AbsensiGerbangPage({
     params,
@@ -108,15 +109,26 @@ export default async function AbsensiGerbangPage({
             />
 
             {openSession ? (
-                <a
-                    href={`/${domain}/monitoring/absensi`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted"
-                >
-                    <ExternalLink className="size-4" aria-hidden />
-                    Buka Monitoring Publik
-                </a>
+                <div className="flex flex-wrap gap-2">
+                    <a
+                        href={`/${domain}/monitoring/absensi`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+                    >
+                        <ExternalLink className="size-4" aria-hidden />
+                        Buka Monitoring Publik
+                    </a>
+                    {tenant && isTenantFeatureEnabled(tenant.settings, "absensiQr") ? (
+                        <a
+                            href={`/${domain}/scan/absensi/${openSession.id}`}
+                            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+                        >
+                            <QrCode className="size-4" aria-hidden />
+                            Scan QR
+                        </a>
+                    ) : null}
+                </div>
             ) : null}
 
             {openSession ? (

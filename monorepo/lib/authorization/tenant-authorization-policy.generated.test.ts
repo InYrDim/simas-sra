@@ -73,6 +73,7 @@ function storeFor(
       return {
         id: "tenant-a",
         domain: "a.example",
+        npsn: "20100001",
         operationalStatus: "active",
         trialEndsAt: null,
         settings: enabledSettings,

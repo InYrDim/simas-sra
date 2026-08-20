@@ -740,3 +740,40 @@ export async function deleteAttendanceRecord(
         return { ok: false, code: "error" };
     }
 }
+
+/**
+ * Loads a single attendance session by id, tenant-scoped. Returns `null` when
+ * the session does not exist or belongs to another tenant. Used by the QR scan
+ * page to validate the session id from the URL before opening the camera.
+ */
+export async function getSessionById(
+    tenantId: string,
+    sessionId: string,
+): Promise<{
+    id: string;
+    layer: AttendanceRecordLayer;
+    sessionDate: string;
+    plannedStart: string;
+    plannedEnd: string;
+    openedAt: Date;
+    closedAt: Date | null;
+    status: "open" | "closed";
+    notes: string | null;
+} | null> {
+    const [row] = await db
+        .select({
+            id: attendanceSession.id,
+            layer: attendanceSession.layer,
+            sessionDate: attendanceSession.sessionDate,
+            plannedStart: attendanceSession.plannedStart,
+            plannedEnd: attendanceSession.plannedEnd,
+            openedAt: attendanceSession.openedAt,
+            closedAt: attendanceSession.closedAt,
+            status: attendanceSession.status,
+            notes: attendanceSession.notes,
+        })
+        .from(attendanceSession)
+        .where(and(eq(attendanceSession.tenantId, tenantId), eq(attendanceSession.id, sessionId)))
+        .limit(1);
+    return row ?? null;
+}

@@ -3,7 +3,18 @@ import Link from "next/link";
 import { createHttpTenantAuthorizationEvaluator, tenantAuthorizationStore } from "@/lib/authorization/tenant-authorization-data";
 import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
 import { getAbsensiConfig } from "@/lib/attendance/attendance-config-data";
-import { AbsensiSettingsForm } from "@/app/(tenant)/[domain]/(authenticated)/absensi/settings/absensi-settings-form";
+import { Layers, QrCode, CreditCard, PenLine } from "lucide-react";
+import {
+    ATTENDANCE_MODE_LABELS,
+    ATTENDANCE_LAYERS,
+    type AttendanceMode,
+} from "@/lib/attendance/attendance-config";
+
+const MODE_ICON: Record<AttendanceMode, typeof QrCode> = {
+    qr: QrCode,
+    kartu: CreditCard,
+    manual: PenLine,
+};
 
 export default async function AbsensiSettingsPage({
     params,
@@ -19,6 +30,10 @@ export default async function AbsensiSettingsPage({
     const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
     const config = tenant ? await getAbsensiConfig(tenant.id) : null;
 
+    const activeLayers = config
+        ? ATTENDANCE_LAYERS.filter((layer) => Boolean(config.activeLayers[layer]))
+        : [];
+
     return (
         <div className="flex flex-col gap-4 p-4">
             <div className="flex items-center justify-between">
@@ -31,24 +46,61 @@ export default async function AbsensiSettingsPage({
                 </Link>
             </div>
 
-            <p className="text-sm text-muted-foreground">
-                Pilih lapisan absensi yang aktif, lalu tentukan mode pencatatannya. Mode dan lapisan
-                yang tidak diizinkan oleh Provider tidak dapat diaktifkan.
-            </p>
-
-            {config && config.allowedLayers.length > 0 ? (
-                <AbsensiSettingsForm
-                    domain={domain}
-                    allowedModes={config.allowedModes}
-                    allowedLayers={config.allowedLayers}
-                    activeLayers={config.activeLayers}
-                />
-            ) : (
+            {config && config.allowedLayers.length === 0 ? (
                 <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
                     <p className="text-muted-foreground">
                         Provider belum mengizinkan mode atau lapisan absensi apa pun untuk Tenant ini.
                     </p>
                 </div>
+            ) : (
+                <div className="grid gap-4 sm:grid-cols-2">
+                    <section className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
+                        <div className="flex items-center gap-2">
+                            <Layers className="size-5" aria-hidden />
+                            <h2 className="text-lg font-semibold">Lapisan Absensi</h2>
+                        </div>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                            Aktifkan lapisan (Gerbang/Kelas) dan pilih mode pencatatannya.
+                        </p>
+                        <Link
+                            href={`/${domain}/absensi/settings/layers`}
+                            className="mt-4 inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+                        >
+                            Atur lapisan
+                        </Link>
+                    </section>
+
+                    <section className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
+                        <div className="flex items-center gap-2">
+                            <QrCode className="size-5" aria-hidden />
+                            <h2 className="text-lg font-semibold">Mode Absensi</h2>
+                        </div>
+                        <p className="mt-2 text-sm text-muted-foreground">
+                            Atur pesan dan jendela pindai untuk tiap mode yang diizinkan Provider.
+                        </p>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                            {config?.allowedModes.map((mode) => {
+                                const Icon = MODE_ICON[mode];
+                                return (
+                                    <Link
+                                        key={mode}
+                                        href={`/${domain}/absensi/settings/modes/${mode}`}
+                                        className="inline-flex items-center gap-2 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+                                    >
+                                        <Icon className="size-4" aria-hidden />
+                                        {ATTENDANCE_MODE_LABELS[mode]}
+                                    </Link>
+                                );
+                            })}
+                        </div>
+                    </section>
+                </div>
+            )}
+
+            {activeLayers.length > 0 && (
+                <p className="text-sm text-muted-foreground">
+                    Lapisan aktif: {activeLayers.join(", ")}.
+                </p>
             )}
         </div>
     );

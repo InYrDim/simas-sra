@@ -5,8 +5,9 @@ import { redirect } from "next/navigation";
 
 import { enforceTenantOperation } from "@/lib/features/tenant-feature-route-access";
 import { tenantAuthorizationStore } from "@/lib/authorization/tenant-authorization-data";
-import { saveAbsensiConfig } from "@/lib/attendance/attendance-config-data";
-import { recordAttendance, openSession, closeSession, deleteSession, deleteAttendanceRecord } from "@/lib/attendance/attendance-record-data";
+import { saveAbsensiConfig, saveModeSettings } from "@/lib/attendance/attendance-config-data";
+import { recordAttendance, openSession, closeSession, deleteSession, deleteAttendanceRecord, getSessionById } from "@/lib/attendance/attendance-record-data";
+import { decodeQrToken } from "@/lib/attendance/attendance-qr";
 import { getSessionWindow, readAbsensiSettings, readTenantTimezone } from "@/lib/attendance/attendance-config";
 import {
     ATTENDANCE_LAYERS,
@@ -72,6 +73,44 @@ export async function saveAbsensiConfigAction(
     revalidatePath(`/${domain}/absensi`);
     revalidatePath(`/${domain}/absensi/settings`);
     redirect(`/${domain}/absensi/settings?result=saved`);
+}
+
+export type SaveModeSettingsResult = {
+    ok: boolean;
+    code?: "invalid-input" | "not-found" | "not-allowed" | "error";
+};
+
+/**
+ * Persists per-mode settings (message, scan window) for an allowed mode. The
+ * mode is re-checked against the Provider-allowed set server-side, so a mode
+ * the Provider disabled cannot be configured regardless of client input.
+ */
+export async function saveModeSettingsAction(
+    domain: string,
+    mode: string,
+    formData: FormData,
+): Promise<SaveModeSettingsResult> {
+    await enforceTenantOperation(domain, "absensi.settings.save");
+    if (!isAttendanceMode(mode)) return { ok: false, code: "invalid-input" };
+
+    const message = String(formData.get("message") ?? "").trim() || undefined;
+    const rawStart = String(formData.get("scanStart") ?? "").trim();
+    const rawEnd = String(formData.get("scanEnd") ?? "").trim();
+    const scanWindow =
+        rawStart !== "" && rawEnd !== "" && isSessionWindow({ start: rawStart, end: rawEnd })
+            ? { start: rawStart, end: rawEnd }
+            : undefined;
+
+    const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
+    if (!tenant) return { ok: false, code: "not-found" };
+
+    const result = await saveModeSettings(tenant.id, mode, { message, scanWindow });
+    if (!result) return { ok: false, code: "not-allowed" };
+
+    revalidatePath(`/${domain}/absensi/settings`);
+    revalidatePath(`/${domain}/absensi/settings/modes`);
+    revalidatePath(`/${domain}/absensi/settings/modes/${mode}`);
+    redirect(`/${domain}/absensi/settings/modes/${mode}?result=saved`);
 }
 
 export type RecordGerbangResult = {
@@ -249,4 +288,55 @@ export async function deleteHistoryRecordAction(
 
     revalidatePath(`/${domain}/absensi/history`);
     return { ok: true };
+}
+
+export type RecordQrResult = {
+    ok: boolean;
+    code?: "invalid-input" | "not-found" | "wrong-tenant" | "bad-token" | "student-not-found" | "invalid-status" | "error";
+    studentName?: string;
+    status?: string;
+};
+
+/**
+ * Records a Gerbang attendance event from a scanned QR token (Fase 3). The
+ * operator (logged-in user) runs the scanner; the student identity and
+ * direction come from the decoded token. Cross-tenant tokens are rejected.
+ */
+export async function recordQrAction(
+    domain: string,
+    sessionId: string,
+    token: string,
+): Promise<RecordQrResult> {
+    const principal = await enforceTenantOperation(domain, "absensi.qr.record");
+
+    const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
+    if (!tenant) return { ok: false, code: "not-found" };
+
+    const session = await getSessionById(tenant.id, sessionId);
+    if (!session) return { ok: false, code: "not-found" };
+    if (session.status !== "open") return { ok: false, code: "not-found" };
+    if (session.layer !== "gerbang") return { ok: false, code: "not-found" };
+
+    const decoded = decodeQrToken(token, tenant.npsn);
+    if (!decoded.ok) {
+        return { ok: false, code: decoded.code === "wrong-tenant" ? "wrong-tenant" : "bad-token" };
+    }
+
+    const status = decoded.value.direction === "IN" ? "masuk" : "keluar";
+    const result = await recordAttendance({
+        tenantId: tenant.id,
+        studentId: decoded.value.studentRef,
+        layer: "gerbang",
+        mode: "qr",
+        status,
+        actorUserId: principal.userId,
+        timezone: readTenantTimezone(tenant.settings),
+    });
+
+    if (!result.ok) {
+        return { ok: false, code: result.code === "student-not-found" ? "student-not-found" : result.code === "invalid-status" ? "invalid-status" : "error" };
+    }
+
+    revalidatePath(`/${domain}/absensi/gerbang`);
+    return { ok: true, status };
 }

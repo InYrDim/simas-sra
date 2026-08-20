@@ -61,6 +61,14 @@ export type SessionWindow = {
 };
 
 /** Default gerbang window when none is configured (06:00–07:30). */
+/** Per-mode settings. Only the fields relevant to a mode are honored. */
+export type ModeSettings = {
+    /** Info text shown on the mode's scan/record surface. */
+    message?: string;
+    /** Scan session window (QR/Kartu). Overrides the layer default when set. */
+    scanWindow?: SessionWindow;
+};
+
 export const DEFAULT_GERBANG_SESSION_WINDOW: SessionWindow = { start: "06:00", end: "07:30" };
 
 /**
@@ -71,6 +79,7 @@ export const DEFAULT_GERBANG_SESSION_WINDOW: SessionWindow = { start: "06:00", e
 export type AbsensiSettings = {
     activeLayers: Partial<Record<AttendanceLayer, AttendanceMode>>;
     sessionWindow?: Partial<Record<AttendanceLayer, SessionWindow>>;
+    modeSettings?: Partial<Record<AttendanceMode, ModeSettings>>;
 };
 
 /** Matches "HH:MM" with hours 00–23 and minutes 00–59. */
@@ -135,7 +144,21 @@ export function readAbsensiSettings(settings: unknown): AbsensiSettings {
             if (isSessionWindow(win)) sessionWindow[layer] = win;
         }
     }
-    return { activeLayers, sessionWindow };
+    const storedModes = (source as Record<string, unknown>).modeSettings;
+    const modeSettings: Partial<Record<AttendanceMode, ModeSettings>> = {};
+    if (storedModes && typeof storedModes === "object") {
+        for (const mode of ATTENDANCE_MODES) {
+            const m = (storedModes as Record<string, unknown>)[mode];
+            if (m && typeof m === "object") {
+                const mv = m as Record<string, unknown>;
+                const ms: ModeSettings = {};
+                if (typeof mv.message === "string") ms.message = mv.message;
+                if (isSessionWindow(mv.scanWindow)) ms.scanWindow = mv.scanWindow;
+                modeSettings[mode] = ms;
+            }
+        }
+    }
+    return { activeLayers, sessionWindow, modeSettings };
 }
 
 /**
@@ -146,8 +169,14 @@ export function getSessionWindow(
     settings: unknown,
     layer: AttendanceLayer,
 ): SessionWindow {
-    const configured = readAbsensiSettings(settings).sessionWindow?.[layer];
+    const s = readAbsensiSettings(settings);
+    const configured = s.sessionWindow?.[layer];
     if (isSessionWindow(configured)) return configured;
+    // A QR layer may carry its own scan window in mode settings.
+    if (s.activeLayers[layer] === "qr") {
+        const qrWindow = s.modeSettings?.qr?.scanWindow;
+        if (isSessionWindow(qrWindow)) return qrWindow;
+    }
     if (layer === "gerbang") return DEFAULT_GERBANG_SESSION_WINDOW;
     return { start: "07:00", end: "15:00" };
 }

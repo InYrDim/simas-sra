@@ -13,9 +13,12 @@ import {
     ATTENDANCE_MODE_FEATURE,
     filterAllowedActiveLayers,
     mergeAbsensiSettings,
+    readAbsensiSettings,
     type AbsensiConfig,
     type AttendanceLayer,
     type AttendanceMode,
+    type ModeSettings,
+    type SessionWindow,
 } from "@/lib/attendance/attendance-config";
 
 function resolveAllowedModes(settings: unknown): AttendanceMode[] {
@@ -78,12 +81,58 @@ export async function saveAbsensiConfig(
     });
 }
 
+/**
+ * Persists per-mode settings (message, scan window) for an allowed mode,
+ * clamped to the Provider-allowed set. Returns the resulting config, or null
+ * when the tenant does not exist.
+ */
+export async function saveModeSettings(
+    tenantId: string,
+    mode: AttendanceMode,
+    next: ModeSettings,
+): Promise<AbsensiConfig | null> {
+    return db.transaction(async (tx) => {
+        const [row] = await tx
+            .select({ settings: tenant.settings })
+            .from(tenant)
+            .where(eq(tenant.id, tenantId))
+            .limit(1)
+            .for("update");
+        if (!row) return null;
+
+        const allowedModes = resolveAllowedModes(row.settings);
+        const allowedLayers = resolveAllowedLayers(row.settings);
+        if (!(allowedModes as readonly string[]).includes(mode)) return null;
+
+        const base = readAbsensiSettings(row.settings);
+        const modeSettings: Partial<Record<AttendanceMode, ModeSettings>> = {
+            ...base.modeSettings,
+            [mode]: { ...next },
+        };
+        await tx
+            .update(tenant)
+            .set({ settings: mergeAbsensiSettingsIntoSettings(row.settings, { activeLayers: base.activeLayers, sessionWindow: base.sessionWindow, modeSettings }) })
+            .where(eq(tenant.id, tenantId));
+
+        return { allowedModes, allowedLayers, activeLayers: base.activeLayers };
+    });
+}
+
 /** Writes the absensi block into the tenant settings object without mutating input. */
 function mergeAbsensiSettingsIntoSettings(
     settings: unknown,
-    next: { activeLayers: Partial<Record<AttendanceLayer, AttendanceMode>> },
+    next: {
+        activeLayers: Partial<Record<AttendanceLayer, AttendanceMode>>;
+        sessionWindow?: Partial<Record<AttendanceLayer, SessionWindow>>;
+        modeSettings?: Partial<Record<AttendanceMode, ModeSettings>>;
+    },
 ): Record<string, unknown> {
     const base = settings && typeof settings === "object" ? { ...(settings as Record<string, unknown>) } : {};
-    base.absensi = { activeLayers: { ...next.activeLayers } };
+    const prev = readAbsensiSettings(settings);
+    base.absensi = {
+        activeLayers: { ...next.activeLayers },
+        sessionWindow: { ...prev.sessionWindow, ...next.sessionWindow },
+        modeSettings: { ...prev.modeSettings, ...next.modeSettings },
+    };
     return base;
 }

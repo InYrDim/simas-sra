@@ -18,6 +18,7 @@ export {
     listSessionRecordsWithStudents,
     resolveOpenSession,
     resolveTodaysSession,
+    getSessionById,
     openSession,
     closeSession,
     deleteSession,
