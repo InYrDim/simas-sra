@@ -35,3 +35,18 @@ export function decodeQrToken(token: string, expectedNpsn: string): DecodeQrToke
 
     return { ok: true, value: { layer, studentRef, direction } };
 }
+
+/**
+ * Builds a student self-service QR token for the gerbang layer.
+ *
+ * ponytail: token is unsigned/plaintext — a student could forge another NIS.
+ * Add an HMAC signature (keyed by tenant secret) when the QR is ever exposed
+ * beyond the operator-picked scan flow.
+ */
+export function buildStudentQrToken(
+    npsn: string,
+    studentRef: string,
+    direction: QrTokenDirection = "IN",
+): string {
+    return `SIMAS|${npsn}|GERBANG|${studentRef}|${direction}`;
+}

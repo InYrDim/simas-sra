@@ -1,4 +1,4 @@
-import { Home, Database, Calendar, ClipboardCheck, FileCheck, LayoutDashboard, Library, Mail, Settings, Upload, UserPlus } from "lucide-react"
+import { Home, Database, Calendar, ClipboardCheck, FileCheck, LayoutDashboard, Library, Mail, Settings, Upload, UserPlus, QrCode } from "lucide-react"
 import { type TenantNavItem } from "@/types/components/TenantNavItem"
 
 export const tenantMenuItems: TenantNavItem[] = [
@@ -20,6 +20,7 @@ export const tenantMenuItems: TenantNavItem[] = [
       { key: "absensi-overview", title: "Ikhtisar", url: "/absensi", requiredPermissions: ["absensi.attendance.view"] },
       { key: "absensi-history", title: "Riwayat", url: "/absensi/history", requiredPermissions: ["absensi.attendance.view"] },
       { key: "absensi-settings", title: "Pengaturan", url: "/absensi/settings", requiredPermissions: ["absensi.settings.update"] },
+      { key: "absensi-saya", title: "Absensi Saya", url: "/absensi/saya", requiredPermissions: ["absensi.self.view"] },
     ]
   },
   {

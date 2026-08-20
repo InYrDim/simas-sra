@@ -219,6 +219,7 @@ const activeSeeds: readonly CatalogSeed[] = [
   ["absensi.gerbang.manage", [], "medium"],
   ["absensi.qr.record", [], "medium"],
   ["absensi.history.delete", [], "medium"],
+  ["absensi.self.view"],
   ["tenant.permissions.view", [], "sensitive", "school-admin-only"],
 ];
 
@@ -257,7 +258,7 @@ const resourceLabels: Record<string, string> = {
   templates: "Template impor", locations: "Lokasi/Ruang", assets: "Aset/Barang", inventory: "Inventaris", organizations: "Organisasi siswa",
   periods: "Periode kepengurusan", leadership: "Kepengurusan", extracurriculars: "Ekstrakurikuler", advisors: "Pembina",
   participants: "Peserta", sessions: "Sesi", submissions: "Pengajuan", documents: "Dokumen", results: "Hasil",
-  questions: "Pertanyaan", attendance: "Kehadiran", grades: "Nilai", roles: "Role Tenant", assignments: "Assignment role",
+  questions: "Pertanyaan", attendance: "Kehadiran", grades: "Nilai", roles: "Role Tenant", assignments: "Assignment role", self: "Diri Sendiri",
   "effective-access": "Akses efektif", "authorization-audit": "Audit otorisasi", accounts: "Akun non-admin", permissions: "Permission",
 };
 
@@ -477,6 +478,7 @@ const seeds: OperationSeed[] = [
   { id: "absensi.gerbang.manage", entryPoints: [a("absensi/actions.ts", "openGerbangSessionAction"), a("absensi/actions.ts", "closeGerbangSessionAction"), a("absensi/actions.ts", "deleteGerbangSessionAction")], permissions: ["absensi.gerbang.manage"], gate: "write", legacy: [] },
   { id: "absensi.history.load", entryPoints: [p("absensi/history")], permissions: ["absensi.attendance.view"], legacy: ["entitlement"] },
   { id: "absensi.history.delete", entryPoints: [a("absensi/actions.ts", "deleteHistorySessionAction"), a("absensi/actions.ts", "deleteHistoryRecordAction")], permissions: ["absensi.history.delete"], gate: "write", legacy: [] },
+  { id: "absensi.self.load", entryPoints: [p("absensi/saya")], permissions: ["absensi.self.view"], context: "self", legacy: [] },
   { id: "e-library.load", entryPoints: [p("e-library")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },
   { id: "jadwal.mengajar.load", entryPoints: [p("jadwal/mengajar")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },
   { id: "jadwal.events.load", entryPoints: [p("jadwal/events")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },

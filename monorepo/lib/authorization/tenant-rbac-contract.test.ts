@@ -27,7 +27,7 @@ const legacyMinimum = [
 test("the approved registry and operation map form a valid executable contract", () => {
   assert.equal(PERMISSION_REGISTRY_VERSION, "tenant-permissions@2");
   assert.equal(OPERATION_MAP_VERSION, "tenant-operations@4");
-  assert.equal(permissionRegistry.length, 162);
+  assert.equal(permissionRegistry.length, 163);
   assert.match(permissionRegistryDigest, /^[a-f0-9]{64}$/);
   assert.match(tenantOperationMapDigest, /^[a-f0-9]{64}$/);
   assert.deepEqual(validateTenantRbacContract(), []);
