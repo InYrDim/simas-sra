@@ -12,6 +12,13 @@ export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
   rejected: "Ditolak",
 };
 
+// Colorful badge classes per status (amber = waiting, green = approved, red = rejected).
+export const APPLICATION_STATUS_BADGE_CLASS: Record<ApplicationStatus, string> = {
+  pending: "border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-400",
+  approved: "border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
+  rejected: "border-destructive/30 bg-destructive/10 text-destructive",
+};
+
 export type LockedApplicationDecision = Readonly<{
   id: string;
   status: ApplicationStatus;

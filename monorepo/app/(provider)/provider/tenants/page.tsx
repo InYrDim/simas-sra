@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table";
 import { listProviderApplications } from "@/lib/provider/provider-application-data";
 import {
+  APPLICATION_STATUS_BADGE_CLASS,
   APPLICATION_STATUS_LABELS,
   type ApplicationStatus,
 } from "@/lib/provider/provider-applications";
@@ -239,7 +240,7 @@ export default async function ProviderTenantsPage({
                     <TableCell>{application.npsn}</TableCell>
                     <TableCell>{application.contactEmail}</TableCell>
                     <TableCell>
-                      <Badge variant={application.status === "rejected" ? "destructive" : "outline"}>
+                      <Badge variant="outline" className={APPLICATION_STATUS_BADGE_CLASS[application.status]}>
                         {APPLICATION_STATUS_LABELS[application.status]}
                       </Badge>
                     </TableCell>

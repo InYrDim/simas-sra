@@ -80,20 +80,27 @@ export function ApplicationForm({
   const [lookup, setLookup] = useState<SchoolLookupState>(lookupInitial);
   const formRef = useRef<HTMLFormElement>(null);
 
-  // Autofill the form fields once a school is found.
+  // Toggle between NPSN lookup and manual entry for school identity.
+  const [mode, setMode] = useState<"npsn" | "manual">(initial?.npsn ? "npsn" : "manual");
+  const [school, setSchool] = useState({
+    schoolName: initial?.schoolName ?? "",
+    npsn: initial?.npsn ?? "",
+    educationLevel: initial?.educationLevel ?? "",
+    address: initial?.address ?? "",
+  });
+
+  // Store looked-up school data so it survives mode switches.
   useEffect(() => {
     if (lookup.status !== "found") return;
-    const f = formRef.current;
-    if (!f) return;
-    const set = (name: string, value: string) => {
-      const el = f.elements.namedItem(name) as HTMLInputElement | HTMLTextAreaElement | null;
-      if (el && !el.readOnly) el.value = value;
-    };
-    set("schoolName", lookup.schoolName);
-    set("npsn", lookup.npsn);
-    set("educationLevel", lookup.educationLevel);
-    set("address", lookup.address);
+    setSchool({
+      schoolName: lookup.schoolName,
+      npsn: lookup.npsn,
+      educationLevel: lookup.educationLevel,
+      address: lookup.address,
+    });
   }, [lookup]);
+
+  const showAutofilled = lookup.status === "found" || Boolean(initial?.schoolName);
 
   if (state.success) {
     return (
@@ -115,34 +122,111 @@ export function ApplicationForm({
 
       <fieldset className="grid gap-5 sm:grid-cols-2" disabled={pending}>
         <legend className="mb-4 text-lg font-semibold">Identitas sekolah</legend>
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="schoolName">Nama resmi sekolah</Label>
-          <Input id="schoolName" name="schoolName" maxLength={255} defaultValue={initial?.schoolName ?? ""} required />
-          <FieldError message={state.errors?.schoolName} />
+
+        <div className="flex flex-wrap gap-2 sm:col-span-2">
+          <Button type="button" variant={mode === "npsn" ? "default" : "outline"} onClick={() => setMode("npsn")}>
+            Isi melalui NPSN
+          </Button>
+          <Button type="button" variant={mode === "manual" ? "default" : "outline"} onClick={() => setMode("manual")}>
+            Input manual
+          </Button>
         </div>
-        <div className="space-y-2">
-          <Label htmlFor="npsn">NPSN</Label>
-          <div className="flex items-end gap-2">
-            <Input id="npsn" name="npsn" inputMode="numeric" maxLength={20} defaultValue={initial?.npsn ?? ""} readOnly={Boolean(initial?.npsn)} required />
-            <SchoolLookupButton disabled={Boolean(initial?.npsn)} formRef={formRef} onResult={setLookup} />
-          </div>
-          {lookup.status === "not-found" ? (
-            <p className="text-sm text-destructive">NPSN tidak ditemukan di data resmi sekolah.</p>
-          ) : lookup.status === "error" ? (
-            <p className="text-sm text-destructive">Gagal mengambil data sekolah. Coba lagi nanti.</p>
-          ) : null}
-          <FieldError message={state.errors?.npsn} />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="educationLevel">Jenjang pendidikan</Label>
-          <Input id="educationLevel" name="educationLevel" maxLength={64} placeholder="Contoh: SMA" defaultValue={initial?.educationLevel ?? ""} required />
-          <FieldError message={state.errors?.educationLevel} />
-        </div>
-        <div className="space-y-2 sm:col-span-2">
-          <Label htmlFor="address">Alamat sekolah</Label>
-          <Textarea id="address" name="address" defaultValue={initial?.address ?? ""} required />
-          <FieldError message={state.errors?.address} />
-        </div>
+
+        {mode === "npsn" ? (
+          <>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="npsn">NPSN</Label>
+              <div className="flex items-end gap-2">
+                <Input
+                  id="npsn"
+                  name="npsn"
+                  inputMode="numeric"
+                  maxLength={20}
+                  value={school.npsn}
+                  onChange={(e) => setSchool((s) => ({ ...s, npsn: e.target.value }))}
+                  readOnly={Boolean(initial?.npsn)}
+                  required
+                />
+                <SchoolLookupButton disabled={Boolean(initial?.npsn)} formRef={formRef} onResult={setLookup} />
+              </div>
+              <p className="text-sm text-muted-foreground">Klik Cari untuk mengisi nama, jenjang, dan alamat sekolah otomatis.</p>
+              {lookup.status === "not-found" ? (
+                <p className="text-sm text-destructive">NPSN tidak ditemukan di data resmi sekolah.</p>
+              ) : lookup.status === "error" ? (
+                <p className="text-sm text-destructive">Gagal mengambil data sekolah. Coba lagi nanti.</p>
+              ) : null}
+              <FieldError message={state.errors?.npsn} />
+            </div>
+            <div className="space-y-2 sm:col-span-2" hidden={!showAutofilled}>
+              <Label htmlFor="schoolName">Nama resmi sekolah</Label>
+              <Input id="schoolName" name="schoolName" maxLength={255} value={school.schoolName} readOnly required />
+              <FieldError message={state.errors?.schoolName} />
+            </div>
+            <div className="space-y-2" hidden={!showAutofilled}>
+              <Label htmlFor="educationLevel">Jenjang pendidikan</Label>
+              <Input id="educationLevel" name="educationLevel" maxLength={64} placeholder="Contoh: SMA" value={school.educationLevel} readOnly required />
+              <FieldError message={state.errors?.educationLevel} />
+            </div>
+            <div className="space-y-2 sm:col-span-2" hidden={!showAutofilled}>
+              <Label htmlFor="address">Alamat sekolah</Label>
+              <Textarea id="address" name="address" value={school.address} readOnly required />
+              <FieldError message={state.errors?.address} />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="schoolName">Nama resmi sekolah</Label>
+              <Input
+                id="schoolName"
+                name="schoolName"
+                maxLength={255}
+                value={school.schoolName}
+                onChange={(e) => setSchool((s) => ({ ...s, schoolName: e.target.value }))}
+                required
+              />
+              <FieldError message={state.errors?.schoolName} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="npsn">NPSN</Label>
+              <Input
+                id="npsn"
+                name="npsn"
+                inputMode="numeric"
+                maxLength={20}
+                value={school.npsn}
+                onChange={(e) => setSchool((s) => ({ ...s, npsn: e.target.value }))}
+                readOnly={Boolean(initial?.npsn)}
+                required
+              />
+              <FieldError message={state.errors?.npsn} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="educationLevel">Jenjang pendidikan</Label>
+              <Input
+                id="educationLevel"
+                name="educationLevel"
+                maxLength={64}
+                placeholder="Contoh: SMA"
+                value={school.educationLevel}
+                onChange={(e) => setSchool((s) => ({ ...s, educationLevel: e.target.value }))}
+                required
+              />
+              <FieldError message={state.errors?.educationLevel} />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <Label htmlFor="address">Alamat sekolah</Label>
+              <Textarea
+                id="address"
+                name="address"
+                value={school.address}
+                onChange={(e) => setSchool((s) => ({ ...s, address: e.target.value }))}
+                required
+              />
+              <FieldError message={state.errors?.address} />
+            </div>
+          </>
+        )}
       </fieldset>
 
       <fieldset className="grid gap-5 sm:grid-cols-2" disabled={pending}>
