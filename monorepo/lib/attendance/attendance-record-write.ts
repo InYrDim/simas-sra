@@ -689,19 +689,28 @@ export async function closeSession(
 export type DeleteSessionResult = { ok: true } | { ok: false; code: "not-found" | "error" };
 
 /**
- * Deletes a session and detaches its linked records (sets their `sessionId` to
- * null so they remain as out-of-session history). The FK on `attendance_record`
- * is RESTRICT, so the detach must happen before the delete.
+ * Deletes a session. By default its linked records are detached (`sessionId =
+ * null) so they remain as out-of-session history — used by the History view.
+ * Pass `deleteRecords: true` (Gerbang "Hapus Sesi") to discard the records too,
+ * giving a clean slate when a session is thrown away and reopened the same day.
+ * The FK on `attendance_record` is RESTRICT, so records are handled first.
  */
 export async function deleteSession(
     tenantId: string,
     sessionId: string,
+    opts: { deleteRecords?: boolean } = {},
 ): Promise<DeleteSessionResult> {
     try {
-        await db
-            .update(attendanceRecord)
-            .set({ sessionId: null, updatedAt: new Date() })
-            .where(and(eq(attendanceRecord.tenantId, tenantId), eq(attendanceRecord.sessionId, sessionId)));
+        if (opts.deleteRecords) {
+            await db
+                .delete(attendanceRecord)
+                .where(and(eq(attendanceRecord.tenantId, tenantId), eq(attendanceRecord.sessionId, sessionId)));
+        } else {
+            await db
+                .update(attendanceRecord)
+                .set({ sessionId: null, updatedAt: new Date() })
+                .where(and(eq(attendanceRecord.tenantId, tenantId), eq(attendanceRecord.sessionId, sessionId)));
+        }
         const result = await db
             .delete(attendanceSession)
             .where(and(eq(attendanceSession.tenantId, tenantId), eq(attendanceSession.id, sessionId)));

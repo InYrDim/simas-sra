@@ -200,7 +200,7 @@ export async function deleteGerbangSessionAction(
     const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
     if (!tenant) return { ok: false, code: "not-found" };
 
-    const result = await deleteSession(tenant.id, sessionId);
+    const result = await deleteSession(tenant.id, sessionId, { deleteRecords: true });
     if (!result.ok) return { ok: false, code: result.code };
 
     revalidatePath(`/${domain}/absensi/gerbang`);
