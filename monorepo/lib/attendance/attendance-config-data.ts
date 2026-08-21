@@ -17,6 +17,7 @@ import {
     type AbsensiConfig,
     type AttendanceLayer,
     type AttendanceMode,
+    type AttendanceModeList,
     type ModeSettings,
     type SessionWindow,
 } from "@/lib/attendance/attendance-config";
@@ -57,7 +58,7 @@ export async function getAbsensiConfig(tenantId: string): Promise<AbsensiConfig>
  */
 export async function saveAbsensiConfig(
     tenantId: string,
-    requestedLayers: Partial<Record<AttendanceLayer, AttendanceMode | null | undefined>>,
+    requestedLayers: Partial<Record<AttendanceLayer, AttendanceMode[] | null | undefined>>,
 ): Promise<AbsensiConfig | null> {
     return db.transaction(async (tx) => {
         const [row] = await tx
@@ -122,7 +123,7 @@ export async function saveModeSettings(
 function mergeAbsensiSettingsIntoSettings(
     settings: unknown,
     next: {
-        activeLayers: Partial<Record<AttendanceLayer, AttendanceMode>>;
+        activeLayers: Partial<Record<AttendanceLayer, AttendanceModeList>>;
         sessionWindow?: Partial<Record<AttendanceLayer, SessionWindow>>;
         modeSettings?: Partial<Record<AttendanceMode, ModeSettings>>;
     },

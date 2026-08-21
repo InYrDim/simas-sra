@@ -66,7 +66,7 @@ export default async function AbsensiModePage({
 
     const settings = tenant ? readAbsensiSettings(tenant.settings) : null;
     const modeSettings = settings?.modeSettings?.[mode];
-    const usedBy = ATTENDANCE_LAYERS.filter((layer) => config.activeLayers[layer] === mode);
+    const usedBy = ATTENDANCE_LAYERS.filter((layer) => config.activeLayers[layer]?.includes(mode));
     const Icon = MODE_ICON[mode];
 
     return (

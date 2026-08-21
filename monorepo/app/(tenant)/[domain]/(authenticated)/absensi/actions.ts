@@ -11,6 +11,7 @@ import { decodeQrToken } from "@/lib/attendance/attendance-qr";
 import { getSessionWindow, readAbsensiSettings, readTenantTimezone } from "@/lib/attendance/attendance-config";
 import {
     ATTENDANCE_LAYERS,
+    ATTENDANCE_MODES,
     isAttendanceLayer,
     isAttendanceMode,
     isSessionWindow,
@@ -35,31 +36,35 @@ export async function saveAbsensiConfigAction(
 ): Promise<SaveAbsensiConfigResult> {
     await enforceTenantOperation(domain, "absensi.settings.save");
 
-    const requested: Partial<Record<AttendanceLayer, AttendanceMode | null>> = {};
+    const requested: Partial<Record<AttendanceLayer, AttendanceMode[] | null>> = {};
     for (const layer of ATTENDANCE_LAYERS) {
         const enabled = formData.get(`layer-enabled:${layer}`);
-        const raw = formData.get(`layer:${layer}`);
-        const value = raw === null ? "" : String(raw);
-
         if (enabled !== "on") {
             // Layer toggled off (or not present): drop any binding for this layer.
             requested[layer] = null;
             continue;
         }
-        if (value === "") {
-            requested[layer] = null;
-            continue;
+        const selected: AttendanceMode[] = [];
+        for (const mode of ATTENDANCE_MODES) {
+            if (formData.get(`mode:${layer}:${mode}`) === "on") selected.push(mode);
         }
-        if (!isAttendanceMode(value)) {
-            return { ok: false, code: "invalid-input" };
-        }
-        requested[layer] = value;
+        // A layer with no mode checked is treated as inactive (dropped on save).
+        requested[layer] = selected.length > 0 ? selected : null;
     }
 
-    // Unknown layer keys in the form are ignored; only the known layers are honored.
+    // Unknown layer/mode keys in the form are rejected; only known layers/modes honored.
     for (const key of formData.keys()) {
-        if (key.startsWith("layer:") || key.startsWith("layer-enabled:")) {
-            const layer = key.slice(key.startsWith("layer-enabled:") ? "layer-enabled:".length : "layer:".length);
+        if (key.startsWith("mode:")) {
+            const rest = key.slice("mode:".length);
+            const sep = rest.indexOf(":");
+            if (sep === -1) return { ok: false, code: "invalid-input" };
+            const layer = rest.slice(0, sep);
+            const mode = rest.slice(sep + 1);
+            if (!isAttendanceLayer(layer) || !isAttendanceMode(mode)) {
+                return { ok: false, code: "invalid-input" };
+            }
+        } else if (key.startsWith("layer-enabled:")) {
+            const layer = key.slice("layer-enabled:".length);
             if (!isAttendanceLayer(layer)) return { ok: false, code: "invalid-input" };
         }
     }

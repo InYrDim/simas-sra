@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 
 import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
 import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
-import { enforceTenantFeatureAccess } from "@/lib/features/tenant-feature-route-access";
+import { enforceTenantFeatureEnabled } from "@/lib/features/tenant-feature-route-access";
 import { isTenantFeatureEnabled } from "@/lib/features/tenant-feature-policy";
 import { tenantAuthorizationStore } from "@/lib/authorization/tenant-authorization-data";
 import { getAbsensiConfig } from "@/lib/attendance/attendance-config-data";
@@ -20,7 +20,7 @@ export default async function AbsensiSayaPage({
     params: Promise<{ domain: string }>;
 }) {
     const { domain } = await params;
-    await enforceTenantFeatureAccess(domain, "absensi", "read");
+    await enforceTenantFeatureEnabled(domain, "absensi");
 
     const evaluator = await createHttpTenantAuthorizationEvaluator();
     const operationId = "absensi.self.load";
@@ -75,7 +75,7 @@ export default async function AbsensiSayaPage({
     }
 
     const config = await getAbsensiConfig(tenant.id);
-    const qrEnabled = Boolean(config?.activeLayers.gerbang) && isTenantFeatureEnabled(tenant.settings, "absensiQr");
+    const qrEnabled = Boolean(config?.activeLayers.gerbang?.includes("qr")) && isTenantFeatureEnabled(tenant.settings, "absensiQr");
     const timezone = readTenantTimezone(tenant.settings);
     const openSession = qrEnabled ? await resolveOpenSession(tenant.id, "gerbang", new Date(), timezone) : null;
     const today = await listGerbangRecordsForDayWithStudents(tenant.id, new Date(), timezone);

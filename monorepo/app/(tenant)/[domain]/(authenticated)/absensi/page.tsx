@@ -59,7 +59,7 @@ export default async function AbsensiPage({
             >
               <h2 className="text-lg font-semibold">{ATTENDANCE_LAYER_LABELS[layer]}</h2>
               <p className="text-sm text-muted-foreground">
-                Mode: {ATTENDANCE_MODE_LABELS[config!.activeLayers[layer]!]}
+                Mode: {config!.activeLayers[layer]!.map((m) => ATTENDANCE_MODE_LABELS[m]).join(", ")}
               </p>
             </Link>
           ))}

@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Role, changeRoleStatus } from './actions';
+import { Role, changeRoleStatus, createRoleFromTemplate } from './actions';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -22,10 +22,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, Plus, Eye, Pencil, Archive, Play, Trash2, Loader2 } from 'lucide-react';
+import { MoreHorizontal, Plus, Eye, Pencil, Archive, Play, Trash2, Loader2, LayoutTemplate } from 'lucide-react';
 import type { TenantAssignableRolePermissionGroup } from '@/lib/authorization/tenant-role-permission-catalog';
+import { TENANT_ROLE_TEMPLATES } from '@/lib/authorization/tenant-role-templates';
 import { RoleDialog } from './role-dialog';
 import { toast } from 'sonner';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 interface RolesClientProps {
   initialRoles: Role[];
@@ -41,6 +49,8 @@ export function RolesClient({ initialRoles, permissionGroups }: RolesClientProps
   const [editingRole, setEditingRole] = React.useState<Role | null>(null);
   const [viewingRole, setViewingRole] = React.useState<Role | null>(null);
   const [isLoading, setIsLoading] = React.useState<string | null>(null); // role id
+  const [isTemplateOpen, setIsTemplateOpen] = React.useState(false);
+  const [templateLoading, setTemplateLoading] = React.useState<string | null>(null);
 
   const handleStatusChange = async (role: Role, status: Role['status']) => {
     setIsLoading(role.id);
@@ -65,6 +75,24 @@ export function RolesClient({ initialRoles, permissionGroups }: RolesClientProps
     setIsDialogOpen(true);
   };
 
+  const handleUseTemplate = async (templateKey: string) => {
+    setTemplateLoading(templateKey);
+    try {
+      const res = await createRoleFromTemplate(domain, templateKey);
+      if (res.success) {
+        toast.success('Role berhasil dibuat dari template');
+        setIsTemplateOpen(false);
+        router.refresh();
+      } else {
+        toast.error(res.error || 'Gagal membuat role');
+      }
+    } catch {
+      toast.error('Terjadi kesalahan');
+    } finally {
+      setTemplateLoading(null);
+    }
+  };
+
   const openEditDialog = (role: Role) => {
     setEditingRole(role);
     setViewingRole(null);
@@ -79,7 +107,11 @@ export function RolesClient({ initialRoles, permissionGroups }: RolesClientProps
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={() => setIsTemplateOpen(true)}>
+          <LayoutTemplate className="mr-2 h-4 w-4" />
+          Gunakan template
+        </Button>
         <Button onClick={openCreateDialog}>
           <Plus className="mr-2 h-4 w-4" />
           Create Role
@@ -214,6 +246,38 @@ export function RolesClient({ initialRoles, permissionGroups }: RolesClientProps
           router.refresh();
         }}
       />
+
+      <Dialog open={isTemplateOpen} onOpenChange={setIsTemplateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Gunakan template role</DialogTitle>
+            <DialogDescription>
+              Pilih template untuk membuat role dengan permission yang sudah diatur.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            {TENANT_ROLE_TEMPLATES.map((template) => (
+              <button
+                key={template.key}
+                type="button"
+                disabled={templateLoading === template.key}
+                onClick={() => handleUseTemplate(template.key)}
+                className="flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-muted disabled:opacity-60"
+              >
+                <LayoutTemplate className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <div className="grid gap-1">
+                  <span className="text-sm font-medium">{template.name}</span>
+                  <span className="text-xs text-muted-foreground">{template.description}</span>
+                  <span className="text-xs text-muted-foreground">{template.permissions.length} permission</span>
+                </div>
+                {templateLoading === template.key ? (
+                  <Loader2 className="ml-auto h-4 w-4 animate-spin" aria-hidden="true" />
+                ) : null}
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

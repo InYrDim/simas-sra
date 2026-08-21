@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 
 import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
 import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
-import { enforceTenantFeatureAccess } from "@/lib/features/tenant-feature-route-access";
+import { enforceTenantFeatureEnabled } from "@/lib/features/tenant-feature-route-access";
 import { getAbsensiConfig } from "@/lib/attendance/attendance-config-data";
 import { readTenantTimezone } from "@/lib/attendance/attendance-config";
 import { listGerbangRecordsForDayWithStudents, resolveOpenSession, resolveTodaysSession } from "@/lib/attendance/attendance-record-data";
@@ -21,7 +21,7 @@ export default async function AbsensiGerbangPage({
     params: Promise<{ domain: string }>;
 }) {
     const { domain } = await params;
-    await enforceTenantFeatureAccess(domain, "absensiGerbang", "read");
+    await enforceTenantFeatureEnabled(domain, "absensiGerbang");
 
     const evaluator = await createHttpTenantAuthorizationEvaluator();
     const result = await evaluator.evaluate({ surface: "page", domain, operationId: "absensi.attendance.load" });
@@ -29,9 +29,9 @@ export default async function AbsensiGerbangPage({
 
     const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
     const config = tenant ? await getAbsensiConfig(tenant.id) : null;
-    const mode = config?.activeLayers.gerbang;
+    const modes = config?.activeLayers.gerbang;
 
-    if (!tenant || !mode) {
+    if (!tenant || !modes || modes.length === 0) {
         return (
             <div className="flex flex-col gap-4 p-4">
                 <h1 className="text-2xl font-bold">Absensi Gerbang</h1>
@@ -80,7 +80,7 @@ export default async function AbsensiGerbangPage({
         <div className="flex flex-col gap-4 p-4">
             <h1 className="text-2xl font-bold">Absensi Gerbang</h1>
             <p className="text-muted-foreground">
-                Mode {ATTENDANCE_MODE_LABELS[mode]}. Pilih siswa lalu catat Masuk atau Keluar.
+                Mode: {modes.map((m) => ATTENDANCE_MODE_LABELS[m]).join(", ")}. Pilih siswa lalu catat Masuk atau Keluar.
             </p>
 
             <GerbangSessionPanel

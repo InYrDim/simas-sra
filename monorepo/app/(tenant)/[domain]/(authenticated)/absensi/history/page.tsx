@@ -72,9 +72,9 @@ export default async function AbsensiHistoryPage({
     );
     const timezone = readTenantTimezone(tenant.settings);
 
-    // Modes actually in use: each active layer is bound to one mode in config.
+    // Modes actually in use: a mode is active if any active layer includes it.
     const activeModes = ATTENDANCE_MODES.filter((mode): mode is AttendanceMode =>
-        activeLayers.some((layer) => config.activeLayers[layer] === mode),
+        activeLayers.some((layer) => config.activeLayers[layer]?.includes(mode)),
     );
     const modeFilter = sp.mode && activeModes.includes(sp.mode as AttendanceMode)
         ? (sp.mode as AttendanceMode)
@@ -112,7 +112,7 @@ export default async function AbsensiHistoryPage({
         dateTo: sp.to || undefined,
     }).then((rows) =>
         modeFilter
-            ? rows.filter((s) => config.activeLayers[s.layer] === modeFilter)
+            ? rows.filter((s) => config.activeLayers[s.layer]?.includes(modeFilter))
             : rows,
     );
 

@@ -7,6 +7,7 @@ import { randomUUID } from 'node:crypto';
 import { db } from '@/db';
 import { createHttpTenantAuthorizationEvaluator } from '@/lib/authorization/tenant-authorization-data';
 import { createTenantRoleLifecycleDataService, createTenantRoleLifecycleDataRepository } from '@/lib/authorization/tenant-role-lifecycle-data';
+import { getTenantRoleTemplate, TENANT_ROLE_TEMPLATE_VERSION } from '@/lib/authorization/tenant-role-templates';
 import type { TenantRoleState } from '@/lib/authorization/tenant-role-lifecycle';
 
 export type RoleStatus = TenantRoleState | "restored" | "deleted";
@@ -113,6 +114,35 @@ export async function createRole(domain: string, data: Partial<Role>): Promise<{
     return { success: true, role: { ...data, id: res.roleId, version: 1 } as Role };
   } catch {
     return { success: false, error: 'Failed to create role' };
+  }
+}
+
+export async function createRoleFromTemplate(domain: string, templateKey: string): Promise<{ success: boolean; error?: string }> {
+  try {
+    const template = getTenantRoleTemplate(templateKey);
+    if (!template) return { success: false, error: 'Template tidak ditemukan' };
+
+    const { tenantId, principal } = await enforceRoleAccess(domain, 'tenant.roles.create');
+    const service = createTenantRoleLifecycleDataService();
+
+    await service.createRole({
+      principal,
+      tenantId,
+      name: template.name,
+      origin: 'template',
+      templateKey: template.key,
+      templateVersion: TENANT_ROLE_TEMPLATE_VERSION,
+      description: template.description,
+      permissions: template.permissions,
+      reason: `Dibuat dari template ${template.name}`,
+      idempotencyKey: randomUUID(),
+      correlationId: randomUUID(),
+    });
+
+    revalidatePath(`/${domain}/settings/roles`);
+    return { success: true };
+  } catch {
+    return { success: false, error: 'Gagal membuat role dari template' };
   }
 }
 

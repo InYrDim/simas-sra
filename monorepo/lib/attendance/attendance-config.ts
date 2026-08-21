@@ -12,6 +12,9 @@
 export const ATTENDANCE_MODES = ["manual", "qr", "kartu"] as const;
 export type AttendanceMode = (typeof ATTENDANCE_MODES)[number];
 
+/** A layer may be active in more than one mode at once (e.g. manual + qr). */
+export type AttendanceModeList = AttendanceMode[];
+
 import type { AttendanceRecordStatus } from "@/lib/attendance/attendance-record";
 
 export const ATTENDANCE_LAYERS = ["gerbang", "kelas"] as const;
@@ -77,7 +80,7 @@ export const DEFAULT_GERBANG_SESSION_WINDOW: SessionWindow = { start: "06:00", e
  * reference a mode that the Provider later disables; pruning happens on save.
  */
 export type AbsensiSettings = {
-    activeLayers: Partial<Record<AttendanceLayer, AttendanceMode>>;
+    activeLayers: Partial<Record<AttendanceLayer, AttendanceModeList>>;
     sessionWindow?: Partial<Record<AttendanceLayer, SessionWindow>>;
     modeSettings?: Partial<Record<AttendanceMode, ModeSettings>>;
 };
@@ -100,7 +103,7 @@ export function isSessionWindow(value: unknown): value is SessionWindow {
 export type AbsensiConfig = {
     allowedModes: readonly AttendanceMode[];
     allowedLayers: readonly AttendanceLayer[];
-    activeLayers: Partial<Record<AttendanceLayer, AttendanceMode>>;
+    activeLayers: Partial<Record<AttendanceLayer, AttendanceModeList>>;
 };
 
 export function isAttendanceMode(value: unknown): value is AttendanceMode {
@@ -124,16 +127,29 @@ export function readTenantTimezone(settings: unknown): string {
 }
 
 /** Reads the stored settings, defaulting to an empty (no active layers) config. */
+/** Normalizes a stored layer value (legacy string or array) into a deduplicated mode list. */
+function normalizeLayerModes(raw: unknown): AttendanceModeList {
+    if (typeof raw === "string") return isAttendanceMode(raw) ? [raw] : [];
+    if (Array.isArray(raw)) {
+        const seen = new Set<AttendanceMode>();
+        for (const item of raw) {
+            if (isAttendanceMode(item)) seen.add(item);
+        }
+        return [...seen];
+    }
+    return [];
+}
+
 export function readAbsensiSettings(settings: unknown): AbsensiSettings {
     const safe = settings && typeof settings === "object" ? settings : {};
     const raw = (safe as Record<string, unknown>).absensi;
     const source = raw && typeof raw === "object" ? raw : {};
     const stored = (source as Record<string, unknown>).activeLayers;
-    const activeLayers: Partial<Record<AttendanceLayer, AttendanceMode>> = {};
+    const activeLayers: Partial<Record<AttendanceLayer, AttendanceModeList>> = {};
     if (stored && typeof stored === "object") {
         for (const layer of ATTENDANCE_LAYERS) {
-            const mode = (stored as Record<string, unknown>)[layer];
-            if (isAttendanceMode(mode)) activeLayers[layer] = mode;
+            const modes = normalizeLayerModes((stored as Record<string, unknown>)[layer]);
+            if (modes.length > 0) activeLayers[layer] = modes;
         }
     }
     const storedWindow = (source as Record<string, unknown>).sessionWindow;
@@ -173,7 +189,7 @@ export function getSessionWindow(
     const configured = s.sessionWindow?.[layer];
     if (isSessionWindow(configured)) return configured;
     // A QR layer may carry its own scan window in mode settings.
-    if (s.activeLayers[layer] === "qr") {
+    if (s.activeLayers[layer]?.includes("qr")) {
         const qrWindow = s.modeSettings?.qr?.scanWindow;
         if (isSessionWindow(qrWindow)) return qrWindow;
     }
@@ -192,12 +208,12 @@ export function getSessionWindow(
  */
 export function mergeAbsensiSettings(
     settings: unknown,
-    next: Partial<Record<AttendanceLayer, AttendanceMode | null | undefined>>,
+    next: Partial<Record<AttendanceLayer, AttendanceMode[] | null | undefined>>,
     allowedModes: readonly AttendanceMode[],
     allowedLayers: readonly AttendanceLayer[],
 ): AbsensiSettings {
     const base = readAbsensiSettings(settings);
-    const activeLayers: Partial<Record<AttendanceLayer, AttendanceMode>> = {};
+    const activeLayers: Partial<Record<AttendanceLayer, AttendanceModeList>> = {};
 
     for (const layer of allowedLayers) {
         const requested = next[layer];
@@ -205,10 +221,9 @@ export function mergeAbsensiSettings(
             // Explicit clear: drop any binding for this layer.
             continue;
         }
-        const mode = requested ?? base.activeLayers[layer];
-        if (mode && (allowedModes as readonly string[]).includes(mode)) {
-            activeLayers[layer] = mode;
-        }
+        const modes = requested ?? base.activeLayers[layer] ?? [];
+        const kept = modes.filter((m) => (allowedModes as readonly string[]).includes(m));
+        if (kept.length > 0) activeLayers[layer] = kept;
     }
 
     return { activeLayers };
@@ -227,14 +242,14 @@ export function filterAllowedActiveLayers(
     settings: unknown,
     allowedModes: readonly AttendanceMode[],
     allowedLayers: readonly AttendanceLayer[],
-): Partial<Record<AttendanceLayer, AttendanceMode>> {
+): Partial<Record<AttendanceLayer, AttendanceModeList>> {
     const stored = readAbsensiSettings(settings).activeLayers;
-    const activeLayers: Partial<Record<AttendanceLayer, AttendanceMode>> = {};
+    const activeLayers: Partial<Record<AttendanceLayer, AttendanceModeList>> = {};
     for (const layer of allowedLayers) {
-        const mode = stored[layer];
-        if (mode && (allowedModes as readonly string[]).includes(mode)) {
-            activeLayers[layer] = mode;
-        }
+        const modes = stored[layer];
+        if (!modes) continue;
+        const kept = modes.filter((m) => (allowedModes as readonly string[]).includes(m));
+        if (kept.length > 0) activeLayers[layer] = kept;
     }
     return activeLayers;
 }

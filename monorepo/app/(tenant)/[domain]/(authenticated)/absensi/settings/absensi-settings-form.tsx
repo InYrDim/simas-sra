@@ -6,13 +6,7 @@ import { saveAbsensiConfigAction, type SaveAbsensiConfigResult } from "@/app/(te
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
     ATTENDANCE_LAYER_LABELS,
     ATTENDANCE_LAYERS,
@@ -23,18 +17,18 @@ import {
 
 type LayerState = {
     enabled: boolean;
-    mode: AttendanceMode | "";
+    modes: AttendanceMode[];
 };
 
 function initialLayerState(
     layer: AttendanceLayer,
-    activeLayers: Partial<Record<AttendanceLayer, AttendanceMode>>,
+    activeLayers: Partial<Record<AttendanceLayer, AttendanceMode[]>>,
     allowedModes: readonly AttendanceMode[],
 ): LayerState {
-    const current = activeLayers[layer];
-    const enabled = Boolean(current);
-    const mode = current && allowedModes.includes(current) ? current : allowedModes[0] ?? "";
-    return { enabled, mode };
+    const current = activeLayers[layer] ?? [];
+    const enabled = current.length > 0;
+    const modes = current.filter((m) => allowedModes.includes(m));
+    return { enabled, modes };
 }
 
 export function AbsensiSettingsForm({
@@ -46,7 +40,7 @@ export function AbsensiSettingsForm({
     domain: string;
     allowedModes: readonly AttendanceMode[];
     allowedLayers: readonly AttendanceLayer[];
-    activeLayers: Partial<Record<AttendanceLayer, AttendanceMode>>;
+    activeLayers: Partial<Record<AttendanceLayer, AttendanceMode[]>>;
 }) {
     const [, formAction, pending] = useActionState<SaveAbsensiConfigResult, FormData>(
         (_state, formData) => saveAbsensiConfigAction(domain, formData),
@@ -59,8 +53,12 @@ export function AbsensiSettingsForm({
         ) as Record<AttendanceLayer, LayerState>,
     );
 
-    function updateLayer(layer: AttendanceLayer, next: Partial<LayerState>) {
-        setLayers((prev) => ({ ...prev, [layer]: { ...prev[layer], ...next } }));
+    function toggleMode(layer: AttendanceLayer, mode: AttendanceMode, checked: boolean) {
+        setLayers((prev) => {
+            const current = prev[layer].modes;
+            const modes = checked ? [...current, mode] : current.filter((m) => m !== mode);
+            return { ...prev, [layer]: { ...prev[layer], modes } };
+        });
     }
 
     return (
@@ -69,7 +67,6 @@ export function AbsensiSettingsForm({
                 const layerAllowed = allowedLayers.includes(layer);
                 const state = layers[layer];
                 const disabled = !layerAllowed || pending;
-                const submittedMode = state.enabled ? state.mode : "";
                 return (
                     <fieldset
                         key={layer}
@@ -83,42 +80,48 @@ export function AbsensiSettingsForm({
                                     <p className="text-sm text-muted-foreground">Dinonaktifkan oleh Provider.</p>
                                 ) : (
                                     <p className="text-sm text-muted-foreground">
-                                        Aktifkan lapisan ini dan pilih mode pencatatan.
+                                        Aktifkan lapisan ini, lalu pilih satu atau lebih mode pencatatan.
                                     </p>
                                 )}
                             </div>
                             <Switch
                                 checked={state.enabled}
-                                onCheckedChange={(checked) => updateLayer(layer, { enabled: checked })}
+                                onCheckedChange={(checked) =>
+                                    setLayers((prev) => ({ ...prev, [layer]: { ...prev[layer], enabled: checked } }))
+                                }
                                 disabled={!layerAllowed}
                                 aria-label={`Aktifkan lapisan ${ATTENDANCE_LAYER_LABELS[layer]}`}
                             />
                         </div>
 
-                        <div className="mt-4 flex items-center gap-3">
-                            <Label htmlFor={`mode-${layer}`} className="shrink-0">Mode</Label>
-                            <Select
-                                value={submittedMode}
-                                onValueChange={(value) => updateLayer(layer, { mode: (value ?? "") as AttendanceMode | "" })}
-                                disabled={!state.enabled || !layerAllowed}
-                            >
-                                <SelectTrigger id={`mode-${layer}`} className="w-48">
-                                    <SelectValue placeholder="Pilih mode" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="">Tanpa mode</SelectItem>
-                                    {allowedModes.map((mode) => (
-                                        <SelectItem key={mode} value={mode}>
-                                            {ATTENDANCE_MODE_LABELS[mode]}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
+                        <div className="mt-4 flex flex-wrap gap-4">
+                            {allowedModes.map((mode) => {
+                                const checked = state.modes.includes(mode);
+                                const id = `mode-${layer}-${mode}`;
+                                return (
+                                    <div key={mode} className="flex items-center gap-2">
+                                        <Checkbox
+                                            id={id}
+                                            checked={checked}
+                                            disabled={!state.enabled || !layerAllowed}
+                                            onCheckedChange={(value) => toggleMode(layer, mode, value === true)}
+                                        />
+                                        <Label htmlFor={id} className="font-normal">{ATTENDANCE_MODE_LABELS[mode]}</Label>
+                                    </div>
+                                );
+                            })}
                         </div>
 
                         {/* Hidden inputs carry the resolved state to the server action. */}
                         <input type="hidden" name={`layer-enabled:${layer}`} value={state.enabled ? "on" : ""} />
-                        <input type="hidden" name={`layer:${layer}`} value={submittedMode} />
+                        {allowedModes.map((mode) => (
+                            <input
+                                key={mode}
+                                type="hidden"
+                                name={`mode:${layer}:${mode}`}
+                                value={state.modes.includes(mode) ? "on" : ""}
+                            />
+                        ))}
                     </fieldset>
                 );
             })}

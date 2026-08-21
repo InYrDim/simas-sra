@@ -3,9 +3,10 @@ import "server-only";
 import { forbidden, notFound } from "next/navigation";
 
 import type { TenantFeatureKey } from "@/config/tenant-features";
-import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
+import { createHttpTenantAuthorizationEvaluator, tenantAuthorizationStore } from "@/lib/authorization/tenant-authorization-data";
 import type { TenantAuthorizationContext } from "@/lib/authorization/tenant-authorization";
 import { getTenantFeatureAccess } from "@/lib/features/tenant-feature-access-data";
+import { isTenantFeatureEnabled } from "@/lib/features/tenant-feature-policy";
 
 export async function enforceTenantOperation(
   domain: string,
@@ -48,4 +49,25 @@ export async function enforceTenantFeatureAccess(
     forbidden();
   }
   return access.principal;
+}
+
+// Enforces only the Provider feature flag (no school-admin requirement), so
+// RBAC-assigned non-admins (e.g. students with absensi.attendance.view) can
+// reach student-facing features. Permission/role enforcement stays in RBAC.
+export async function enforceTenantFeatureEnabled(
+  domain: string,
+  feature: TenantFeatureKey,
+) {
+  const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
+  if (!tenant) notFound();
+  if (!isTenantFeatureEnabled(tenant.settings, feature)) {
+    console.warn({
+      event: "tenant_feature_access_denied",
+      domain,
+      feature,
+      operation: "read",
+      reason: "feature-disabled",
+    });
+    forbidden();
+  }
 }

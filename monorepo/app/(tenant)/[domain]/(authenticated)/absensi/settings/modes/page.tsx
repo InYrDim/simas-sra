@@ -32,7 +32,7 @@ export default async function AbsensiModesPage({
     const allowedModes = config?.allowedModes ?? [];
 
     const layersUsing = (mode: AttendanceMode) =>
-        ATTENDANCE_LAYERS.filter((layer) => config?.activeLayers[layer] === mode);
+        ATTENDANCE_LAYERS.filter((layer) => config?.activeLayers[layer]?.includes(mode));
 
     return (
         <div className="flex flex-col gap-4 p-4">
