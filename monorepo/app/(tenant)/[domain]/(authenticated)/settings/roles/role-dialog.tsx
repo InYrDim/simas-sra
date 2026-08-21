@@ -63,30 +63,35 @@ function PermissionGroupFieldset({
   disabled: boolean;
 }) {
   return (
-    <fieldset className="space-y-2">
-      <legend className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+    <section className="space-y-2 rounded-md border p-4">
+      <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         {group.label}
-      </legend>
-      {group.permissions.map((permission) => (
-        <div key={permission.key} className="flex items-start space-x-3">
-          <Checkbox
-            id={`perm-${permission.key}`}
-            checked={selected(permission.key)}
-            onCheckedChange={(checked) => onToggle(permission.key, checked as boolean)}
-            disabled={disabled}
-          />
-          <div className="grid gap-1.5 leading-none">
-            <label
-              htmlFor={`perm-${permission.key}`}
-              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-            >
-              {permission.label}
-            </label>
-            <p className="text-xs text-muted-foreground">{permission.key}</p>
+      </h4>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {group.permissions.map((permission) => (
+          <div
+            key={permission.key}
+            className="flex items-start space-x-3 rounded-md border p-3"
+          >
+            <Checkbox
+              id={`perm-${permission.key}`}
+              checked={selected(permission.key)}
+              onCheckedChange={(checked) => onToggle(permission.key, checked as boolean)}
+              disabled={disabled}
+            />
+            <div className="grid gap-1.5 leading-none">
+              <label
+                htmlFor={`perm-${permission.key}`}
+                className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+              >
+                {permission.label}
+              </label>
+              <p className="text-xs text-muted-foreground">{permission.key}</p>
+            </div>
           </div>
-        </div>
-      ))}
-    </fieldset>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -177,7 +182,7 @@ export function RoleDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-5xl max-h-[90vh] overflow-y-auto">
         <form onSubmit={handleSubmit}>
           <DialogHeader>
             <DialogTitle>{title}</DialogTitle>
@@ -209,7 +214,7 @@ export function RoleDialog({
 
             <div className="grid gap-2 mt-2">
               <Label>Permissions</Label>
-              <div className="border rounded-md p-4 space-y-4 max-h-[240px] overflow-y-auto">
+              <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
                 {permissionGroups.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No assignable permissions available.</p>
                 ) : (
