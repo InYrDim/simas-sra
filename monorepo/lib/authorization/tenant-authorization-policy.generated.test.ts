@@ -111,6 +111,7 @@ for (const operation of generatedOperations) {
       store: storeFor(account(), {
         schoolAdminAuthorityStates: ["active"],
         assignments: [],
+        hiddenMenuKeys: [],
       }),
     }).evaluate(requestFor(operation));
     assert.equal(result.rbac.allowed, true, result.rbac.denial?.code);
@@ -127,6 +128,7 @@ for (const operation of generatedOperations) {
         roleLifecycle: "active",
         permissionKeys: grantClosure(operation.requiredPermissions),
       }],
+      hiddenMenuKeys: [],
     };
     const granted = await createTenantAuthorizationEvaluator({
       store: storeFor(account(), exactGrant),
@@ -135,7 +137,7 @@ for (const operation of generatedOperations) {
     assert.equal(granted.rbac.allowed, !schoolAdminOnly, granted.rbac.denial?.code);
 
     const zeroRole = await createTenantAuthorizationEvaluator({
-      store: storeFor(account(), { schoolAdminAuthorityStates: [], assignments: [] }),
+      store: storeFor(account(), { schoolAdminAuthorityStates: [], assignments: [], hiddenMenuKeys: [] }),
     }).evaluate(requestFor(operation));
     assert.equal(zeroRole.rbac.allowed, false);
     assert.equal(zeroRole.rbac.denial?.code, "permission-denied");
@@ -168,6 +170,7 @@ test("generated denial matrix covers inactive accounts, invalid grants, read-onl
         roleLifecycle: "active",
         permissionKeys: grantClosure(operation.requiredPermissions),
       }],
+      hiddenMenuKeys: [],
     };
 
     const inactive = await createTenantAuthorizationEvaluator({
@@ -219,8 +222,7 @@ test("generated projection matrix requires every declared supplemental permissio
           roleId: "role",
           roleLifecycle: "active",
           permissionKeys: grantClosure(permissions),
-        }],
-      }),
+        }],        hiddenMenuKeys: [],      }),
     }).evaluate(requestFor(operation));
     assert.equal(result.rbac.allowed, false, operation.id);
     assert.equal(result.rbac.denial?.code, "permission-denied", operation.id);
@@ -240,6 +242,7 @@ test("generated contextual matrix fails closed without proof and accepts every d
         roleLifecycle: "active",
         permissionKeys: grantClosure(operation.requiredPermissions),
       }],
+      hiddenMenuKeys: [],
     });
     const result = await createTenantAuthorizationEvaluator({ store }).evaluate({
       ...requestFor(operation),

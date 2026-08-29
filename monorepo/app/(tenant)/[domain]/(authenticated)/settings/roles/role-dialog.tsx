@@ -18,12 +18,25 @@ import { toast } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import { tenantMenuItems } from '@/components/tenant-nav-menu/config';
 // Type-only import: the catalog module (and the registry underneath) is
 // server-only; only the plain permission data travels to the client via props.
 import type {
   TenantAssignableRolePermission,
   TenantAssignableRolePermissionGroup,
 } from '@/lib/authorization/tenant-role-permission-catalog';
+
+/** Flatten the static nav config into toggleable menu keys with titles. */
+function allMenuItems(): { key: string; title: string; parent?: string }[] {
+  const items: { key: string; title: string; parent?: string }[] = [];
+  for (const item of tenantMenuItems) {
+    items.push({ key: item.key, title: item.title });
+    for (const child of item.items ?? []) {
+      items.push({ key: child.key, title: child.title, parent: item.title });
+    }
+  }
+  return items;
+}
 
 interface RoleDialogProps {
   isOpen: boolean;
@@ -118,6 +131,17 @@ export function RoleDialog({
     const known = new Set(allPermissionKeys(permissionGroups));
     return role.permissions.filter((key) => known.has(key));
   });
+  // Per-role sidebar visibility. Absent keys default to visible (true).
+  const [menuVisibility, setMenuVisibility] = React.useState<Record<string, boolean>>(() => {
+    const map: Record<string, boolean> = {};
+    for (const item of allMenuItems()) map[item.key] = true;
+    if (role?.menuVisibility) {
+      for (const [key, visible] of Object.entries(role.menuVisibility)) {
+        if (key in map) map[key] = visible !== false;
+      }
+    }
+    return map;
+  });
   const [isLoading, setIsLoading] = React.useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -133,6 +157,7 @@ export function RoleDialog({
         name,
         description,
         permissions,
+        menuVisibility,
       };
 
       let res;
@@ -228,6 +253,31 @@ export function RoleDialog({
                     />
                   ))
                 )}
+              </div>
+            </div>
+
+            <div className="grid gap-2 mt-2">
+              <Label>Menu Sidebar</Label>
+              <p className="text-xs text-muted-foreground">
+                Sembunyikan item menu dari pengguna pemegang role ini. Menu hanya muncul bila
+                pengguna punya izin terkait DAN tidak disembunyikan di sini.
+              </p>
+              <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-1 rounded-md border p-3">
+                {allMenuItems().map((item) => (
+                  <div key={item.key} className="flex items-center justify-between gap-3">
+                    <span className="text-sm">
+                      {item.parent ? `${item.parent} › ${item.title}` : item.title}
+                    </span>
+                    <Checkbox
+                      id={`menu-${item.key}`}
+                      checked={menuVisibility[item.key] !== false}
+                      onCheckedChange={(checked) =>
+                        setMenuVisibility((prev) => ({ ...prev, [item.key]: checked as boolean }))
+                      }
+                      disabled={isViewOnly || isLoading}
+                    />
+                  </div>
+                ))}
               </div>
             </div>
 

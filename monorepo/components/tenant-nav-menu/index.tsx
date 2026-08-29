@@ -117,16 +117,21 @@ export function TenantNavMenu({
   domain,
   features,
   menuVisibility,
+  hiddenMenuKeys,
 }: {
   items: TenantNavItem[]
   permissions: readonly string[]
   domain: string
   features: TenantFeatureSelection
   menuVisibility?: Record<string, boolean>
+  /** Menu keys hidden by the principal's active role assignments. */
+  hiddenMenuKeys?: ReadonlySet<string>
 }) {
   const pathname = usePathname()
   const permissionSet = new Set(permissions)
-  const hiddenKeys = menuVisibility ? resolveHiddenMenuKeys(menuVisibility) : null
+  const providerHidden = menuVisibility ? resolveHiddenMenuKeys(menuVisibility) : null
+  // Role-assignment visibility is additive to the Provider-owned visibility.
+  const hiddenKeys = new Set<string>([...(providerHidden ?? []), ...(hiddenMenuKeys ?? [])])
 
   const filteredItems = items.filter((item) => {
     if (hiddenKeys?.has(item.key)) return false

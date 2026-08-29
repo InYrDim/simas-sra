@@ -56,6 +56,7 @@ class FakeRoleStore {
           legacyRole: null,
           version: 1,
           permissions: [],
+          menuVisibility: {},
         });
       },
       updateRole: async (input) => {
@@ -87,6 +88,14 @@ class FakeRoleStore {
         this.roles.set(roleId, {
           ...row,
           permissions: row.permissions.filter((p) => !remove.has(p)),
+        });
+      },
+      upsertMenuVisibility: async (tenantId, roleId, menuVisibility) => {
+        const row = this.roles.get(roleId);
+        if (!row || row.tenantId !== tenantId) return;
+        this.roles.set(roleId, {
+          ...row,
+          menuVisibility: { ...row.menuVisibility, ...menuVisibility },
         });
       },
       countActiveAssignments: async () => this.activeAssignmentCount,

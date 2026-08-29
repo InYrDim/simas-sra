@@ -83,6 +83,7 @@ const store = (connection?: mysql.PoolConnection): TenantAuthorizationStore => (
         ...assignment,
         permissionKeys: [...new Set(assignment.permissionKeys)].sort(),
       })),
+      hiddenMenuKeys: [],
     };
   },
 

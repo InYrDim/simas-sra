@@ -19,6 +19,8 @@ export interface Role {
   status: RoleStatus;
   userCount: number;
   permissions: string[];
+  /** Menu keys hidden for this role; absent keys default to visible. */
+  menuVisibility?: Record<string, boolean>;
   createdAt: string;
   updatedAt: string;
   version: number;
@@ -61,6 +63,7 @@ export async function getRoles(domain: string): Promise<Role[]> {
         status: r.lifecycle,
         userCount,
         permissions: [...r.permissions],
+        menuVisibility: { ...r.menuVisibility },
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         version: r.version,
@@ -86,6 +89,7 @@ export async function getRole(domain: string, id: string): Promise<Role | null> 
       status: r.lifecycle,
       userCount,
       permissions: [...r.permissions],
+      menuVisibility: { ...r.menuVisibility },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       version: r.version,
@@ -105,6 +109,7 @@ export async function createRole(domain: string, data: Partial<Role>): Promise<{
       origin: 'scratch',
       description: data.description ?? null,
       permissions: data.permissions || [],
+      menuVisibility: data.menuVisibility || {},
       reason: data.description || 'Created via UI',
       idempotencyKey: randomUUID(),
       correlationId: randomUUID(),
@@ -201,11 +206,22 @@ export async function updateRole(domain: string, id: string, expectedVersion: nu
           expectedVersion,
           addedPermissions,
           removedPermissions,
+          menuVisibility: data.menuVisibility || {},
           reason: data.description || 'Permissions updated via UI',
           idempotencyKey: randomUUID(),
           correlationId,
         });
       }
+    }
+
+    // Persist menu visibility even when no permission changed (e.g. user only
+    // toggled sidebar items). Upsert is idempotent so a concurrent permission
+    // edit above is harmless.
+    if (data.menuVisibility && Object.keys(data.menuVisibility).length > 0) {
+      await db.transaction(async (tx) => {
+        const repo = createTenantRoleLifecycleDataRepository({ database: tx });
+        await repo.upsertMenuVisibility(tenantId, id, data.menuVisibility!, new Date());
+      });
     }
 
     revalidatePath(`/${domain}/settings/roles`);

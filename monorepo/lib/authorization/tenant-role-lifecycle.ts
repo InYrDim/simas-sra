@@ -72,6 +72,8 @@ export type LifecycleRoleRow = Readonly<{
   legacyRole: string | null;
   version: number;
   permissions: readonly string[];
+  /** Menu keys hidden for this role; absent keys default to visible. */
+  menuVisibility: Readonly<Record<string, boolean>>;
 }>;
 
 export interface TenantRoleLifecycleRepository {
@@ -101,6 +103,7 @@ export interface TenantRoleLifecycleRepository {
   }>): Promise<boolean>;
   insertPermissions(tenantId: string, roleId: string, permissions: readonly string[], createdAt: Date): Promise<void>;
   deletePermissions(tenantId: string, roleId: string, permissions: readonly string[]): Promise<void>;
+  upsertMenuVisibility(tenantId: string, roleId: string, menuVisibility: Readonly<Record<string, boolean>>, createdAt: Date): Promise<void>;
   countActiveAssignments(tenantId: string, roleId: string): Promise<number>;
   deleteRole(tenantId: string, roleId: string): Promise<void>;
   isSchoolAdmin(tenantId: string, userId: string): Promise<boolean>;
@@ -149,6 +152,7 @@ export type CreateRoleInput = Readonly<{
   copiedFromRoleId?: string;
   description?: string | null;
   permissions: readonly string[];
+  menuVisibility?: Readonly<Record<string, boolean>>;
   reason: string;
   idempotencyKey: string;
   correlationId: string;
@@ -199,6 +203,7 @@ export type EditPermissionsInput = Readonly<{
   expectedVersion: number;
   addedPermissions: readonly string[];
   removedPermissions: readonly string[];
+  menuVisibility?: Readonly<Record<string, boolean>>;
   reason: string;
   idempotencyKey: string;
   correlationId: string;
@@ -407,6 +412,10 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
             await repo.insertPermissions(input.tenantId, roleId, input.permissions, createdAt);
           }
 
+          if (input.menuVisibility && Object.keys(input.menuVisibility).length > 0) {
+            await repo.upsertMenuVisibility(input.tenantId, roleId, input.menuVisibility, createdAt);
+          }
+
           return {
             result: { status: "role-created", roleId, lifecycle: "draft" },
             auditEvents: [{
@@ -589,6 +598,10 @@ export function createTenantRoleLifecycleService<TTransaction extends object>(de
           }
           if (input.addedPermissions.length > 0) {
             await repo.insertPermissions(input.tenantId, input.roleId, input.addedPermissions, now());
+          }
+
+          if (input.menuVisibility && Object.keys(input.menuVisibility).length > 0) {
+            await repo.upsertMenuVisibility(input.tenantId, input.roleId, input.menuVisibility, now());
           }
 
           return {

@@ -44,7 +44,7 @@ const rbacRollout: TenantAuthorizationRollout = {
   emergencyOverlay: null,
 };
 
-function authority(permissionKeys: readonly string[] = []): TenantAuthorizationAuthority {
+function authority(permissionKeys: readonly string[] = [], hiddenMenuKeys: readonly string[] = []): TenantAuthorizationAuthority {
   return {
     schoolAdminAuthorityStates: [],
     assignments: permissionKeys.length ? [{
@@ -54,6 +54,7 @@ function authority(permissionKeys: readonly string[] = []): TenantAuthorizationA
       roleLifecycle: "active",
       permissionKeys,
     }] : [],
+    hiddenMenuKeys,
   };
 }
 
@@ -161,13 +162,13 @@ test("inactive, conflicting identity, and incomplete activation states grant no 
 });
 
 test("dedicated School Admin authority is active only at exact valid cardinality", async () => {
-  const active = fixture({ authority: { schoolAdminAuthorityStates: ["active"], assignments: [] } });
+  const active = fixture({ authority: { schoolAdminAuthorityStates: ["active"], assignments: [], hiddenMenuKeys: [] } });
   const first = await createTenantAuthorizationEvaluator({ store: active.store }).evaluate(dashboardRequest);
   assert.equal(first.kind, "authorized");
   assert.equal(first.rbac.allowed, true);
 
   for (const schoolAdminAuthorityStates of [[], ["disabled"], ["unknown"], ["active", "active"]]) {
-    const malformed = fixture({ authority: { schoolAdminAuthorityStates, assignments: [] } });
+    const malformed = fixture({ authority: { schoolAdminAuthorityStates, assignments: [], hiddenMenuKeys: [] } });
     const result = await createTenantAuthorizationEvaluator({ store: malformed.store }).evaluate(dashboardRequest);
     assert.equal(result.kind, "denied");
     assert.equal(result.rbac.denial?.code, "permission-denied");
@@ -184,6 +185,7 @@ test("unknown and inactive grants are ignored rather than widening effective acc
         { assignmentId: "c", assignmentState: "active", roleId: "archived", roleLifecycle: "archived", permissionKeys: ["tenant.dashboard.view"] },
         { assignmentId: "d", assignmentState: "active", roleId: "incomplete", roleLifecycle: "active", permissionKeys: ["tenant.users.view-contact"] },
       ],
+      hiddenMenuKeys: [],
     },
   });
   const result = await createTenantAuthorizationEvaluator({ store }).evaluate(dashboardRequest);
@@ -243,7 +245,7 @@ test("admin-only placeholder pages require tenant.authorization-audit.view", asy
 
   const nonAdmin = fixture({ authority: authority(["tenant.dashboard.view", "absensi.attendance.view"]) });
   const admin = fixture({
-    authority: { schoolAdminAuthorityStates: ["active"], assignments: [] },
+    authority: { schoolAdminAuthorityStates: ["active"], assignments: [], hiddenMenuKeys: [] },
   });
 
   for (const operationId of adminOnlyOperationIds) {
@@ -286,7 +288,7 @@ test("a missing rollout record fails closed instead of guessing an authority mod
 
 test("stale and unsupported rollout state fails closed for HTTP and worker mutations", async () => {
   const account = activeAccount;
-  const adminAuthority: TenantAuthorizationAuthority = { schoolAdminAuthorityStates: ["active"], assignments: [] };
+  const adminAuthority: TenantAuthorizationAuthority = { schoolAdminAuthorityStates: ["active"], assignments: [], hiddenMenuKeys: [] };
   const baseRequest = {
     sessionUserId: "user-1",
     domain: "school.example",
@@ -316,7 +318,7 @@ test("stale and unsupported rollout state fails closed for HTTP and worker mutat
 });
 
 test("legacy and intersection rollout modes are rejected on HTTP and worker surfaces", async () => {
-  const adminAuthority: TenantAuthorizationAuthority = { schoolAdminAuthorityStates: ["active"], assignments: [] };
+  const adminAuthority: TenantAuthorizationAuthority = { schoolAdminAuthorityStates: ["active"], assignments: [], hiddenMenuKeys: [] };
   for (const mode of ["legacy", "intersection"] as const) {
     for (const surface of ["api", "worker"] as const) {
       const rollout: TenantAuthorizationRollout = {
@@ -351,7 +353,7 @@ test("persisted emergency policy can only narrow an otherwise valid RBAC mutatio
     emergencyOverlay: { ...body, overlayHash: emergencyOverlayDigest(body) },
   };
   const { store } = fixture({
-    authority: { schoolAdminAuthorityStates: ["active"], assignments: [] },
+    authority: { schoolAdminAuthorityStates: ["active"], assignments: [], hiddenMenuKeys: [] },
     rollout,
   });
   const result = await createTenantAuthorizationEvaluator({
@@ -380,7 +382,7 @@ test("persisted emergency policy can only narrow an otherwise valid RBAC mutatio
   assert.equal(workerResult.rbac.denial?.code, "permission-denied");
 
   const malformed = fixture({
-    authority: { schoolAdminAuthorityStates: ["active"], assignments: [] },
+    authority: { schoolAdminAuthorityStates: ["active"], assignments: [], hiddenMenuKeys: [] },
     rollout: { ...rollout, emergencyOverlay: { ...rollout.emergencyOverlay!, overlayHash: "a".repeat(64) } },
   });
   const malformedResult = await createTenantAuthorizationEvaluator({

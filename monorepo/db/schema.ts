@@ -875,6 +875,28 @@ export const tenantRolePermission = mysqlTable(
   ],
 );
 
+// Per-role sidebar menu visibility. A row with `visible = false` hides that
+// menu key (and its sub-items) from every user holding the role. Absence of a
+// row defaults to visible. This is independent of the Provider-owned
+// `tenant.settings.menu` visibility and of RBAC permissions: a menu is shown
+// only when the user has the required permission AND no active role hides it.
+export const tenantRoleMenuVisibility = mysqlTable(
+  "tenant_role_menu_visibility",
+  {
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    roleId: varchar("role_id", { length: 36 }).notNull(),
+    menuKey: varchar("menu_key", { length: 100 }).notNull(),
+    visible: boolean("visible").notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("tenant_role_menu_visibility_unique").on(table.tenantId, table.roleId, table.menuKey),
+    foreignKey({ columns: [table.tenantId, table.roleId], foreignColumns: [tenantRole.tenantId, tenantRole.id], name: "tenant_role_menu_visibility_role_fkey" }),
+    index("tenant_role_menu_visibility_role_idx").on(table.tenantId, table.roleId),
+  ],
+);
+
 export const tenantAccountSecurity = mysqlTable(
   "tenant_account_security",
   {

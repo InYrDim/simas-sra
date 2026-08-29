@@ -1,8 +1,9 @@
-import { and, eq, inArray, count } from "drizzle-orm";
+import { and, eq, inArray, count, sql } from "drizzle-orm";
 
 import {
   tenantRole,
   tenantRolePermission,
+  tenantRoleMenuVisibility,
   tenantRoleAssignment,
   tenant,
   schoolAdminAuthority,
@@ -77,6 +78,22 @@ export function createTenantRoleLifecycleDataRepository(
         arr.push(p.permissionKey);
       }
 
+      const menuRows = await database
+        .select({ roleId: tenantRoleMenuVisibility.roleId, menuKey: tenantRoleMenuVisibility.menuKey, visible: tenantRoleMenuVisibility.visible })
+        .from(tenantRoleMenuVisibility)
+        .where(eq(tenantRoleMenuVisibility.tenantId, tenantId))
+        .for("update");
+
+      const menuByRole = new Map<string, Record<string, boolean>>();
+      for (const m of menuRows) {
+        let map = menuByRole.get(m.roleId);
+        if (!map) {
+          map = {};
+          menuByRole.set(m.roleId, map);
+        }
+        map[m.menuKey] = m.visible !== false;
+      }
+
       return rows.map((row): LifecycleRoleRow => ({
         id: row.id,
         tenantId: row.tenantId,
@@ -91,6 +108,7 @@ export function createTenantRoleLifecycleDataRepository(
         legacyRole: row.legacyRole,
         version: row.version,
         permissions: permsByRole.get(row.id) ?? [],
+        menuVisibility: menuByRole.get(row.id) ?? {},
       }));
     },
 
@@ -118,6 +136,18 @@ export function createTenantRoleLifecycleDataRepository(
         ))
         .for("update");
 
+      const menuRows = await database
+        .select({ menuKey: tenantRoleMenuVisibility.menuKey, visible: tenantRoleMenuVisibility.visible })
+        .from(tenantRoleMenuVisibility)
+        .where(and(
+          eq(tenantRoleMenuVisibility.tenantId, tenantId),
+          eq(tenantRoleMenuVisibility.roleId, roleId)
+        ))
+        .for("update");
+
+      const menuVisibility: Record<string, boolean> = {};
+      for (const m of menuRows) menuVisibility[m.menuKey] = m.visible !== false;
+
       return {
         id: row.id,
         tenantId: row.tenantId,
@@ -132,6 +162,7 @@ export function createTenantRoleLifecycleDataRepository(
         legacyRole: row.legacyRole,
         version: row.version,
         permissions: permissions.map(p => p.permissionKey),
+        menuVisibility,
       };
     },
 
@@ -196,6 +227,26 @@ export function createTenantRoleLifecycleDataRepository(
         eq(tenantRolePermission.roleId, roleId),
         inArray(tenantRolePermission.permissionKey, permissions)
       ));
+    },
+
+    async upsertMenuVisibility(tenantId, roleId, menuVisibility, createdAt) {
+      assertIdentifier(tenantId);
+      assertIdentifier(roleId);
+      const keys = Object.keys(menuVisibility);
+      if (keys.length === 0) return;
+      await database.insert(tenantRoleMenuVisibility).values(keys.map(key => ({
+        tenantId,
+        roleId,
+        menuKey: key,
+        visible: menuVisibility[key] !== false,
+        createdAt,
+        updatedAt: createdAt,
+      }))).onDuplicateKeyUpdate({
+        set: {
+          visible: sql`values(${tenantRoleMenuVisibility.visible})`,
+          updatedAt: createdAt,
+        },
+      });
     },
 
     async countActiveAssignments(tenantId, roleId) {

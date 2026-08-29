@@ -49,10 +49,12 @@ export default async function DashboardLayout({ children, params }: {
   }
 
   // Server-side enforcement: a hidden sidebar menu must not be reachable by
-  // typing its URL directly. The dashboard is always allowed.
+  // typing its URL directly. The dashboard is always allowed. Provider-owned
+  // visibility and per-role assignment visibility both block direct access.
+  const roleHiddenMenuKeys = principal.hiddenMenuKeys;
   if (relativePath !== "/dashboard") {
     const menuKey = resolveMenuKeyForPath(relativePath);
-    if (menuKey && menuVisibility[menuKey] === false) notFound();
+    if (menuKey && (menuVisibility[menuKey] === false || roleHiddenMenuKeys.has(menuKey))) notFound();
   }
 
   const gatedArea = pathname
@@ -66,7 +68,7 @@ export default async function DashboardLayout({ children, params }: {
     : children;
 
   return <SidebarProvider>
-    <TenantSidebar permissions={permissions} domain={domain} tenantName={tenant.name} features={features} trialStarted={tenant.onboardingCompletedAt !== null} menuVisibility={menuVisibility} />
+    <TenantSidebar permissions={permissions} domain={domain} tenantName={tenant.name} features={features} trialStarted={tenant.onboardingCompletedAt !== null} menuVisibility={menuVisibility} hiddenMenuKeys={principal.hiddenMenuKeys} />
     <SidebarInset>
       <TrialBanner domain={domain} />
       <DashboardHeader domain={domain} />

@@ -16,6 +16,7 @@ import {
   tenantRole,
   tenantRoleAssignment,
   tenantRolePermission,
+  tenantRoleMenuVisibility,
   user,
 } from "@/db/schema";
 import {
@@ -84,7 +85,7 @@ export const tenantAuthorizationStore: TenantAuthorizationStore = {
   },
 
   async loadAuthority(userId, tenantId) {
-    const [authorityRows, assignmentRows] = await Promise.all([
+    const [authorityRows, assignmentRows, menuVisibilityRows] = await Promise.all([
       db
         .select({ state: schoolAdminAuthority.authorityState })
         .from(schoolAdminAuthority)
@@ -113,6 +114,22 @@ export const tenantAuthorizationStore: TenantAuthorizationStore = {
           eq(tenantRoleAssignment.userId, userId),
           eq(tenantRoleAssignment.tenantId, tenantId),
         )),
+      db
+        .select({
+          roleId: tenantRoleMenuVisibility.roleId,
+          menuKey: tenantRoleMenuVisibility.menuKey,
+          visible: tenantRoleMenuVisibility.visible,
+        })
+        .from(tenantRoleMenuVisibility)
+        .innerJoin(tenantRoleAssignment, and(
+          eq(tenantRoleAssignment.roleId, tenantRoleMenuVisibility.roleId),
+          eq(tenantRoleAssignment.tenantId, tenantRoleMenuVisibility.tenantId),
+        ))
+        .where(and(
+          eq(tenantRoleAssignment.userId, userId),
+          eq(tenantRoleAssignment.tenantId, tenantId),
+          eq(tenantRoleAssignment.state, "active"),
+        )),
     ]);
 
     const assignments = new Map<string, {
@@ -137,12 +154,21 @@ export const tenantAuthorizationStore: TenantAuthorizationStore = {
       if (row.permissionKey !== null) assignment.permissionKeys.push(row.permissionKey);
     }
 
+    // A menu key is hidden for the user when any active role assignment marks
+    // it not visible. Absent rows default to visible, so the hidden set only
+    // ever grows from explicit `visible = false` rows.
+    const hiddenMenuKeys = new Set<string>();
+    for (const row of menuVisibilityRows) {
+      if (row.visible === false) hiddenMenuKeys.add(row.menuKey);
+    }
+
     return {
       schoolAdminAuthorityStates: authorityRows.map((row) => row.state),
       assignments: [...assignments.values()].map((assignment) => ({
         ...assignment,
         permissionKeys: [...new Set(assignment.permissionKeys)].sort(),
       })),
+      hiddenMenuKeys: [...hiddenMenuKeys].sort(),
     };
   },
 

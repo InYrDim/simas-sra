@@ -103,6 +103,8 @@ export type TenantAuthorizationAssignment = Readonly<{
 export type TenantAuthorizationAuthority = Readonly<{
   schoolAdminAuthorityStates: readonly string[];
   assignments: readonly TenantAuthorizationAssignment[];
+  /** Menu keys hidden from the user by any active role assignment. */
+  hiddenMenuKeys: readonly string[];
 }>;
 
 export interface TenantAuthorizationStore {
@@ -118,6 +120,8 @@ export type TenantAuthorizationPrincipal = Readonly<{
   schoolAdmin: boolean;
   roleIds: readonly string[];
   permissions: ReadonlySet<string>;
+  /** Menu keys hidden from this principal by any active role assignment. */
+  hiddenMenuKeys: ReadonlySet<string>;
   rolloutEpoch: bigint;
   selfPersonId?: string | null;
   readOnly: boolean;
@@ -277,7 +281,11 @@ function activeAuthority(authority: TenantAuthorizationAuthority) {
     }
   }
 
-  return { schoolAdmin, roleIds: [...roleIds].sort(), permissions };
+  // Menu visibility is resolved per active assignment at the store layer, so
+  // the authority already carries the union of hidden keys for this user.
+  const hiddenMenuKeys = new Set(authority.hiddenMenuKeys);
+
+  return { schoolAdmin, roleIds: [...roleIds].sort(), permissions, hiddenMenuKeys };
 }
 
 function rolloutDenial(
@@ -442,6 +450,7 @@ export function createTenantAuthorizationEvaluator(dependencies: TenantAuthoriza
           schoolAdmin: effective?.schoolAdmin ?? false,
           roleIds: effective?.roleIds ?? [],
           permissions: effective?.permissions ?? new Set<string>(),
+          hiddenMenuKeys: effective?.hiddenMenuKeys ?? new Set<string>(),
           rolloutEpoch: rollout?.epoch ?? BigInt(0),
           selfPersonId: account?.selfPersonId ?? null,
           readOnly: tenant.operationalStatus === "suspended" || (tenant.trialEndsAt !== null && tenant.trialEndsAt.getTime() <= now().getTime()),

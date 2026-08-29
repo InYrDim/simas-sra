@@ -23,6 +23,7 @@ export function TenantSidebar({
   features,
   trialStarted,
   menuVisibility,
+  hiddenMenuKeys,
 }: {
   permissions: readonly string[];
   domain: string;
@@ -30,6 +31,7 @@ export function TenantSidebar({
   features: TenantFeatureSelection;
   trialStarted?: boolean;
   menuVisibility?: Record<string, boolean>;
+  hiddenMenuKeys?: ReadonlySet<string>;
 }) {
   return (
     <div
@@ -67,7 +69,7 @@ export function TenantSidebar({
 
         <SidebarContent>
           {trialStarted !== false ? (
-            <TenantNavMenu items={tenantMenuItems} permissions={permissions} domain={domain} features={features} menuVisibility={menuVisibility} />
+            <TenantNavMenu items={tenantMenuItems} permissions={permissions} domain={domain} features={features} menuVisibility={menuVisibility} hiddenMenuKeys={hiddenMenuKeys} />
           ) : (
             <div className="flex flex-col items-center justify-center p-6 text-center text-sidebar-foreground/60 h-32 gap-3 group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:h-auto">
               <AlertCircle className="size-6 text-amber-500/80" />
