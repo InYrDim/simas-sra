@@ -21,6 +21,8 @@ export interface Role {
   permissions: string[];
   /** Menu keys hidden for this role; absent keys default to visible. */
   menuVisibility?: Record<string, boolean>;
+  /** Template this role was instantiated from, if any. */
+  templateKey?: string | null;
   createdAt: string;
   updatedAt: string;
   version: number;
@@ -64,6 +66,7 @@ export async function getRoles(domain: string): Promise<Role[]> {
         userCount,
         permissions: [...r.permissions],
         menuVisibility: { ...r.menuVisibility },
+        templateKey: r.templateKey,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
         version: r.version,
@@ -90,6 +93,7 @@ export async function getRole(domain: string, id: string): Promise<Role | null> 
       userCount,
       permissions: [...r.permissions],
       menuVisibility: { ...r.menuVisibility },
+      templateKey: r.templateKey,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       version: r.version,
@@ -139,6 +143,7 @@ export async function createRoleFromTemplate(domain: string, templateKey: string
       templateVersion: TENANT_ROLE_TEMPLATE_VERSION,
       description: template.description,
       permissions: template.permissions,
+      menuVisibility: template.menuVisibility,
       reason: `Dibuat dari template ${template.name}`,
       idempotencyKey: randomUUID(),
       correlationId: randomUUID(),
@@ -148,6 +153,49 @@ export async function createRoleFromTemplate(domain: string, templateKey: string
     return { success: true };
   } catch {
     return { success: false, error: 'Gagal membuat role dari template' };
+  }
+}
+
+export async function updateRoleFromTemplate(
+  domain: string,
+  id: string,
+  expectedVersion: number,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { tenantId, principal } = await enforceRoleAccess(domain, 'tenant.roles.update', [
+      'tenant.roles.change-permissions',
+    ]);
+    const service = createTenantRoleLifecycleDataService();
+
+    // Read the role's own templateKey so we re-apply the same template it was
+    // created from (no client-supplied key to trust).
+    const existing = await getRole(domain, id);
+    if (!existing?.templateKey) return { success: false, error: 'Role bukan dari template' };
+    const template = getTenantRoleTemplate(existing.templateKey);
+    if (!template) return { success: false, error: 'Template tidak ditemukan' };
+
+    const currentPerms = new Set(existing.permissions);
+    const newPerms = new Set(template.permissions);
+    const addedPermissions = [...newPerms].filter((p) => !currentPerms.has(p));
+    const removedPermissions = [...currentPerms].filter((p) => !newPerms.has(p));
+
+    await service.editPermissions({
+      principal,
+      tenantId,
+      roleId: id,
+      expectedVersion,
+      addedPermissions,
+      removedPermissions,
+      menuVisibility: template.menuVisibility,
+      reason: `Diperbarui dari template ${template.name}`,
+      idempotencyKey: randomUUID(),
+      correlationId: randomUUID(),
+    });
+
+    revalidatePath(`/${domain}/settings/roles`);
+    return { success: true };
+  } catch {
+    return { success: false, error: 'Gagal memperbarui role dari template' };
   }
 }
 

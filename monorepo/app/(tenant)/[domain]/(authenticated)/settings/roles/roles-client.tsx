@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useRouter, useParams } from 'next/navigation';
-import { Role, changeRoleStatus, createRoleFromTemplate } from './actions';
+import { Role, changeRoleStatus, createRoleFromTemplate, updateRoleFromTemplate } from './actions';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -25,6 +25,7 @@ import {
 import { MoreHorizontal, Plus, Eye, Pencil, Archive, Play, Trash2, Loader2, LayoutTemplate } from 'lucide-react';
 import type { TenantAssignableRolePermissionGroup } from '@/lib/authorization/tenant-role-permission-catalog';
 import { TENANT_ROLE_TEMPLATES } from '@/lib/authorization/tenant-role-templates';
+import { tenantMenuItems } from '@/components/tenant-nav-menu/config';
 import { RoleDialog } from './role-dialog';
 import { toast } from 'sonner';
 import {
@@ -34,6 +35,21 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+
+/** Menu titles a template surfaces (items not hidden by its menuVisibility). */
+function templateVisibleMenuTitles(template: (typeof TENANT_ROLE_TEMPLATES)[number]): string[] {
+  const titles: string[] = [];
+  for (const item of tenantMenuItems) {
+    if (template.menuVisibility[item.key] === false) continue;
+    if (item.items?.length) {
+      const visibleChildren = item.items.filter((child) => template.menuVisibility[child.key] !== false);
+      if (visibleChildren.length) titles.push(`${item.title} (${visibleChildren.map((c) => c.title).join(', ')})`);
+    } else {
+      titles.push(item.title);
+    }
+  }
+  return titles;
+}
 
 interface RolesClientProps {
   initialRoles: Role[];
@@ -51,6 +67,7 @@ export function RolesClient({ initialRoles, permissionGroups }: RolesClientProps
   const [isLoading, setIsLoading] = React.useState<string | null>(null); // role id
   const [isTemplateOpen, setIsTemplateOpen] = React.useState(false);
   const [templateLoading, setTemplateLoading] = React.useState<string | null>(null);
+  const [updateLoading, setUpdateLoading] = React.useState<string | null>(null); // role id
 
   const handleStatusChange = async (role: Role, status: Role['status']) => {
     setIsLoading(role.id);
@@ -73,6 +90,23 @@ export function RolesClient({ initialRoles, permissionGroups }: RolesClientProps
     setEditingRole(null);
     setViewingRole(null);
     setIsDialogOpen(true);
+  };
+
+  const handleUpdateFromTemplate = async (role: Role) => {
+    setUpdateLoading(role.id);
+    try {
+      const res = await updateRoleFromTemplate(domain, role.id, role.version);
+      if (res.success) {
+        toast.success('Role diperbarui dari template');
+        router.refresh();
+      } else {
+        toast.error(res.error || 'Gagal memperbarui role');
+      }
+    } catch {
+      toast.error('Terjadi kesalahan');
+    } finally {
+      setUpdateLoading(null);
+    }
   };
 
   const handleUseTemplate = async (templateKey: string) => {
@@ -184,6 +218,19 @@ export function RolesClient({ initialRoles, permissionGroups }: RolesClientProps
                             <Pencil className="mr-2 h-4 w-4" />
                             Edit
                           </DropdownMenuItem>
+                          {role.templateKey && (
+                            <DropdownMenuItem
+                              onClick={() => handleUpdateFromTemplate(role)}
+                              disabled={updateLoading === role.id}
+                            >
+                              {updateLoading === role.id ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <LayoutTemplate className="mr-2 h-4 w-4" />
+                              )}
+                              Update from Template
+                            </DropdownMenuItem>
+                          )}
                         </DropdownMenuGroup>
                         <DropdownMenuSeparator />
                         <DropdownMenuGroup>
@@ -269,6 +316,9 @@ export function RolesClient({ initialRoles, permissionGroups }: RolesClientProps
                   <span className="text-sm font-medium">{template.name}</span>
                   <span className="text-xs text-muted-foreground">{template.description}</span>
                   <span className="text-xs text-muted-foreground">{template.permissions.length} permission</span>
+                  <span className="text-xs text-muted-foreground">
+                    Halaman: {templateVisibleMenuTitles(template).join(' · ') || '—'}
+                  </span>
                 </div>
                 {templateLoading === template.key ? (
                   <Loader2 className="ml-auto h-4 w-4 animate-spin" aria-hidden="true" />

@@ -1,4 +1,6 @@
 import { permissionRegistry } from "@/lib/authorization/tenant-rbac-contract";
+import { tenantMenuItems } from "@/components/tenant-nav-menu/config";
+import { isNavigationItemAuthorized } from "@/lib/authorization/tenant-nav-item-authorization";
 
 /**
  * Provider-defined role templates a tenant can instantiate with one click.
@@ -16,6 +18,8 @@ export type TenantRoleTemplate = Readonly<{
   name: string;
   description: string;
   permissions: readonly string[];
+  /** Menu keys hidden for this template; absent keys default to visible. */
+  menuVisibility: Readonly<Record<string, boolean>>;
 }>;
 
 function closeDependencies(keys: readonly string[]): string[] {
@@ -36,8 +40,28 @@ function closeDependencies(keys: readonly string[]): string[] {
   return [...resolved];
 }
 
-function template(key: string, name: string, description: string, permissions: readonly string[]): TenantRoleTemplate {
-  return { key, name, description, permissions: closeDependencies(permissions) };
+function template(
+  key: string,
+  name: string,
+  description: string,
+  permissions: readonly string[],
+  hiddenMenus?: readonly string[],
+): TenantRoleTemplate {
+  const resolved = closeDependencies(permissions);
+  // Hide every sidebar item the resolved permission set cannot open, so a
+  // template only surfaces the pages its users can actually reach.
+  const permissionSet = new Set(resolved);
+  const menuVisibility: Record<string, boolean> = {};
+  for (const item of tenantMenuItems) {
+    if (!isNavigationItemAuthorized(item, permissionSet)) menuVisibility[item.key] = false;
+    for (const child of item.items ?? []) {
+      if (!isNavigationItemAuthorized(child, permissionSet)) menuVisibility[child.key] = false;
+    }
+  }
+  // Explicit overrides (e.g. a template that may open a page but should not
+  // surface it in the sidebar).
+  for (const menuKey of hiddenMenus ?? []) menuVisibility[menuKey] = false;
+  return { key, name, description, permissions: resolved, menuVisibility };
 }
 
 export const TENANT_ROLE_TEMPLATES: readonly TenantRoleTemplate[] = Object.freeze([
@@ -94,6 +118,7 @@ export const TENANT_ROLE_TEMPLATES: readonly TenantRoleTemplate[] = Object.freez
     "academic-years.years.view",
   ]),
   template("siswa", "Siswa", "Akses lihat data sendiri: profil, nilai, kehadiran, jadwal, dan kegiatan.", [
+    "tenant.dashboard.view",
     "students.students.view",
     "students.students.view-sensitive",
     "class-groups.groups.view",
@@ -110,7 +135,7 @@ export const TENANT_ROLE_TEMPLATES: readonly TenantRoleTemplate[] = Object.freez
     "ppdb.results.view",
     "extracurriculars.extracurriculars.view",
     "student-organizations.organizations.view",
-  ]),
+  ], ["master-overview", "master-data", "master-import", "e-library", "persuratan", "ppdb", "ulangan", "penjadwalan", "pengguna", "security-history", "settings-system", "backup-restore"]),
   template("pimpinan", "Pimpinan", "Akses luas untuk kepala sekolah dan manajemen: kelola warga, akademik, dan kegiatan.", [
     "people.people.view",
     "people.people.view-contact",
