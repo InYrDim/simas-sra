@@ -9,7 +9,8 @@ import { tenantAuthorizationStore } from "@/lib/authorization/tenant-authorizati
 import { getAbsensiConfig } from "@/lib/attendance/attendance-config-data";
 import { readTenantTimezone } from "@/lib/attendance/attendance-config";
 import { buildStudentQrToken } from "@/lib/attendance/attendance-qr";
-import { listGerbangRecordsForDayWithStudents, resolveOpenSession } from "@/lib/attendance/attendance-record-data";
+import { listGerbangRecordsForDayWithStudents, listGerbangRecordsForStudent, resolveOpenSession } from "@/lib/attendance/attendance-record-data";
+import { localHHMMInZone, civilDateInZone } from "@/lib/attendance/attendance-date";
 import { db } from "@/db";
 import { studentProfile, schoolPerson } from "@/db/schema";
 import { SiswaAbsensiQr } from "./siswa-absensi-qr";
@@ -80,6 +81,10 @@ export default async function AbsensiSayaPage({
     const openSession = qrEnabled ? await resolveOpenSession(tenant.id, "gerbang", new Date(), timezone) : null;
     const today = await listGerbangRecordsForDayWithStudents(tenant.id, new Date(), timezone);
     const myRecord = today.find((r) => r.studentId === profile.id);
+    const todayCivil = civilDateInZone(new Date(), timezone);
+    const history = (await listGerbangRecordsForStudent(tenant.id, profile.id, 30, timezone)).filter(
+        (record) => civilDateInZone(record.recordedAt, timezone) !== todayCivil,
+    );
     const token = buildStudentQrToken(tenant.npsn, profile.nis);
 
     return (
@@ -93,6 +98,39 @@ export default async function AbsensiSayaPage({
                 recordedStatus={myRecord?.status ?? null}
                 token={token}
             />
+
+            <section className="rounded-lg border bg-card text-card-foreground shadow-sm p-4">
+                <h2 className="text-lg font-semibold">Waktu Absensi Hari Ini</h2>
+                {myRecord ? (
+                    <p className="mt-2 text-muted-foreground">
+                        Tercatat pada {localHHMMInZone(myRecord.recordedAt, timezone)}
+                        {myRecord.outOfSession ? " (di luar sesi)" : ""}
+                        {myRecord.notes ? ` · ${myRecord.notes}` : ""}
+                    </p>
+                ) : (
+                    <p className="mt-2 text-muted-foreground">Belum ada absensi tercatat hari ini.</p>
+                )}
+            </section>
+
+            <section className="rounded-lg border bg-card text-card-foreground shadow-sm p-4">
+                <h2 className="text-lg font-semibold">Riwayat Absensi</h2>
+                {history.length > 0 ? (
+                    <ul className="mt-2 divide-y text-sm">
+                        {history.map((record) => (
+                            <li key={record.id} className="flex items-center justify-between gap-3 py-2">
+                                <span className="font-medium">{civilDateInZone(record.recordedAt, timezone)}</span>
+                                <span className="flex items-center gap-2 text-muted-foreground">
+                                    <span className="rounded-full bg-muted px-2 py-0.5 text-xs capitalize">{record.status}</span>
+                                    <span>{localHHMMInZone(record.recordedAt, timezone)}</span>
+                                    {record.outOfSession ? <span className="text-xs">· di luar sesi</span> : null}
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p className="mt-2 text-muted-foreground">Belum ada riwayat absensi.</p>
+                )}
+            </section>
         </div>
     );
 }

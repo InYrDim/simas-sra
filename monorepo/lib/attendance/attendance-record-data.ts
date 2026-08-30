@@ -13,6 +13,7 @@ export {
     resolveStudentIdentity,
     listGerbangRecordsForDay,
     listGerbangRecordsForDayWithStudents,
+    listGerbangRecordsForStudent,
     listGerbangRecordsBySession,
     listAttendanceSessions,
     listSessionRecordsWithStudents,

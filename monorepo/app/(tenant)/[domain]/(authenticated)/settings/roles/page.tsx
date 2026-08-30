@@ -24,9 +24,14 @@ export default async function RolesPage(props: { params: Promise<{ domain: strin
             Manage roles and their permissions for your school.
           </p>
         </div>
-        <Button variant="outline" nativeButton={false} render={<Link href={`/${domain}/settings/assignments`} />}>
-          Kelola assignment
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" nativeButton={false} render={<Link href={`/${domain}/settings/roles/templates`} />}>
+            Lihat halaman tiap template
+          </Button>
+          <Button variant="outline" nativeButton={false} render={<Link href={`/${domain}/settings/assignments`} />}>
+            Kelola assignment
+          </Button>
+        </div>
       </div>
 
       <RolesClient initialRoles={roles} permissionGroups={permissionGroups} />

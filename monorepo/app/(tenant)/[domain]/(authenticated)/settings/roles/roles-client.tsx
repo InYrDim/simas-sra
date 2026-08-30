@@ -24,8 +24,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { MoreHorizontal, Plus, Eye, Pencil, Archive, Play, Trash2, Loader2, LayoutTemplate } from 'lucide-react';
 import type { TenantAssignableRolePermissionGroup } from '@/lib/authorization/tenant-role-permission-catalog';
-import { TENANT_ROLE_TEMPLATES } from '@/lib/authorization/tenant-role-templates';
-import { tenantMenuItems } from '@/components/tenant-nav-menu/config';
+import { TENANT_ROLE_TEMPLATES, getTemplateAccessiblePages } from '@/lib/authorization/tenant-role-templates';
 import { RoleDialog } from './role-dialog';
 import { toast } from 'sonner';
 import {
@@ -37,18 +36,10 @@ import {
 } from '@/components/ui/dialog';
 
 /** Menu titles a template surfaces (items not hidden by its menuVisibility). */
-function templateVisibleMenuTitles(template: (typeof TENANT_ROLE_TEMPLATES)[number]): string[] {
-  const titles: string[] = [];
-  for (const item of tenantMenuItems) {
-    if (template.menuVisibility[item.key] === false) continue;
-    if (item.items?.length) {
-      const visibleChildren = item.items.filter((child) => template.menuVisibility[child.key] !== false);
-      if (visibleChildren.length) titles.push(`${item.title} (${visibleChildren.map((c) => c.title).join(', ')})`);
-    } else {
-      titles.push(item.title);
-    }
-  }
-  return titles;
+function templateVisibleMenuTitles(template: (typeof TENANT_ROLE_TEMPLATES)[number]): string {
+  return getTemplateAccessiblePages(template)
+    .map((page) => (page.children.length ? `${page.title} (${page.children.join(', ')})` : page.title))
+    .join(' · ');
 }
 
 interface RolesClientProps {
@@ -317,7 +308,7 @@ export function RolesClient({ initialRoles, permissionGroups }: RolesClientProps
                   <span className="text-xs text-muted-foreground">{template.description}</span>
                   <span className="text-xs text-muted-foreground">{template.permissions.length} permission</span>
                   <span className="text-xs text-muted-foreground">
-                    Halaman: {templateVisibleMenuTitles(template).join(' · ') || '—'}
+                    Halaman: {templateVisibleMenuTitles(template) || '—'}
                   </span>
                 </div>
                 {templateLoading === template.key ? (

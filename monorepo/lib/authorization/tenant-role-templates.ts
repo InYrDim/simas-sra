@@ -206,3 +206,31 @@ export const TENANT_ROLE_TEMPLATES: readonly TenantRoleTemplate[] = Object.freez
 export function getTenantRoleTemplate(key: string): TenantRoleTemplate | undefined {
   return TENANT_ROLE_TEMPLATES.find((t) => t.key === key);
 }
+
+export type TemplateAccessiblePage = Readonly<{
+  /** Top-level menu title, or the item title when it has no children. */
+  title: string;
+  /** Child page titles when the item is a collapsible group. */
+  children: readonly string[];
+}>;
+
+/**
+ * Pages a template surfaces in the sidebar: top-level items not hidden by the
+ * template's `menuVisibility`, with their visible children. Pure and server-
+ * safe so both the reference page and the role dialog can reuse it.
+ */
+export function getTemplateAccessiblePages(template: TenantRoleTemplate): TemplateAccessiblePage[] {
+  const pages: TemplateAccessiblePage[] = [];
+  for (const item of tenantMenuItems) {
+    if (template.menuVisibility[item.key] === false) continue;
+    if (item.items?.length) {
+      const children = item.items
+        .filter((child) => template.menuVisibility[child.key] !== false)
+        .map((child) => child.title);
+      if (children.length) pages.push({ title: item.title, children });
+    } else {
+      pages.push({ title: item.title, children: [] });
+    }
+  }
+  return pages;
+}

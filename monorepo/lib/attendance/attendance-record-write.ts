@@ -327,6 +327,48 @@ export async function listGerbangRecordsForDayWithStudents(
     }));
 }
 
+/**
+ * Gerbang records for a single student over the last `days` civil days
+ * (newest first). Used by the student's "Absensi Saya" self-view.
+ */
+export async function listGerbangRecordsForStudent(
+    tenantId: string,
+    studentId: string,
+    days = 30,
+    timezone: string = "Asia/Jakarta",
+): Promise<
+    Array<{
+        id: string;
+        status: AttendanceRecordStatus;
+        recordedAt: Date;
+        notes: string | null;
+        outOfSession: boolean;
+    }>
+> {
+    const todayStart = zonedWallClockToUtc(new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate(), 0, 0, 0)), timezone);
+    const end = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000); // start of tomorrow
+    const start = new Date(todayStart.getTime() - (days - 1) * 24 * 60 * 60 * 1000);
+
+    return db
+        .select({
+            id: attendanceRecord.id,
+            status: attendanceRecord.status,
+            recordedAt: attendanceRecord.recordedAt,
+            notes: attendanceRecord.notes,
+            outOfSession: attendanceRecord.outOfSession,
+        })
+        .from(attendanceRecord)
+        .where(
+            and(
+                eq(attendanceRecord.tenantId, tenantId),
+                eq(attendanceRecord.layer, "gerbang"),
+                eq(attendanceRecord.studentId, studentId),
+                between(attendanceRecord.recordedAt, start, end),
+            ),
+        )
+        .orderBy(desc(attendanceRecord.recordedAt));
+}
+
 /** Returns the Gerbang records linked to a specific session. */
 export async function listGerbangRecordsBySession(
     tenantId: string,
