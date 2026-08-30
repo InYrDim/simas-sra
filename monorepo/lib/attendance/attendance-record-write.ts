@@ -328,6 +328,87 @@ export async function listGerbangRecordsForDayWithStudents(
 }
 
 /**
+ * Like `listGerbangRecordsForDayWithStudents`, but for the Kelas (classroom)
+ * layer. When `classGroupId` is provided, only records from students currently
+ * in that rombel are returned (used to scope the day view to one class).
+ */
+export async function listKelasRecordsForDayWithStudents(
+    tenantId: string,
+    day: Date = new Date(),
+    timezone: string = "Asia/Jakarta",
+    classGroupId?: string,
+): Promise<
+    Array<{
+        id: string;
+        studentId: string;
+        studentName: string;
+        nis: string;
+        rombel: string | null;
+        status: AttendanceRecordStatus;
+        recordedAt: Date;
+        notes: string | null;
+        outOfSession: boolean;
+        sessionId: string | null;
+    }>
+> {
+    const start = zonedWallClockToUtc(new Date(Date.UTC(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 0, 0, 0)), timezone);
+    const end = new Date(start.getTime() + 24 * 60 * 60 * 1000 - 1);
+
+    const membershipFilter = classGroupId
+        ? and(
+            eq(classMembership.tenantId, tenantId),
+            eq(classMembership.studentId, studentProfile.id),
+            eq(classMembership.classGroupId, classGroupId),
+            sql`${classMembership.endedAt} IS NULL`,
+        )
+        : and(
+            eq(classMembership.tenantId, tenantId),
+            eq(classMembership.studentId, studentProfile.id),
+            sql`${classMembership.endedAt} IS NULL`,
+        );
+
+    const rows = await db
+        .select({
+            id: attendanceRecord.id,
+            studentId: attendanceRecord.studentId,
+            studentName: schoolPerson.fullName,
+            nis: studentProfile.nis,
+            rombel: classGroup.groupName,
+            status: attendanceRecord.status,
+            recordedAt: attendanceRecord.recordedAt,
+            notes: attendanceRecord.notes,
+            outOfSession: attendanceRecord.outOfSession,
+            sessionId: attendanceRecord.sessionId,
+        })
+        .from(attendanceRecord)
+        .innerJoin(studentProfile, eq(studentProfile.id, attendanceRecord.studentId))
+        .innerJoin(schoolPerson, eq(schoolPerson.id, studentProfile.personId))
+        .leftJoin(classMembership, membershipFilter)
+        .leftJoin(classGroup, eq(classGroup.id, classMembership.classGroupId))
+        .where(
+            and(
+                eq(attendanceRecord.tenantId, tenantId),
+                eq(attendanceRecord.layer, "kelas"),
+                between(attendanceRecord.recordedAt, start, end),
+            ),
+        )
+        .orderBy(attendanceRecord.recordedAt);
+
+    return rows.map((row) => ({
+        id: row.id,
+        studentId: row.studentId,
+        studentName: row.studentName,
+        nis: row.nis,
+        rombel: row.rombel ?? null,
+        status: row.status,
+        recordedAt: row.recordedAt,
+        notes: row.notes,
+        outOfSession: row.outOfSession,
+        sessionId: row.sessionId,
+    }));
+}
+
+/**
  * Gerbang records for a single student over the last `days` civil days
  * (newest first). Used by the student's "Absensi Saya" self-view.
  */
@@ -362,6 +443,45 @@ export async function listGerbangRecordsForStudent(
             and(
                 eq(attendanceRecord.tenantId, tenantId),
                 eq(attendanceRecord.layer, "gerbang"),
+                eq(attendanceRecord.studentId, studentId),
+                between(attendanceRecord.recordedAt, start, end),
+            ),
+        )
+        .orderBy(desc(attendanceRecord.recordedAt));
+}
+
+/** Returns the Kelas records for a student over the last `days` days (inclusive of today). */
+export async function listKelasRecordsForStudent(
+    tenantId: string,
+    studentId: string,
+    days = 30,
+    timezone: string = "Asia/Jakarta",
+): Promise<
+    Array<{
+        id: string;
+        status: AttendanceRecordStatus;
+        recordedAt: Date;
+        notes: string | null;
+        outOfSession: boolean;
+    }>
+> {
+    const todayStart = zonedWallClockToUtc(new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate(), 0, 0, 0)), timezone);
+    const end = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000); // start of tomorrow
+    const start = new Date(todayStart.getTime() - (days - 1) * 24 * 60 * 60 * 1000);
+
+    return db
+        .select({
+            id: attendanceRecord.id,
+            status: attendanceRecord.status,
+            recordedAt: attendanceRecord.recordedAt,
+            notes: attendanceRecord.notes,
+            outOfSession: attendanceRecord.outOfSession,
+        })
+        .from(attendanceRecord)
+        .where(
+            and(
+                eq(attendanceRecord.tenantId, tenantId),
+                eq(attendanceRecord.layer, "kelas"),
                 eq(attendanceRecord.studentId, studentId),
                 between(attendanceRecord.recordedAt, start, end),
             ),

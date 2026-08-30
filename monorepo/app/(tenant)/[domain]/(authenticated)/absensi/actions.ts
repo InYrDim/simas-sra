@@ -18,7 +18,10 @@ import {
     type AttendanceLayer,
     type AttendanceMode,
 } from "@/lib/attendance/attendance-config";
-import { isAttendanceRecordStatus } from "@/lib/attendance/attendance-record";
+import { isAttendanceRecordStatus, isStatusValidForLayer } from "@/lib/attendance/attendance-record";
+import { and, eq, sql } from "drizzle-orm";
+import { db } from "@/db";
+import { classMembership } from "@/db/schema";
 
 export type SaveAbsensiConfigResult = {
     ok: boolean;
@@ -248,6 +251,152 @@ export async function deleteGerbangSessionAction(
     if (!result.ok) return { ok: false, code: result.code };
 
     revalidatePath(`/${domain}/absensi/gerbang`);
+    return { ok: true };
+}
+
+export type RecordKelasResult = {
+    ok: boolean;
+    code?: "invalid-input" | "student-not-found" | "invalid-status" | "not-in-rombel" | "not-found" | "error";
+};
+
+/**
+ * Records a Kelas (classroom) attendance event in Manual mode. The operator
+ * (the logged-in user) selects the student and the classroom status
+ * (hadir/izin/sakit/alpa). The write path is shared with Gerbang via
+ * `recordAttendance`; only the layer, status vocabulary, and actor differ.
+ */
+export async function recordKelasAction(
+    domain: string,
+    formData: FormData,
+): Promise<RecordKelasResult> {
+    const principal = await enforceTenantOperation(domain, "absensi.kelas.record");
+
+    const studentId = String(formData.get("studentId") ?? "").trim();
+    const status = String(formData.get("status") ?? "").trim();
+    const notes = String(formData.get("notes") ?? "").trim() || undefined;
+
+    if (studentId === "" || !isAttendanceRecordStatus(status) || !isStatusValidForLayer("kelas", status)) {
+        return { ok: false, code: "invalid-input" };
+    }
+
+    const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
+    if (!tenant) return { ok: false, code: "not-found" };
+
+    // Kelas attendance requires an active rombel membership (endedAt IS NULL).
+    const membership = await db
+        .select({ id: classMembership.id })
+        .from(classMembership)
+        .where(and(
+            eq(classMembership.tenantId, tenant.id),
+            eq(classMembership.studentId, studentId),
+            sql`${classMembership.endedAt} IS NULL`,
+        ))
+        .limit(1);
+    if (membership.length === 0) {
+        return { ok: false, code: "not-in-rombel" };
+    }
+
+    const result = await recordAttendance({
+        tenantId: tenant.id,
+        studentId,
+        layer: "kelas",
+        mode: "manual",
+        status,
+        actorUserId: principal.userId,
+        timezone: readTenantTimezone(tenant.settings),
+        notes,
+    });
+
+    if (!result.ok) {
+        return { ok: false, code: result.code === "student-not-found" ? "student-not-found" : result.code === "invalid-status" ? "invalid-status" : "error" };
+    }
+
+    revalidatePath(`/${domain}/absensi/kelas`);
+    return { ok: true };
+}
+
+export type OpenKelasSessionResult = {
+    ok: boolean;
+    code?: "already-open" | "invalid-window" | "not-found" | "error";
+};
+
+/**
+ * Opens a Kelas attendance session for today. The planned window defaults to
+ * the tenant's configured `sessionWindow.kelas`, falling back to the default
+ * Kelas window when unset or invalid.
+ */
+export async function openKelasSessionAction(
+    domain: string,
+    formData?: FormData,
+): Promise<OpenKelasSessionResult> {
+    const principal = await enforceTenantOperation(domain, "absensi.kelas.manage");
+
+    const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
+    if (!tenant) return { ok: false, code: "not-found" };
+
+    const settings = readAbsensiSettings(tenant.settings);
+    const fallback = getSessionWindow(settings, "kelas");
+
+    const rawStart = formData ? String(formData.get("plannedStart") ?? "").trim() : "";
+    const rawEnd = formData ? String(formData.get("plannedEnd") ?? "").trim() : "";
+    const window = isSessionWindow({ start: rawStart, end: rawEnd }) ? { start: rawStart, end: rawEnd } : fallback;
+
+    const result = await openSession({
+        tenantId: tenant.id,
+        layer: "kelas",
+        openedByUserId: principal.userId,
+        plannedStart: window.start,
+        plannedEnd: window.end,
+        timezone: readTenantTimezone(tenant.settings),
+        notes: formData ? String(formData.get("notes") ?? "").trim() || undefined : undefined,
+    });
+
+    if (!result.ok) return { ok: false, code: result.code };
+    revalidatePath(`/${domain}/absensi/kelas`);
+    return { ok: true };
+}
+
+export type CloseKelasSessionResult = {
+    ok: boolean;
+    code?: "not-found" | "error";
+};
+
+/** Closes an open Kelas session. */
+export async function closeKelasSessionAction(
+    domain: string,
+    sessionId: string,
+): Promise<CloseKelasSessionResult> {
+    await enforceTenantOperation(domain, "absensi.kelas.manage");
+
+    const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
+    if (!tenant) return { ok: false, code: "not-found" };
+
+    const result = await closeSession(tenant.id, sessionId);
+    if (!result.ok) return { ok: false, code: result.code };
+
+    revalidatePath(`/${domain}/absensi/kelas`);
+    return { ok: true };
+}
+
+export type DeleteKelasSessionResult = {
+    ok: boolean;
+    code?: "not-found" | "error";
+};
+
+/** Deletes today's Kelas session and detaches its linked records. */
+export async function deleteKelasSessionAction(
+    domain: string,
+    sessionId: string,
+): Promise<DeleteKelasSessionResult> {
+    await enforceTenantOperation(domain, "absensi.kelas.manage");
+
+    const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
+    if (!tenant) return { ok: false, code: "not-found" };
+
+    const result = await deleteSession(tenant.id, sessionId, { deleteRecords: true });
+    if (!result.ok) return { ok: false, code: result.code };
+
+    revalidatePath(`/${domain}/absensi/kelas`);
     return { ok: true };
 }
 

@@ -1,4 +1,4 @@
-import { Home, Database, Calendar, ClipboardCheck, FileCheck, LayoutDashboard, Library, Mail, Settings, Upload, UserPlus, QrCode } from "lucide-react"
+import { Home, Database, Calendar, ClipboardCheck, FileCheck, LayoutDashboard, Library, Mail, Settings, Upload, UserPlus, QrCode, Users } from "lucide-react"
 import { type TenantNavItem } from "@/types/components/TenantNavItem"
 
 export const tenantMenuItems: TenantNavItem[] = [
@@ -59,6 +59,14 @@ export const tenantMenuItems: TenantNavItem[] = [
       { key: "ulangan-sesi", title: "Sesi Ulangan", url: "/ulangan", requiredPermissions: ["quizzes.sessions.view"] },
       { key: "ulangan-riwayat", title: "Riwayat", url: "/ulangan/riwayat", requiredPermissions: ["quizzes.sessions.view"] }
     ]
+  },
+  {
+    key: "kelas",
+    title: "Kelas",
+    icon: Users,
+    url: "/kelas",
+    group: "Akademik",
+    requiredPermissions: ["class-groups.groups.view"]
   },
   {
     key: "penjadwalan",
