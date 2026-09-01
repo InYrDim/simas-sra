@@ -20,7 +20,7 @@ export default async function KelasPage({
     const { domain } = await params;
     const evaluator = await createHttpTenantAuthorizationEvaluator();
     const operationId = "class-groups.load";
-    const result = await evaluator.evaluate({ surface: "page", domain, operationId });
+    const result = await evaluator.evaluate({ surface: "page", domain, operationId, requestedPermissions: ["class-groups.roster.view"] });
     enforceAuthorizedTenantOperation(result, { domain, operationId });
 
     const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);

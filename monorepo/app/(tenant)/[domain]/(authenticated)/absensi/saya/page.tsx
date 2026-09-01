@@ -97,8 +97,8 @@ export default async function AbsensiSayaPage({
     const myKelasRecord = kelasToday.find((r) => r.studentId === profile.id);
     const kelasHistory = kelasEnabled
         ? (await listKelasRecordsForStudent(tenant.id, profile.id, 30, timezone)).filter(
-              (record) => civilDateInZone(record.recordedAt, timezone) !== todayCivil,
-          )
+            (record) => civilDateInZone(record.recordedAt, timezone) !== todayCivil,
+        )
         : [];
     const token = buildStudentQrToken(tenant.npsn, profile.nis);
 

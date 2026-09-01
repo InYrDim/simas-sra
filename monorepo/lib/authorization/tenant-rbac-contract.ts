@@ -114,6 +114,7 @@ const activeSeeds: readonly CatalogSeed[] = [
   ["subjects.subjects.archive", [], "sensitive"],
   ["subjects.subjects.restore", [], "sensitive"],
   ["class-groups.groups.view"],
+  ["class-groups.roster.view", ["class-groups.groups.view"]],
   ["class-groups.groups.create", [], "medium"],
   ["class-groups.groups.update", [], "medium"],
   ["class-groups.groups.manage-lifecycle", [], "sensitive"],
@@ -255,7 +256,7 @@ const moduleMetadata: Record<string, { label: string; group: string }> = {
 const resourceLabels: Record<string, string> = {
   dashboard: "Dashboard", onboarding: "Onboarding Tenant", users: "Akun Pengguna", "landing-page": "Halaman landing",
   profile: "Profil sekolah", headmaster: "Kepala sekolah", accreditations: "Akreditasi", logo: "Logo sekolah",
-  years: "Tahun ajaran", subjects: "Mata pelajaran", groups: "Kelompok", memberships: "Keanggotaan", homerooms: "Wali kelas",
+  years: "Tahun ajaran", subjects: "Mata pelajaran", groups: "Kelompok", roster: "Roster", memberships: "Keanggotaan", homerooms: "Wali kelas",
   people: "Warga Sekolah", students: "Profil Siswa", teachers: "Profil Guru", staff: "Profil Staf", revisions: "Revisi impor",
   templates: "Template impor", locations: "Lokasi/Ruang", assets: "Aset/Barang", inventory: "Inventaris", organizations: "Organisasi siswa",
   periods: "Periode kepengurusan", leadership: "Kepengurusan", extracurriculars: "Ekstrakurikuler", advisors: "Pembina",

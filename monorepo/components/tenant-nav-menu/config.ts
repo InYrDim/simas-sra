@@ -66,7 +66,7 @@ export const tenantMenuItems: TenantNavItem[] = [
     icon: Users,
     url: "/kelas",
     group: "Akademik",
-    requiredPermissions: ["class-groups.groups.view"]
+    requiredPermissions: ["class-groups.roster.view"]
   },
   {
     key: "penjadwalan",

@@ -93,11 +93,11 @@ export default async function AbsensiKelasPage({
             .select({ id: studentProfile.id, nis: studentProfile.nis, fullName: schoolPerson.fullName })
             .from(studentProfile)
             .innerJoin(schoolPerson, eq(schoolPerson.id, studentProfile.personId))
-              .innerJoin(classMembership, and(
-                  eq(classMembership.tenantId, tenant.id),
-                  eq(classMembership.studentId, studentProfile.id),
-                  sql`${classMembership.endedAt} IS NULL`,
-              ))
+            .innerJoin(classMembership, and(
+                eq(classMembership.tenantId, tenant.id),
+                eq(classMembership.studentId, studentProfile.id),
+                sql`${classMembership.endedAt} IS NULL`,
+            ))
     const today = await listKelasRecordsForDayWithStudents(tenant.id, new Date(), timezone, selectedRombel || undefined);
     const recordedStudentIds = today.filter((r) => r.status === "hadir").map((r) => r.studentId);
 
