@@ -2,9 +2,24 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import jsQR from "jsqr";
+
 import { recordQrAction } from "@/app/(tenant)/[domain]/(authenticated)/absensi/actions";
+import { Button } from "@/components/ui/button";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { Camera, CheckCircle2, XCircle } from "lucide-react";
+
+type NativeBarcodeDetector = {
+    detect: (source: CanvasImageSource) => Promise<{ rawValue: string }[]>;
+};
 
 type ScanState =
     | { kind: "idle" }
@@ -12,12 +27,37 @@ type ScanState =
     | { kind: "success"; message: string }
     | { kind: "error"; message: string };
 
-export function ScanAbsensiClient({ domain, sessionId }: { domain: string; sessionId: string }) {
+export function ScanAbsensiClient({ domain, sessionId, layer }: { domain: string; sessionId: string; layer: "gerbang" | "kelas" }) {
     const videoRef = useRef<HTMLVideoElement | null>(null);
     const streamRef = useRef<MediaStream | null>(null);
     const scanningRef = useRef(false);
     const [state, setState] = useState<ScanState>({ kind: "idle" });
     const [cameraError, setCameraError] = useState<string | null>(null);
+    const [dialogOpen, setDialogOpen] = useState(false);
+
+    const nativeDetectorRef = useRef<NativeBarcodeDetector | null>(null);
+
+    const detectToken = async (video: HTMLVideoElement, canvas: HTMLCanvasElement): Promise<string | null> => {
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return null;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        const native = nativeDetectorRef.current;
+        if (native) {
+            try {
+                const codes = await native.detect(canvas);
+                if (codes.length > 0) return codes[0].rawValue;
+            } catch {
+                // native detection failed; fall back to jsQR below
+            }
+        }
+
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(imageData.data, imageData.width, imageData.height, { inversionAttempts: "dontInvert" });
+        return code?.data ?? null;
+    };
 
     const stopCamera = useCallback(() => {
         scanningRef.current = false;
@@ -37,7 +77,8 @@ export function ScanAbsensiClient({ domain, sessionId }: { domain: string; sessi
             video.srcObject = stream;
             await video.play();
 
-            const detector = "BarcodeDetector" in window ? new (window as unknown as { BarcodeDetector: new () => { detect: (s: CanvasImageSource) => Promise<{ rawValue: string }[]> } }).BarcodeDetector() : null;
+            const detector = "BarcodeDetector" in window ? new (window as unknown as { BarcodeDetector: new () => NativeBarcodeDetector }).BarcodeDetector() : null;
+            nativeDetectorRef.current = detector;
             const canvas = document.createElement("canvas");
 
             const tick = async () => {
@@ -46,19 +87,20 @@ export function ScanAbsensiClient({ domain, sessionId }: { domain: string; sessi
                     requestAnimationFrame(tick);
                     return;
                 }
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                const ctx = canvas.getContext("2d");
-                if (!ctx) return;
-                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
                 try {
-                    const codes = detector ? await detector.detect(canvas) : [];
-                    if (codes.length > 0) {
-                        const token = codes[0].rawValue;
+                    const token = await detectToken(video, canvas);
+                    if (token) {
                         setState({ kind: "scanning", token });
                         const result = await recordQrAction(domain, sessionId, token);
                         if (result.ok) {
-                            setState({ kind: "success", message: result.status === "masuk" ? "Masuk tercatat" : "Keluar tercatat" });
+                            const successText =
+                                layer === "kelas"
+                                    ? "Hadir tercatat"
+                                    : result.status === "masuk"
+                                      ? "Masuk tercatat"
+                                      : "Keluar tercatat";
+                            setState({ kind: "success", message: successText });
+                            setDialogOpen(true);
                         } else {
                             setState({
                                 kind: "error",
@@ -84,7 +126,13 @@ export function ScanAbsensiClient({ domain, sessionId }: { domain: string; sessi
             setCameraError("Tidak dapat mengakses kamera. Izinkan akses kamera dan coba lagi.");
             setState({ kind: "idle" });
         }
-    }, [domain, sessionId]);
+    }, [domain, sessionId, layer]);
+
+    const closeAndRescan = useCallback(() => {
+        setDialogOpen(false);
+        stopCamera();
+        void startCamera();
+    }, [startCamera, stopCamera]);
 
     useEffect(() => () => stopCamera(), [stopCamera]);
 
@@ -143,6 +191,28 @@ export function ScanAbsensiClient({ domain, sessionId }: { domain: string; sessi
                     </button>
                 )}
             </div>
+
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <CheckCircle2 className="size-5 text-green-600" aria-hidden />
+                            Absensi Tercatat
+                        </DialogTitle>
+                        <DialogDescription>
+                            {state.kind === "success" ? state.message : "Kehadiran telah dicatat."}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                            Tutup
+                        </Button>
+                        <Button type="button" onClick={closeAndRescan}>
+                            Pindai Berikutnya
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

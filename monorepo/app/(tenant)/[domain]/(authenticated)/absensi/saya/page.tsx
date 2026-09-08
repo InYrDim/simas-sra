@@ -85,8 +85,11 @@ export default async function AbsensiSayaPage({
     const config = await getAbsensiConfig(tenant.id);
     const qrEnabled = Boolean(config?.activeLayers.gerbang?.includes("qr")) && isTenantFeatureEnabled(tenant.settings, "absensiQr");
     const kelasEnabled = isTenantFeatureEnabled(tenant.settings, "absensiKelas") && (config?.activeLayers.kelas?.length ?? 0) > 0;
+    // Kelas self-service QR: present only when Kelas QR mode is active.
+    const kelasQrEnabled = kelasEnabled && Boolean(config?.activeLayers.kelas?.includes("qr")) && isTenantFeatureEnabled(tenant.settings, "absensiQr");
     const timezone = readTenantTimezone(tenant.settings);
     const openSession = qrEnabled ? await resolveOpenSession(tenant.id, "gerbang", new Date(), timezone) : null;
+    const openKelasSession = kelasQrEnabled ? await resolveOpenSession(tenant.id, "kelas", new Date(), timezone) : null;
     const today = await listGerbangRecordsForDayWithStudents(tenant.id, new Date(), timezone);
     const myRecord = today.find((r) => r.studentId === profile.id);
     const todayCivil = civilDateInZone(new Date(), timezone);
@@ -101,6 +104,7 @@ export default async function AbsensiSayaPage({
         )
         : [];
     const token = buildStudentQrToken(tenant.npsn, profile.nis);
+    const kelasToken = buildStudentQrToken(tenant.npsn, profile.nis, "IN", "KELAS");
 
     return (
         <div className="flex flex-col gap-4 p-4">
@@ -147,6 +151,14 @@ export default async function AbsensiSayaPage({
             {kelasEnabled ? (
                 <section className="rounded-lg border bg-card text-card-foreground shadow-sm p-4">
                     <h2 className="text-lg font-semibold">Absensi Kelas</h2>
+                    <SiswaAbsensiQr
+                        domain={domain}
+                        qrEnabled={kelasQrEnabled}
+                        sessionOpen={Boolean(openKelasSession)}
+                        recordedStatus={myKelasRecord?.status ?? null}
+                        token={kelasToken}
+                        layerLabel="Kelas"
+                    />
                     <h3 className="mt-4 text-base font-semibold">Waktu Absensi Hari Ini</h3>
                     {myKelasRecord ? (
                         <p className="mt-2 text-muted-foreground">

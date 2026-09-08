@@ -11,9 +11,11 @@ type Props = {
     sessionOpen: boolean;
     recordedStatus: "masuk" | "keluar" | "hadir" | "izin" | "sakit" | "alpa" | null;
     token: string;
+    /** Layer label used in user-facing copy. Defaults to "Gerbang". */
+    layerLabel?: string;
 };
 
-export function SiswaAbsensiQr({ qrEnabled, sessionOpen, recordedStatus, token }: Props) {
+export function SiswaAbsensiQr({ qrEnabled, sessionOpen, recordedStatus, token, layerLabel = "Gerbang" }: Props) {
     const router = useRouter();
     const [generating, setGenerating] = useState(false);
 
@@ -28,7 +30,7 @@ export function SiswaAbsensiQr({ qrEnabled, sessionOpen, recordedStatus, token }
         return (
             <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
                 <p className="text-muted-foreground">
-                    Mode QR belum diaktifkan untuk lapisan Gerbang. Hubungi admin sekolah.
+                    Mode QR belum diaktifkan untuk lapisan {layerLabel}. Hubungi admin sekolah.
                 </p>
             </div>
         );
@@ -39,7 +41,7 @@ export function SiswaAbsensiQr({ qrEnabled, sessionOpen, recordedStatus, token }
             <div className="flex flex-col items-center gap-3 rounded-lg border bg-card text-card-foreground shadow-sm p-6">
                 <CheckCircle2 className="h-12 w-12 text-green-600" aria-hidden />
                 <p className="text-lg font-semibold">
-                    Absensi berhasil{recordedStatus === "masuk" ? " (Masuk)" : " (Keluar)"}
+                    Absensi berhasil{recordedStatus === "masuk" ? " (Masuk)" : recordedStatus === "keluar" ? " (Keluar)" : ` (${recordedStatus})`}
                 </p>
             </div>
         );
@@ -49,7 +51,7 @@ export function SiswaAbsensiQr({ qrEnabled, sessionOpen, recordedStatus, token }
         return (
             <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
                 <p className="text-muted-foreground">
-                    Belum ada sesi absensi gerbang yang dibuka. Tunggu operator membuka sesi.
+                    Belum ada sesi absensi {layerLabel.toLowerCase()} yang dibuka. Tunggu operator membuka sesi.
                 </p>
             </div>
         );

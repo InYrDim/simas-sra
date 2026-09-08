@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
     },
   },
   output: "standalone",
+  allowedDevOrigins: ["*.iyetest.my.id", "*.simas.iyetest.my.id", "simas.iyetest.my.id"],
 };
 
 export default nextConfig;

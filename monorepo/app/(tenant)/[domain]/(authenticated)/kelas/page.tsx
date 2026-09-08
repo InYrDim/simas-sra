@@ -65,7 +65,7 @@ export default async function KelasPage({
             <form action={`/${domain}/kelas`} className="flex flex-wrap items-end gap-3">
                 <label className="flex flex-col gap-1 text-sm">
                     <span className="font-medium">Rombel</span>
-                    <Select name="classGroupId" defaultValue={selectedRombel}>
+                    <Select name="classGroupId" defaultValue={selectedRombel} items={rombelOptions.map((rombel) => ({ value: rombel.id, label: rombel.name }))}>
                         <SelectTrigger className="h-9 w-56 bg-input/30">
                             <SelectValue placeholder="Pilih rombel" />
                         </SelectTrigger>

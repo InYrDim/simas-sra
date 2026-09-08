@@ -11,11 +11,13 @@ import {
     resolveTodaysSession,
 } from "@/lib/attendance/attendance-record-data";
 import { tenantAuthorizationStore } from "@/lib/authorization/tenant-authorization-data";
+import { isTenantFeatureEnabled } from "@/lib/features/tenant-feature-policy";
 import { db } from "@/db";
 import { classGroup, academicYear, studentProfile, schoolPerson, classMembership } from "@/db/schema";
 import { KelasRecordForm } from "./kelas-record-form";
 import { KelasSessionPanel } from "./kelas-session-panel";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { QrCode } from "lucide-react";
 
 type KelasSearchParams = {
     classGroupId?: string;
@@ -113,7 +115,7 @@ export default async function AbsensiKelasPage({
             <form action={`/${domain}/absensi/kelas`} className="flex flex-wrap items-end gap-3">
                 <label className="flex flex-col gap-1 text-sm">
                     <span className="font-medium">Rombel</span>
-                    <Select name="classGroupId" defaultValue={selectedRombel}>
+                    <Select name="classGroupId" defaultValue={selectedRombel} items={[{ value: "", label: "Semua siswa" }, ...rombelOptions.map((r) => ({ value: r.id, label: r.name }))]}>
                         <SelectTrigger className="h-9 w-56 bg-input/30">
                             <SelectValue placeholder="Semua siswa" />
                         </SelectTrigger>
@@ -147,7 +149,18 @@ export default async function AbsensiKelasPage({
             />
 
             {openSession ? (
-                <KelasRecordForm domain={domain} students={studentRows} recordedStudentIds={recordedStudentIds} />
+                <div className="flex flex-wrap items-center gap-2">
+                    {tenant && isTenantFeatureEnabled(tenant.settings, "absensiQr") && modes.includes("qr") ? (
+                        <a
+                            href={`/${domain}/scan/absensi/${openSession.id}`}
+                            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+                        >
+                            <QrCode className="size-4" aria-hidden />
+                            Scan QR
+                        </a>
+                    ) : null}
+                    <KelasRecordForm domain={domain} students={studentRows} recordedStudentIds={recordedStudentIds} />
+                </div>
             ) : (
                 <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
                     <p className="text-muted-foreground">

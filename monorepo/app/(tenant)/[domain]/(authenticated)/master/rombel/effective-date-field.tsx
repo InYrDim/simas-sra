@@ -33,7 +33,7 @@ export function EffectiveDateField() {
           <CalendarIcon className="mr-2 size-4" />
           {date ? format(date, "PPP") : <span>Pilih tanggal</span>}
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="start">
+        <PopoverContent className="w-auto p-0" positionerClassName="z-[70]" align="start">
           <Calendar mode="single" selected={date} onSelect={setDate} />
         </PopoverContent>
       </Popover>

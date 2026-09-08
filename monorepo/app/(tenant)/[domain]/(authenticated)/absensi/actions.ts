@@ -452,9 +452,13 @@ export type RecordQrResult = {
 };
 
 /**
- * Records a Gerbang attendance event from a scanned QR token (Fase 3). The
- * operator (logged-in user) runs the scanner; the student identity and
- * direction come from the decoded token. Cross-tenant tokens are rejected.
+ * Records an attendance event from a scanned QR token (Fase 3). The operator
+ * (logged-in user) runs the scanner; the student identity, layer, and direction
+ * come from the decoded token. Cross-tenant tokens are rejected.
+ *
+ * - Gerbang session: IN → masuk, OUT → keluar.
+ * - Kelas session: both directions map to hadir (a Kelas session records a
+ *   single presence status).
  */
 export async function recordQrAction(
     domain: string,
@@ -469,18 +473,29 @@ export async function recordQrAction(
     const session = await getSessionById(tenant.id, sessionId);
     if (!session) return { ok: false, code: "not-found" };
     if (session.status !== "open") return { ok: false, code: "not-found" };
-    if (session.layer !== "gerbang") return { ok: false, code: "not-found" };
+    if (session.layer !== "gerbang" && session.layer !== "kelas") return { ok: false, code: "not-found" };
 
     const decoded = decodeQrToken(token, tenant.npsn);
     if (!decoded.ok) {
         return { ok: false, code: decoded.code === "wrong-tenant" ? "wrong-tenant" : "bad-token" };
     }
 
-    const status = decoded.value.direction === "IN" ? "masuk" : "keluar";
+    // The token's layer must match the scanning session's layer — a Gerbang
+    // session cannot be satisfied by a Kelas QR and vice versa.
+    const tokenLayer = decoded.value.layer.toLowerCase();
+    if (tokenLayer !== session.layer) return { ok: false, code: "bad-token" };
+
+    const status =
+        session.layer === "gerbang"
+            ? decoded.value.direction === "IN"
+                ? "masuk"
+                : "keluar"
+            : "hadir";
+
     const result = await recordAttendance({
         tenantId: tenant.id,
         studentId: decoded.value.studentRef,
-        layer: "gerbang",
+        layer: session.layer,
         mode: "qr",
         status,
         actorUserId: principal.userId,
@@ -491,6 +506,6 @@ export async function recordQrAction(
         return { ok: false, code: result.code === "student-not-found" ? "student-not-found" : result.code === "invalid-status" ? "invalid-status" : "error" };
     }
 
-    revalidatePath(`/${domain}/absensi/gerbang`);
+    revalidatePath(`/${domain}/absensi/${session.layer}`);
     return { ok: true, status };
 }

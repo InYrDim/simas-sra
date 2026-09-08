@@ -37,7 +37,11 @@ export function decodeQrToken(token: string, expectedNpsn: string): DecodeQrToke
 }
 
 /**
- * Builds a student self-service QR token for the gerbang layer.
+ * Builds a student self-service QR token for the given layer.
+ *
+ * `direction` is kept on the wire for Gerbang (IN → masuk, OUT → keluar). Kelas
+ * records a single "hadir" status, so both IN and OUT map to hadir and the
+ * default IN is used.
  *
  * ponytail: token is unsigned/plaintext — a student could forge another NIS.
  * Add an HMAC signature (keyed by tenant secret) when the QR is ever exposed
@@ -47,6 +51,7 @@ export function buildStudentQrToken(
     npsn: string,
     studentRef: string,
     direction: QrTokenDirection = "IN",
+    layer: QrTokenLayer = "GERBANG",
 ): string {
-    return `SIMAS|${npsn}|GERBANG|${studentRef}|${direction}`;
+    return `SIMAS|${npsn}|${layer}|${studentRef}|${direction}`;
 }
