@@ -1,32 +1,11 @@
+import { Inbox, MessageCircle } from "lucide-react";
 import Link from "next/link";
-import { MessageCircle, Send } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
 import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
-
-const INTEGRATIONS = [
-  {
-    key: "whatsapp-bot",
-    title: "WhatsApp Bot",
-    description:
-      "Kirim notifikasi otomatis (nilai, absensi, PPDB, dan pengumuman) ke pengguna melalui WhatsApp.",
-    icon: MessageCircle,
-    href: "/integrasi/whatsapp-bot",
-    status: "Belum terhubung",
-    available: true,
-  },
-  {
-    key: "email",
-    title: "Notifikasi Email",
-    description: "Kirim pemberitahuan melalui email sekolah untuk berbagai kejadian sistem.",
-    icon: Send,
-    href: undefined,
-    status: "Segera hadir",
-    available: false,
-  },
-] as const;
+import { readConnectionByTenantId } from "@/lib/integrations/whatsapp-bot/whatsapp-bot-data";
 
 export default async function IntegrasiPage({
   params,
@@ -35,9 +14,17 @@ export default async function IntegrasiPage({
 }) {
   const { domain } = await params;
   const evaluator = await createHttpTenantAuthorizationEvaluator();
-  const operationId = "integrasi.load";
-  const result = await evaluator.evaluate({ surface: "page", domain, operationId });
-  enforceAuthorizedTenantOperation(result, { domain, operationId });
+
+  const loadResult = await evaluator.evaluate({ surface: "page", domain, operationId: "integrasi.load" });
+  enforceAuthorizedTenantOperation(loadResult, { domain, operationId: "integrasi.load" });
+
+  const whatsappResult = await evaluator.evaluate({ surface: "page", domain, operationId: "integrasi.whatsapp-bot.load" });
+  const principal = enforceAuthorizedTenantOperation(whatsappResult, {
+    domain,
+    operationId: "integrasi.whatsapp-bot.load",
+  });
+
+  const connection = await readConnectionByTenantId(principal.tenantId);
 
   return (
     <main className="mx-auto w-full max-w-5xl space-y-6">
@@ -49,31 +36,38 @@ export default async function IntegrasiPage({
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {INTEGRATIONS.map((integration) => {
-          const Icon = integration.icon;
-          const card = (
-            <Card className={integration.available ? "h-full transition-colors hover:bg-muted" : "h-full opacity-60"}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Icon aria-hidden="true" className="size-5" />
-                  {integration.title}
-                </CardTitle>
-                <CardDescription>{integration.description}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Badge variant={integration.available ? "secondary" : "outline"}>{integration.status}</Badge>
-              </CardContent>
-            </Card>
-          );
+        <Link href={`/${domain}/integrasi/whatsapp`} className="group">
+          <Card className="h-full transition-shadow hover:shadow-md">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessageCircle aria-hidden="true" className="size-5" />
+                WhatsApp Bot
+              </CardTitle>
+              <CardDescription>
+                Terima dan kirim pesan WhatsApp menggunakan session sekolah yang dikelola Provider.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <Badge variant={connection ? "secondary" : "outline"}>
+                {connection ? "Terhubung" : "Belum terhubung"}
+              </Badge>
+              <p className="text-sm font-medium text-primary group-hover:underline">Kelola & kirim pesan →</p>
+            </CardContent>
+          </Card>
+        </Link>
 
-          return integration.available ? (
-            <Link key={integration.key} href={`/${domain}${integration.href}`} className="block h-full">
-              {card}
-            </Link>
-          ) : (
-            <div key={integration.key}>{card}</div>
-          );
-        })}
+        <Card className="opacity-60">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Inbox aria-hidden="true" className="size-5" />
+              Notifikasi Email
+            </CardTitle>
+            <CardDescription>Kirim pemberitahuan melalui email sekolah untuk berbagai kejadian sistem.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Badge variant="outline">Segera hadir</Badge>
+          </CardContent>
+        </Card>
       </div>
     </main>
   );
