@@ -117,3 +117,21 @@ test("Absensi mode and layer capabilities require the parent and fail closed whe
   assert.equal(isTenantFeatureEnabled(parentOff, "absensiManual"), false);
   assert.equal(isTenantFeatureEnabled(parentOff, "absensiGerbang"), false);
 });
+
+test("Integrasi is opt-in for tenants and integrates follows its parent and Master Data dependency", () => {
+  assert.equal(isTenantFeatureEnabled(fullyEnabledMasterData, "integrasi"), false);
+  assert.equal(isTenantFeatureEnabled(fullyEnabledMasterData, "integrasiRead"), false);
+
+  const enabled = {
+    features: { ...fullyEnabledMasterData.features, integrasi: true, integrasiRead: true },
+  };
+  assert.equal(isTenantFeatureEnabled(enabled, "integrasi"), true);
+  assert.equal(isTenantFeatureEnabled(enabled, "integrasiRead"), true);
+
+  assert.equal(isTenantFeatureEnabled({
+    features: { ...enabled.features, masterData: false },
+  }, "integrasiRead"), false);
+  assert.equal(isTenantFeatureEnabled({
+    features: { ...enabled.features, integrasi: false },
+  }, "integrasiRead"), false);
+});

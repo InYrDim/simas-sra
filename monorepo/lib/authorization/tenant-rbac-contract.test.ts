@@ -87,12 +87,23 @@ test("absensi module wires a real operation and excluded placeholders become ten
   assert.deepEqual(absensiSave.requiredPermissions, ["absensi.settings.update"]);
   assert.ok(absensiSave.entryPoints.some((entry) => entry === "action:app/(tenant)/[domain]/(authenticated)/absensi/actions.ts#saveAbsensiConfigAction"));
 
-  for (const id of ["e-library.load", "jadwal.mengajar.load", "jadwal.events.load", "persuratan.load", "settings.backup-restore.load", "integrasi.whatsapp-bot.load"]) {
+  for (const id of ["e-library.load", "jadwal.mengajar.load", "jadwal.events.load", "persuratan.load", "settings.backup-restore.load", "integrasi.load", "integrasi.whatsapp-bot.load", "integrasi.whatsapp-bot.update", "integrasi.whatsapp-bot.send", "integrasi.whatsapp-bot.history.load"]) {
     const operation = tenantOperationMap.find((candidate) => candidate.id === id);
     assert.ok(operation, id);
     assert.equal(operation.classification, "tenant-rbac", id);
     assert.deepEqual(operation.requiredPermissions, ["tenant.authorization-audit.view"], id);
   }
+
+  const whatsappBotUpdate = tenantOperationMap.find((candidate) => candidate.id === "integrasi.whatsapp-bot.update");
+  assert.ok(whatsappBotUpdate);
+  assert.equal(whatsappBotUpdate.operationalGate, "write");
+  assert.ok(whatsappBotUpdate.entryPoints.some((entry) => entry === "action:app/(tenant)/[domain]/(authenticated)/integrasi/whatsapp/actions.ts#connectWhatsAppBotAction"));
+  assert.ok(whatsappBotUpdate.entryPoints.some((entry) => entry === "action:app/(tenant)/[domain]/(authenticated)/integrasi/whatsapp/actions.ts#disconnectWhatsAppBotAction"));
+
+  const whatsappBotSend = tenantOperationMap.find((candidate) => candidate.id === "integrasi.whatsapp-bot.send");
+  assert.ok(whatsappBotSend);
+  assert.equal(whatsappBotSend.operationalGate, "write");
+  assert.ok(whatsappBotSend.entryPoints.some((entry) => entry === "action:app/(tenant)/[domain]/(authenticated)/integrasi/whatsapp/actions.ts#sendWhatsAppMessageAction"));
 });
 
 test("role and assignment administration permissions are active but remain non-assignable", () => {

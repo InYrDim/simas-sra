@@ -27,6 +27,8 @@ const selection = {
   absensiKartu: false,
   absensiGerbang: false,
   absensiKelas: false,
+  integrasi: false,
+  integrasiRead: false,
 };
 
 test("feature settings preserve onboarding and unknown feature configuration", () => {
@@ -66,5 +68,7 @@ test("feature settings preserve legacy Ulangan and PPDB access until explicitly 
     absensiKartu: false,
     absensiGerbang: false,
     absensiKelas: false,
+    integrasi: false,
+    integrasiRead: false,
   });
 });

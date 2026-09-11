@@ -1,4 +1,4 @@
-import { Home, Database, Calendar, ClipboardCheck, FileCheck, LayoutDashboard, Library, Mail, Settings, Upload, UserPlus, QrCode, Users } from "lucide-react"
+import { Home, Database, Calendar, ClipboardCheck, FileCheck, LayoutDashboard, Library, Mail, Settings, Upload, UserPlus, QrCode, Users, Plug } from "lucide-react"
 import { type TenantNavItem } from "@/types/components/TenantNavItem"
 
 export const tenantMenuItems: TenantNavItem[] = [
@@ -126,6 +126,18 @@ export const tenantMenuItems: TenantNavItem[] = [
       { key: "settings-assignments", title: "Pemberian Role", url: "/settings/assignments", requiredPermissions: ["tenant.assignments.view"] },
       { key: "settings-roles", title: "Roles", url: "/settings/roles", requiredPermissions: ["tenant.roles.list"] },
       { key: "settings-permissions", title: "Permission", url: "/settings/permissions", requiredPermissions: ["tenant.permissions.view"] },
+    ],
+  },
+  {
+    key: "integrasi",
+    title: "Integrasi",
+    icon: Plug,
+    group: "Integrasi",
+    requiredPermissions: ["tenant.authorization-audit.view"],
+    feature: "integrasiRead",
+    items: [
+      { key: "integrasi-overview", title: "Daftar Integrasi", url: "/integrasi", requiredPermissions: ["tenant.authorization-audit.view"] },
+      { key: "integrasi-whatsapp", title: "WhatsApp Bot", url: "/integrasi/whatsapp", requiredPermissions: ["tenant.authorization-audit.view"] },
     ],
   },
   {

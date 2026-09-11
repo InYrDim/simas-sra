@@ -115,6 +115,9 @@ test("school-admin sidebar contains the redesigned management structure", () => 
   assert.ok(labels.has("Roles"));
   assert.ok(labels.has("Permission"));
   assert.ok(labels.has("Sistem & Keamanan"));
+  assert.ok(labels.has("Integrasi"));
+  assert.ok(labels.has("Daftar Integrasi"));
+  assert.ok(labels.has("WhatsApp Bot"));
   assert.ok(labels.has("Riwayat Keamanan"));
   assert.ok(labels.has("Pengaturan Sistem"));
   assert.ok(labels.has("Backup & Restore"));
@@ -146,6 +149,31 @@ test("non-admin permissions hide the redesigned management sections", () => {
   assert.equal(visible.some((item) => item.group === "Sistem & Keamanan"), false);
   assert.equal(visible.some((item) => item.title === "Riwayat Keamanan"), false);
   assert.equal(visible.some((item) => item.title === "Pengaturan Sistem"), false);
+});
+
+test("Integrasi navigation is admin-only and gated by the integrasiRead feature", () => {
+  const integrasi = tenantMenuItems.find((item) => item.title === "Integrasi");
+  assert.ok(integrasi, "Integrasi menu item must exist");
+  assert.equal(integrasi?.key, "integrasi");
+  assert.equal(integrasi?.group, "Integrasi");
+  assert.equal(integrasi?.feature, "integrasiRead");
+  assert.deepEqual(integrasi?.requiredPermissions, ["tenant.authorization-audit.view"]);
+  assert.ok(integrasi?.items, "Integrasi must be a collapsible group");
+  assert.deepEqual(
+    integrasi?.items?.map((item) => ({
+      key: item.key,
+      title: item.title,
+      url: item.url,
+      requiredPermissions: item.requiredPermissions,
+    })),
+    [
+      { key: "integrasi-overview", title: "Daftar Integrasi", url: "/integrasi", requiredPermissions: ["tenant.authorization-audit.view"] },
+      { key: "integrasi-whatsapp", title: "WhatsApp Bot", url: "/integrasi/whatsapp", requiredPermissions: ["tenant.authorization-audit.view"] },
+    ],
+  );
+  assert.equal(isNavigationItemAuthorized(integrasi!, new Set()), false);
+  assert.equal(isNavigationItemAuthorized(integrasi!, new Set(["tenant.dashboard.view"])), false);
+  assert.equal(isNavigationItemAuthorized(integrasi!, new Set(["tenant.authorization-audit.view"])), true);
 });
 
 test("Manajemen and Sistem & Keamanan expose the redesigned management labels", () => {

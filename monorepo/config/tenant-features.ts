@@ -5,6 +5,7 @@ export const TENANT_FEATURE_DOMAINS = [
   { key: "admissions", label: "Pendaftaran · PPDB" },
   { key: "attendance", label: "Absensi" },
   { key: "analytics", label: "Analitik" },
+  { key: "integrations", label: "Integrasi" },
 ] as const;
 
 export type TenantFeatureDomain = (typeof TENANT_FEATURE_DOMAINS)[number]["key"];
@@ -166,6 +167,22 @@ export const TENANT_FEATURES = [
     functionalDomain: "attendance",
     routes: ["/absensi/**"],
     requires: ["absensi"],
+  },
+  {
+    key: "integrasi",
+    label: "Integrasi",
+    description: "Fitur induk untuk seluruh akses dan operasi Integrasi.",
+    functionalDomain: "integrations",
+    routes: ["/integrasi/**"],
+    requires: ["masterData"],
+  },
+  {
+    key: "integrasiRead",
+    label: "Baca Integrasi",
+    description: "Mengizinkan Tenant membuka dan melihat halaman Integrasi.",
+    functionalDomain: "integrations",
+    routes: ["/integrasi/**"],
+    requires: ["integrasi"],
   },
 ] as const;
 

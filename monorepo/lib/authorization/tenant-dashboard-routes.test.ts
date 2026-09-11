@@ -38,7 +38,8 @@ test("covered settings and integration placeholders do not reuse Master Data aut
     "app/(tenant)/[domain]/(authenticated)/settings/page.tsx",
     "app/(tenant)/[domain]/(authenticated)/settings/actions.ts",
     "app/(tenant)/[domain]/(authenticated)/settings/backup-restore/page.tsx",
-    "app/(tenant)/[domain]/(authenticated)/integrasi/whatsapp-bot/page.tsx",
+    "app/(tenant)/[domain]/(authenticated)/integrasi/page.tsx",
+    "app/(tenant)/[domain]/(authenticated)/integrasi/whatsapp/page.tsx",
   ];
   for (const path of paths) {
     assert.doesNotMatch(await source(path), /enforceMasterDataAccess/, path);

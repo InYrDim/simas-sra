@@ -9,10 +9,11 @@ import {
 } from "./rbac-helpers";
 
 // VAL-WIRE-002/004 + VAL-CROSS-006/012 — server-side page guards and the
-// canonical direct-URL deny matrix for the SDN 191 tenant. The five admin-only
-// placeholder modules (e-library, persuratan, jadwal/mengajar, jadwal/events,
-// settings/backup-restore) plus /integrasi/whatsapp-bot must deny for
-// guru/siswa without rendering any content; /absensi denies for siswa only.
+// canonical direct-URL deny matrix for the SDN 191 tenant. The four admin-only
+// placeholder modules (e-library, persuratan, jadwal/mengajar, jadwal/events),
+// settings/backup-restore, and the integrasi module (/integrasi, which now
+// carries the WhatsApp Bot control inline) must deny for guru/siswa without
+// rendering any content; /absensi denies for siswa only.
 
 const MODULES: ReadonlyArray<{ path: string; heading: string | null }> = [
   { path: "/absensi", heading: "Absensi" },
@@ -21,8 +22,7 @@ const MODULES: ReadonlyArray<{ path: string; heading: string | null }> = [
   { path: "/jadwal/mengajar", heading: "Jadwal Mengajar" },
   { path: "/jadwal/events", heading: "Events" },
   { path: "/settings/backup-restore", heading: "Backup & Restore" },
-  // Not present in the menu, but its page exists (mission user-testing notes).
-  { path: "/integrasi/whatsapp-bot", heading: null },
+  { path: "/integrasi", heading: "Integrasi" },
 ];
 
 test("school-admin can open every RBAC module page", async ({ page }) => {

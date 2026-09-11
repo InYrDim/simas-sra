@@ -240,7 +240,11 @@ test("admin-only placeholder pages require tenant.authorization-audit.view", asy
     "jadwal.events.load",
     "persuratan.load",
     "settings.backup-restore.load",
+    "integrasi.load",
     "integrasi.whatsapp-bot.load",
+    "integrasi.whatsapp-bot.update",
+    "integrasi.whatsapp-bot.send",
+    "integrasi.whatsapp-bot.history.load",
   ];
 
   const nonAdmin = fixture({ authority: authority(["tenant.dashboard.view", "absensi.attendance.view"]) });
