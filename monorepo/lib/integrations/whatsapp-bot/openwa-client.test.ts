@@ -373,6 +373,83 @@ test("listChats unwraps the array and parses the summary", async () => {
   assert.equal(chats[1].muted, true);
 });
 
+test("listChats sends limit/offset paging and derives number from the chat id", async () => {
+  let requestedPath = "";
+  const client = new OpenWaClient({
+    config,
+    fetch: async (input) => {
+      requestedPath = String(input).replace(config.apiBaseUrl, "");
+      return jsonResponse([
+        {
+          id: "6281555123@c.us",
+          name: "Ada Lovelace",
+          isGroup: false,
+          kind: "individual",
+          unreadCount: 2,
+          timestamp: 1700000010,
+          lastMessage: "hi",
+          archived: false,
+          pinned: true,
+          muted: false,
+        },
+        {
+          id: "1203630@g.us",
+          name: "Kelas 7A",
+          isGroup: true,
+          kind: "group",
+          unreadCount: 0,
+          timestamp: null,
+          lastMessage: null,
+          archived: false,
+          pinned: false,
+          muted: false,
+        },
+        { nope: true },
+      ]);
+    },
+  });
+
+  const chats = await client.listChats("sess-1", { limit: 50, offset: 100 });
+  assert.equal(requestedPath, "/api/sessions/sess-1/chats?limit=50&offset=100");
+  assert.equal(chats.length, 2);
+  assert.equal(chats[0].id, "6281555123@c.us");
+  assert.equal(chats[0].number, "6281555123");
+  assert.equal(chats[0].name, "Ada Lovelace");
+  assert.equal(chats[0].kind, "individual");
+  assert.equal(chats[0].unreadCount, 2);
+  assert.equal(chats[0].pinned, true);
+  assert.equal(chats[0].lastMessage, "hi");
+  assert.equal(chats[1].id, "1203630@g.us");
+  assert.equal(chats[1].number, "1203630");
+  assert.equal(chats[1].isGroup, true);
+  assert.equal(chats[1].timestamp, null);
+});
+
+test("listChats omits query params when no input is given", async () => {
+  let requestedPath = "";
+  const client = new OpenWaClient({
+    config,
+    fetch: async (input) => {
+      requestedPath = String(input).replace(config.apiBaseUrl, "");
+      return jsonResponse([]);
+    },
+  });
+
+  await client.listChats("sess-1");
+  assert.equal(requestedPath, "/api/sessions/sess-1/chats");
+});
+
+test("listChats maps a 409 not-connected response to a conflict error", async () => {
+  const client = new OpenWaClient({
+    config,
+    fetch: async () => jsonResponse({ error: "not connected" }, 409),
+  });
+  await assert.rejects(
+    () => client.listChats("sess-1"),
+    (error) => error instanceof OpenWaApiError && error.code === "conflict",
+  );
+});
+
 test("listMessages filters by chat and parses message rows", async () => {
   const client = new OpenWaClient({
     config,

@@ -1,6 +1,7 @@
-import { KeyRound, MessageCircle, Smartphone } from "lucide-react";
+import { KeyRound, MessageCircle, Smartphone, MessagesSquare } from "lucide-react";
 import Link from "next/link";
 
+import { WhatsAppBotChatsTab } from "@/components/integrations/whatsapp-bot-chats-tab";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -10,6 +11,7 @@ import {
   TableHead,
   TableRow,
 } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
 import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
 import { readConnectionByTenantId } from "@/lib/integrations/whatsapp-bot/whatsapp-bot-data";
@@ -56,120 +58,158 @@ export default async function WhatsAppAkunPage({
         </p>
       </header>
 
-      {connection ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MessageCircle aria-hidden="true" className="size-5" />
-              Profil Akun Bot
-            </CardTitle>
-            <CardDescription>
-              Informasi nomor WhatsApp yang terhubung sebagai bot sekolah.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableBody>
-                <TableRow>
-                  <TableHead className="w-1/3">Nomor WhatsApp</TableHead>
-                  <TableCell className="font-mono">{connection.botPhone ?? "—"}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead>Nama tampilan</TableHead>
-                  <TableCell>{connection.botPushName ?? "—"}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead>Status koneksi</TableHead>
-                  <TableCell>
-                    <Badge variant={connection.status === "connected" ? "secondary" : "outline"}>
-                      {connection.status === "connected" ? "Terhubung" : "Error"}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead>Session OpenWA</TableHead>
-                  <TableCell className="font-mono text-sm">{connection.openwaSessionName}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead>ID Session</TableHead>
-                  <TableCell className="font-mono text-sm">{connection.openwaSessionId}</TableCell>
-                </TableRow>
-                {connection.lastError ? (
-                  <TableRow>
-                    <TableHead>Pesan galat terakhir</TableHead>
-                    <TableCell className="text-destructive">{connection.lastError}</TableCell>
-                  </TableRow>
-                ) : null}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MessageCircle aria-hidden="true" className="size-5" />
-              Profil Akun Bot
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="text-muted-foreground">
-            Belum ada session WhatsApp yang terhubung. Hubungkan session terlebih dahulu dari halaman{" "}
-            <Link className="underline underline-offset-4 hover:text-foreground" href={`/${domain}/integrasi/whatsapp`}>
-              WhatsApp Bot
-            </Link>
-            .
-          </CardContent>
-        </Card>
-      )}
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <KeyRound aria-hidden="true" className="size-5" />
+      <Tabs defaultValue="profil" className="gap-2">
+        <TabsList>
+          <TabsTrigger value="profil">
+            <MessageCircle aria-hidden="true" />
+            Profil Akun Bot
+          </TabsTrigger>
+          <TabsTrigger value="chat">
+            <MessagesSquare aria-hidden="true" />
+            Chat
+          </TabsTrigger>
+          <TabsTrigger value="kredensial">
+            <KeyRound aria-hidden="true" />
             Kredensial OpenWA
-          </CardTitle>
-          <CardDescription>
-            Kredensial API disiapkan dan dikelola sepenuhnya oleh Provider; SIMAS terhubung otomatis sehingga tenant
-            tidak memerlukan salinan kunci API.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {credential ? (
-            <Table>
-              <TableBody>
-                <TableRow>
-                  <TableHead className="w-1/3">Status</TableHead>
-                  <TableCell>
-                    <Badge variant="secondary">Dikonfigurasi oleh Provider</Badge>
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead>API Key</TableHead>
-                  <TableCell className="text-muted-foreground">
-                    Tidak ditampilkan — dikelola oleh Provider
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead>Session Key</TableHead>
-                  <TableCell className="font-mono">{credential.sessionKey}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead>Server API</TableHead>
-                  <TableCell className="font-mono text-sm">{credential.apiBaseUrl ?? "—"}</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableHead>Diperbarui</TableHead>
-                  <TableCell>{timeFormat.format(credential.updatedAt)}</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="profil">
+          {connection ? (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageCircle aria-hidden="true" className="size-5" />
+                  Profil Akun Bot
+                </CardTitle>
+                <CardDescription>
+                  Informasi nomor WhatsApp yang terhubung sebagai bot sekolah.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableBody>
+                    <TableRow>
+                      <TableHead className="w-1/3">Nomor WhatsApp</TableHead>
+                      <TableCell className="font-mono">{connection.botPhone ?? "—"}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableHead>Nama tampilan</TableHead>
+                      <TableCell>{connection.botPushName ?? "—"}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableHead>Status koneksi</TableHead>
+                      <TableCell>
+                        <Badge variant={connection.status === "connected" ? "secondary" : "outline"}>
+                          {connection.status === "connected" ? "Terhubung" : "Error"}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableHead>Session OpenWA</TableHead>
+                      <TableCell className="font-mono text-sm">{connection.openwaSessionName}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableHead>ID Session</TableHead>
+                      <TableCell className="font-mono text-sm">{connection.openwaSessionId}</TableCell>
+                    </TableRow>
+                    {connection.lastError ? (
+                      <TableRow>
+                        <TableHead>Pesan galat terakhir</TableHead>
+                        <TableCell className="text-destructive">{connection.lastError}</TableCell>
+                      </TableRow>
+                    ) : null}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
           ) : (
-            <p className="text-muted-foreground">
-              Kredensial OpenWA belum dikonfigurasi untuk tenant ini. Silakan hubungi Provider (admin@simas.com).
-            </p>
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageCircle aria-hidden="true" className="size-5" />
+                  Profil Akun Bot
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-muted-foreground">
+                Belum ada session WhatsApp yang terhubung. Hubungkan session terlebih dahulu dari halaman{" "}
+                <Link className="underline underline-offset-4 hover:text-foreground" href={`/${domain}/integrasi/whatsapp`}>
+                  WhatsApp Bot
+                </Link>
+                .
+              </CardContent>
+            </Card>
           )}
-        </CardContent>
-      </Card>
+        </TabsContent>
+
+        <TabsContent value="chat">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <MessagesSquare aria-hidden="true" className="size-5" />
+                Chat WhatsApp
+              </CardTitle>
+              <CardDescription>
+                Daftar percakapan terbaru pada akun WhatsApp bot yang terhubung sebagai bot sekolah.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <WhatsAppBotChatsTab domain={domain} connected={connection?.status === "connected"} />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="kredensial">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <KeyRound aria-hidden="true" className="size-5" />
+                Kredensial OpenWA
+              </CardTitle>
+              <CardDescription>
+                Kredensial API disiapkan dan dikelola sepenuhnya oleh Provider; SIMAS terhubung otomatis sehingga tenant
+                tidak memerlukan salinan kunci API.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {credential ? (
+                <Table>
+                  <TableBody>
+                    <TableRow>
+                      <TableHead className="w-1/3">Status</TableHead>
+                      <TableCell>
+                        <Badge variant="secondary">Dikonfigurasi oleh Provider</Badge>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableHead>API Key</TableHead>
+                      <TableCell className="text-muted-foreground">
+                        Tidak ditampilkan — dikelola oleh Provider
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableHead>Session Key</TableHead>
+                      <TableCell className="font-mono">{credential.sessionKey}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableHead>Server API</TableHead>
+                      <TableCell className="font-mono text-sm">{credential.apiBaseUrl ?? "—"}</TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableHead>Diperbarui</TableHead>
+                      <TableCell>{timeFormat.format(credential.updatedAt)}</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              ) : (
+                <p className="text-muted-foreground">
+                  Kredensial OpenWA belum dikonfigurasi untuk tenant ini. Silakan hubungi Provider (admin@simas.com).
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </main>
   );
 }

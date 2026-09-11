@@ -22,6 +22,7 @@ export type OpenWaSentMessage = {
 export type OpenWaChat = {
   id: string;
   name: string;
+  number: string;
   isGroup: boolean;
   kind: string;
   unreadCount: number;
@@ -136,6 +137,7 @@ function parseChat(value: unknown): OpenWaChat | null {
   return {
     id,
     name: typeof raw.name === "string" ? raw.name : id,
+    number: id.split("@")[0] || "",
     isGroup: raw.isGroup === true,
     kind: typeof raw.kind === "string" ? raw.kind : "unknown",
     unreadCount: typeof raw.unreadCount === "number" ? raw.unreadCount : 0,
@@ -385,10 +387,17 @@ export class OpenWaClient {
     return parseSentMessageOrThrow(raw);
   }
 
-  async listChats(sessionId: string): Promise<OpenWaChat[]> {
+  async listChats(
+    sessionId: string,
+    input?: { limit?: number; offset?: number },
+  ): Promise<OpenWaChat[]> {
+    const params = new URLSearchParams();
+    if (input?.limit) params.set("limit", String(input.limit));
+    if (input?.offset) params.set("offset", String(input.offset));
+    const query = params.size > 0 ? `?${params.toString()}` : "";
     const raw = await this.request<unknown>(
       "GET",
-      `/api/sessions/${encodeURIComponent(sessionId)}/chats`,
+      `/api/sessions/${encodeURIComponent(sessionId)}/chats${query}`,
     );
     return unwrapList(raw)
       .map((entry) => parseChat(entry))
