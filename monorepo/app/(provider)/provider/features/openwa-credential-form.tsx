@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useActionState } from "react";
+import { startTransition, useActionState, useState } from "react";
 import { KeyRound, Save, Trash2 } from "lucide-react";
 
 import {
@@ -128,7 +128,7 @@ export function OpenWaCredentialForm({
                   size="sm"
                   variant="destructive"
                   disabled={removePending || savePending}
-                  onClick={() => removeFormAction(new FormData())}
+                  onClick={() => startTransition(() => removeFormAction(new FormData()))}
                 >
                   {removePending ? <Spinner aria-hidden="true" /> : <Trash2 aria-hidden="true" />}
                   Hapus
