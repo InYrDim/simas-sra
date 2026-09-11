@@ -1716,6 +1716,79 @@ export const quizAttendance = mysqlTable(
   ],
 );
 
+export const whatsappBotConnection = mysqlTable(
+  "whatsapp_bot_connection",
+  {
+    tenantId: varchar("tenant_id", { length: 36 })
+      .notNull()
+      .references(() => tenant.id),
+    openwaSessionId: varchar("openwa_session_id", { length: 36 }).notNull(),
+    openwaSessionName: varchar("openwa_session_name", { length: 128 }).notNull(),
+    openwaWebhookId: varchar("openwa_webhook_id", { length: 64 }).notNull(),
+    status: mysqlEnum("status", ["connected", "error"]).default("connected").notNull(),
+    botPhone: varchar("bot_phone", { length: 32 }),
+    botPushName: varchar("bot_push_name", { length: 255 }),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 })
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    unique("whatsapp_bot_connection_tenant_unique").on(table.tenantId),
+    unique("whatsapp_bot_connection_session_id_unique").on(table.openwaSessionId),
+    unique("whatsapp_bot_connection_session_name_unique").on(table.openwaSessionName),
+    index("whatsapp_bot_connection_tenant_status_idx").on(table.tenantId, table.status),
+  ],
+);
+
+export const whatsappBotMessage = mysqlTable(
+  "whatsapp_bot_message",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    openwaMessageId: varchar("openwa_message_id", { length: 128 }).notNull(),
+    idempotencyKey: varchar("idempotency_key", { length: 255 }).notNull(),
+    event: varchar("event", { length: 64 }).default("message.received").notNull(),
+    direction: mysqlEnum("direction", ["inbound", "outbound"]).default("inbound").notNull(),
+    chatId: varchar("chat_id", { length: 32 }).notNull(),
+    fromWa: varchar("from_wa", { length: 32 }).notNull(),
+    toWa: varchar("to_wa", { length: 32 }),
+    body: text("body"),
+    messageType: varchar("message_type", { length: 32 }),
+    hasMedia: boolean("has_media").default(false).notNull(),
+    isGroup: boolean("is_group").default(false).notNull(),
+    kind: varchar("kind", { length: 32 }),
+    metadata: json("metadata"),
+    messageTimestamp: bigint("message_timestamp", { mode: "number" }),
+    receivedAt: timestamp("received_at", { fsp: 3 }).defaultNow().notNull(),
+    sentAt: timestamp("sent_at", { fsp: 3 }),
+    deliveryStatus: varchar("delivery_status", { length: 32 }),
+  },
+  (table) => [
+    unique("whatsapp_bot_message_tenant_idempotency_unique").on(table.tenantId, table.idempotencyKey),
+    index("whatsapp_bot_message_tenant_received_idx").on(table.tenantId, table.receivedAt),
+  ],
+);
+
+export const tenantOpenWaCredential = mysqlTable(
+  "tenant_openwa_credential",
+  {
+    tenantId: varchar("tenant_id", { length: 36 })
+      .primaryKey()
+      .references(() => tenant.id),
+    apiBaseUrl: varchar("api_base_url", { length: 255 }),
+    apiKeyCiphertext: varchar("api_key_ciphertext", { length: 512 }).notNull(),
+    sessionKey: varchar("session_key", { length: 255 }).notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 })
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+);
+
 export const schemaRelations = defineRelations(
   {
     tenant,
