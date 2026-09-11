@@ -1,7 +1,9 @@
+import { OpenWaCredentialForm } from "@/app/(provider)/provider/features/openwa-credential-form";
 import { FeatureSettingsForm } from "@/app/(provider)/provider/features/feature-settings-form";
 import { MenuVisibilityForm } from "@/app/(provider)/provider/features/menu-visibility-form";
 import { TenantFeatureCombobox } from "@/app/(provider)/provider/features/tenant-feature-combobox";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { readTenantOpenWaCredential } from "@/lib/integrations/whatsapp-bot/tenant-openwa-credential";
 import {
   getTenantFeatureConfiguration,
   listTenantsForFeatureManagement,
@@ -16,9 +18,10 @@ export default async function ProviderFeaturesPage({
 }) {
   const params = await searchParams;
   const tenantId = typeof params.tenantId === "string" ? params.tenantId : "";
-  const [tenants, selectedTenant] = await Promise.all([
+  const [tenants, selectedTenant, openWaCredential] = await Promise.all([
     listTenantsForFeatureManagement(),
     tenantId ? getTenantFeatureConfiguration(tenantId) : Promise.resolve(null),
+    tenantId ? readTenantOpenWaCredential(tenantId) : Promise.resolve(null),
   ]);
 
   return (
@@ -83,6 +86,30 @@ export default async function ProviderFeaturesPage({
               key={selectedTenant.id}
               tenantId={selectedTenant.id}
               visibility={selectedTenant.menuVisibility}
+            />
+          </CardContent>
+        ) : null}
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>4. Kredensial OpenWA (WhatsApp Bot)</CardTitle>
+          <CardDescription>
+            {selectedTenant
+              ? `Session WhatsApp dan API key untuk ${selectedTenant.name}. Tenant hanya menekan tombol Hubungkan pada halaman integrasinya.`
+              : tenantId
+                ? "Tenant tidak ditemukan. Pilih Tenant lain."
+                : "Pilih Tenant terlebih dahulu untuk mengelola kredensial integrasi."}
+          </CardDescription>
+        </CardHeader>
+        {selectedTenant ? (
+          <CardContent>
+            <OpenWaCredentialForm
+              key={`${selectedTenant.id}:${openWaCredential !== null}`}
+              tenantId={selectedTenant.id}
+              configured={openWaCredential !== null}
+              sessionKey={openWaCredential?.sessionKey ?? null}
+              overrideBaseUrl={openWaCredential?.apiBaseUrl ?? null}
             />
           </CardContent>
         ) : null}
