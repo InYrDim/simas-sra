@@ -490,7 +490,7 @@ const seeds: OperationSeed[] = [
   { id: "persuratan.load", entryPoints: [p("persuratan")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },
   { id: "settings.backup-restore.load", entryPoints: [p("settings/backup-restore")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: ["broad-master-data"] },
   { id: "integrasi.load", entryPoints: [p("integrasi"), p("integrasi/whatsapp")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },
-  { id: "integrasi.whatsapp-bot.load", entryPoints: [p("integrasi/whatsapp"), p("integrasi")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: ["broad-master-data"] },
+  { id: "integrasi.whatsapp-bot.load", entryPoints: [p("integrasi/whatsapp"), p("integrasi"), p("integrasi/whatsapp/akun")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: ["broad-master-data"] },
   { id: "integrasi.whatsapp-bot.update", entryPoints: [a("integrasi/whatsapp/actions.ts", "connectWhatsAppBotAction"), a("integrasi/whatsapp/actions.ts", "disconnectWhatsAppBotAction")], permissions: ["tenant.authorization-audit.view"], gate: "write", context: "school-admin-only", legacy: ["broad-master-data"] },
   { id: "integrasi.whatsapp-bot.send", entryPoints: [a("integrasi/whatsapp/actions.ts", "sendWhatsAppMessageAction")], permissions: ["tenant.authorization-audit.view"], gate: "write", context: "school-admin-only", legacy: ["broad-master-data"] },
   { id: "integrasi.whatsapp-bot.history.load", entryPoints: [p("integrasi/whatsapp")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: ["broad-master-data"] },

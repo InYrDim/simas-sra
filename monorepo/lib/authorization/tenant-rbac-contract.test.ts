@@ -94,6 +94,10 @@ test("absensi module wires a real operation and excluded placeholders become ten
     assert.deepEqual(operation.requiredPermissions, ["tenant.authorization-audit.view"], id);
   }
 
+  const whatsappBotLoad = tenantOperationMap.find((candidate) => candidate.id === "integrasi.whatsapp-bot.load");
+  assert.ok(whatsappBotLoad);
+  assert.ok(whatsappBotLoad.entryPoints.some((entry) => entry === "page:app/(tenant)/[domain]/(authenticated)/integrasi/whatsapp/akun/page.tsx"));
+
   const whatsappBotUpdate = tenantOperationMap.find((candidate) => candidate.id === "integrasi.whatsapp-bot.update");
   assert.ok(whatsappBotUpdate);
   assert.equal(whatsappBotUpdate.operationalGate, "write");

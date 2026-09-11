@@ -1,4 +1,4 @@
-import { Inbox, MessageCircle, MessageSquareText, Send } from "lucide-react";
+import { Inbox, MessageCircle, MessageSquareText, Send, Smartphone } from "lucide-react";
 import Link from "next/link";
 
 import { WhatsAppBotComposer } from "@/components/integrations/whatsapp-bot-composer";
@@ -69,10 +69,19 @@ export default async function WhatsAppIntegrasiPage({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="mb-4 flex items-center gap-3">
+          <div className="mb-4 flex items-center justify-between gap-3">
             <Badge variant={connection ? "secondary" : "outline"}>
               {connection ? "Terhubung" : "Belum terhubung"}
             </Badge>
+            {connection ? (
+              <Link
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                href={`/${domain}/integrasi/whatsapp/akun`}
+              >
+                <Smartphone aria-hidden="true" className="size-4" />
+                Detail Akun Bot
+              </Link>
+            ) : null}
           </div>
           <WhatsAppBotConnectionForm
             domain={domain}
