@@ -197,6 +197,108 @@ test("deleteWebhook issues a DELETE for the session webhook", async () => {
   assert.equal(methodAndPath, "DELETE /api/sessions/sess-1/webhooks/wh-1");
 });
 
+test("createSession posts the session name and parses the created session", async () => {
+  let pathAndBody: { path: string; body: Record<string, unknown> } = { path: "", body: {} };
+  const client = new OpenWaClient({
+    config,
+    fetch: async (input, init) => {
+      pathAndBody = {
+        path: String(input).replace(config.apiBaseUrl, ""),
+        body: typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : {},
+      };
+      return jsonResponse({ data: { id: "sess-new", name: "sdn1-wa", status: "created" } }, 201);
+    },
+  });
+
+  const session = await client.createSession("sdn1-wa");
+  assert.equal(session.id, "sess-new");
+  assert.equal(session.name, "sdn1-wa");
+  assert.equal(session.status, "created");
+  assert.equal(pathAndBody.path, "/api/sessions");
+  assert.deepEqual(pathAndBody.body, { name: "sdn1-wa" });
+});
+
+test("startSession posts to the session start endpoint and parses the qr_ready session", async () => {
+  let requestedPath = "";
+  const client = new OpenWaClient({
+    config,
+    fetch: async (input) => {
+      requestedPath = String(input).replace(config.apiBaseUrl, "");
+      return jsonResponse({ data: { id: "sess-1", name: "sdn1-wa", status: "qr_ready" } });
+    },
+  });
+
+  const session = await client.startSession("sess-1");
+  assert.equal(session.id, "sess-1");
+  assert.equal(session.name, "sdn1-wa");
+  assert.equal(session.status, "qr_ready");
+  assert.equal(requestedPath, "/api/sessions/sess-1/start");
+});
+
+test("getSessionQr parses the QR data URL and status", async () => {
+  let requestedPath = "";
+  const client = new OpenWaClient({
+    config,
+    fetch: async (input) => {
+      requestedPath = String(input).replace(config.apiBaseUrl, "");
+      return jsonResponse({ data: { qrCode: "data:image/png;base64,...", status: "qr_ready" } });
+    },
+  });
+
+  const qr = await client.getSessionQr("sess-1");
+  assert.equal(qr.qrCode, "data:image/png;base64,...");
+  assert.equal(qr.status, "qr_ready");
+  assert.equal(requestedPath, "/api/sessions/sess-1/qr");
+});
+
+test("createApiKey posts a session-scoped operator key and returns the full key once", async () => {
+  let pathAndBody: { path: string; body: Record<string, unknown> } = { path: "", body: {} };
+  const client = new OpenWaClient({
+    config,
+    fetch: async (input, init) => {
+      pathAndBody = {
+        path: String(input).replace(config.apiBaseUrl, ""),
+        body: typeof init?.body === "string" ? (JSON.parse(init.body) as Record<string, unknown>) : {},
+      };
+      return jsonResponse(
+        {
+          data: {
+            id: "key-1",
+            name: "sdn1-wa",
+            keyPrefix: "owa_k1_ab",
+            role: "operator",
+            allowedSessions: ["sess-1"],
+            isActive: true,
+            usageCount: 0,
+            createdAt: "2025-01-01T00:00:00Z",
+            apiKey: "owa_k1_secret...",
+          },
+        },
+        201,
+      );
+    },
+  });
+
+  const key = await client.createApiKey({ name: "sdn1-wa", role: "operator", allowedSessions: ["sess-1"] });
+  assert.equal(key.id, "key-1");
+  assert.equal(key.keyPrefix, "owa_k1_ab");
+  assert.equal(key.apiKey, "owa_k1_secret...");
+  assert.deepEqual(key.allowedSessions, ["sess-1"]);
+  assert.equal(pathAndBody.path, "/api/auth/api-keys");
+  assert.deepEqual(pathAndBody.body, { name: "sdn1-wa", role: "operator", allowedSessions: ["sess-1"] });
+});
+
+test("createSession maps a 409 duplicate name to a conflict error", async () => {
+  const client = new OpenWaClient({
+    config,
+    fetch: async () => jsonResponse({ error: "duplicate session name" }, 409),
+  });
+  await assert.rejects(
+    () => client.createSession("sdn1-wa"),
+    (error) => error instanceof OpenWaApiError && error.code === "conflict",
+  );
+});
+
 test("network errors and non-2xx statuses map to OpenWaApiError codes", async () => {
   const unreachable = new OpenWaClient({
     config,

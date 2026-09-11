@@ -43,6 +43,19 @@ export type OpenWaMessageListItem = {
   type: string | null;
 };
 
+export type OpenWaQrCode = {
+  qrCode: string;
+  status: string;
+};
+
+export type OpenWaApiKeyCreated = {
+  id: string;
+  keyPrefix: string;
+  role: string;
+  allowedSessions: string[];
+  apiKey: string;
+};
+
 export type OpenWaApiErrorCode =
   | "unconfigured"
   | "unreachable"
@@ -239,6 +252,60 @@ export class OpenWaClient {
     );
     if (byName) return byName;
     throw new OpenWaApiError("not-found", `OpenWA session "${trimmed}" was not found`);
+  }
+
+  async createSession(name: string): Promise<OpenWaSession> {
+    const raw = await this.request<unknown>("POST", "/api/sessions", { name });
+    const session = parseSession(raw);
+    if (!session) throw new OpenWaApiError("invalid", "OpenWA returned an unrecognized session payload");
+    return session;
+  }
+
+  async startSession(sessionId: string): Promise<OpenWaSession> {
+    const raw = await this.request<unknown>(
+      "POST",
+      `/api/sessions/${encodeURIComponent(sessionId)}/start`,
+    );
+    const session = parseSession(raw);
+    if (!session) throw new OpenWaApiError("invalid", "OpenWA returned an unrecognized session payload");
+    return session;
+  }
+
+  async getSessionQr(sessionId: string): Promise<OpenWaQrCode> {
+    const raw = await this.request<unknown>(
+      "GET",
+      `/api/sessions/${encodeURIComponent(sessionId)}/qr`,
+    );
+    const body = unwrapData(raw);
+    if (!isRecord(body) || typeof body.qrCode !== "string" || typeof body.status !== "string") {
+      throw new OpenWaApiError("invalid", "OpenWA returned an unrecognized QR payload");
+    }
+    return { qrCode: body.qrCode, status: body.status };
+  }
+
+  async createApiKey(input: {
+    name: string;
+    role: "admin" | "operator" | "viewer";
+    allowedSessions: string[];
+  }): Promise<OpenWaApiKeyCreated> {
+    const raw = await this.request<unknown>("POST", "/api/auth/api-keys", {
+      name: input.name,
+      role: input.role,
+      allowedSessions: input.allowedSessions,
+    });
+    const body = unwrapData(raw);
+    if (!isRecord(body) || typeof body.id !== "string" || typeof body.apiKey !== "string") {
+      throw new OpenWaApiError("invalid", "OpenWA returned an unrecognized API key payload");
+    }
+    return {
+      id: body.id,
+      keyPrefix: typeof body.keyPrefix === "string" ? body.keyPrefix : "",
+      role: typeof body.role === "string" ? body.role : input.role,
+      allowedSessions: Array.isArray(body.allowedSessions)
+        ? body.allowedSessions.filter((id): id is string => typeof id === "string")
+        : [],
+      apiKey: body.apiKey,
+    };
   }
 
   async createWebhook(

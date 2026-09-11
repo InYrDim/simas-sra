@@ -1789,6 +1789,42 @@ export const tenantOpenWaCredential = mysqlTable(
   },
 );
 
+export const whatsappBotRequestStatus = [
+  "pending",
+  "approved",
+  "fulfilled",
+  "rejected",
+] as const;
+export type WhatsAppBotRequestStatus = (typeof whatsappBotRequestStatus)[number];
+
+export const whatsappBotRequest = mysqlTable(
+  "whatsapp_bot_request",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 })
+      .notNull()
+      .references(() => tenant.id),
+    requestedPhone: varchar("requested_phone", { length: 16 }).notNull(),
+    desiredSessionName: varchar("desired_session_name", { length: 50 }),
+    picName: varchar("pic_name", { length: 128 }).notNull(),
+    note: text("note"),
+    status: mysqlEnum("status", whatsappBotRequestStatus).default("pending").notNull(),
+    providerNote: text("provider_note"),
+    resolutionMethod: mysqlEnum("resolution_method", ["self_service", "provider"]),
+    openwaSessionId: varchar("openwa_session_id", { length: 36 }),
+    resolvedAt: timestamp("resolved_at", { fsp: 3 }),
+    resolvedBy: varchar("resolved_by", { length: 36 }),
+    createdAt: timestamp("created_at", { fsp: 3 }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 })
+      .defaultNow()
+      .$onUpdate(() => /* @__PURE__ */ new Date())
+      .notNull(),
+  },
+  (table) => [
+    index("whatsapp_bot_request_tenant_status_idx").on(table.tenantId, table.status),
+  ],
+);
+
 export const schemaRelations = defineRelations(
   {
     tenant,

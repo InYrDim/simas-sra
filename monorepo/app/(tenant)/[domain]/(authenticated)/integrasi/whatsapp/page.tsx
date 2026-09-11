@@ -3,6 +3,10 @@ import Link from "next/link";
 
 import { WhatsAppBotComposer } from "@/components/integrations/whatsapp-bot-composer";
 import { WhatsAppBotConnectionForm } from "@/components/integrations/whatsapp-bot-connection-form";
+import {
+  WhatsAppBotRequestCard,
+  type WhatsAppBotRequestView,
+} from "@/components/integrations/whatsapp-bot-request-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -11,8 +15,26 @@ import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tena
 import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
 import { listRecentMessages, readConnectionByTenantId } from "@/lib/integrations/whatsapp-bot/whatsapp-bot-data";
 import { readTenantOpenWaCredential } from "@/lib/integrations/whatsapp-bot/tenant-openwa-credential";
+import { readLatestWhatsAppBotRequest } from "@/lib/integrations/whatsapp-bot/whatsapp-bot-request-data";
 
 const timeFormat = new Intl.DateTimeFormat("id-ID", { dateStyle: "short", timeStyle: "short" });
+
+function toRequestView(request: Awaited<ReturnType<typeof readLatestWhatsAppBotRequest>>): WhatsAppBotRequestView | null {
+  return request
+    ? {
+        id: request.id,
+        requestedPhone: request.requestedPhone,
+        desiredSessionName: request.desiredSessionName,
+        picName: request.picName,
+        note: request.note,
+        status: request.status,
+        providerNote: request.providerNote,
+        openwaSessionId: request.openwaSessionId,
+        resolvedAt: request.resolvedAt ? request.resolvedAt.toISOString() : null,
+        createdAt: request.createdAt.toISOString(),
+      }
+    : null;
+}
 
 export default async function WhatsAppIntegrasiPage({
   params,
@@ -31,10 +53,11 @@ export default async function WhatsAppIntegrasiPage({
     operationId: "integrasi.whatsapp-bot.load",
   });
 
-  const [connection, messages, openWaConfigured] = await Promise.all([
+  const [connection, messages, openWaConfigured, latestRequest] = await Promise.all([
     readConnectionByTenantId(principal.tenantId),
     listRecentMessages(principal.tenantId, 50),
     readTenantOpenWaCredential(principal.tenantId).then((credential) => credential !== null),
+    readLatestWhatsAppBotRequest(principal.tenantId),
   ]);
 
   return (
@@ -100,6 +123,14 @@ export default async function WhatsAppIntegrasiPage({
           />
         </CardContent>
       </Card>
+
+      {connection ? null : (
+        <WhatsAppBotRequestCard
+          domain={domain}
+          request={toRequestView(latestRequest)}
+          connected={false}
+        />
+      )}
 
       {connection?.status === "connected" ? (
         <Card>

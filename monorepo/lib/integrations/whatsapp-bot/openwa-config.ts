@@ -14,6 +14,11 @@ export function readOpenWaGlobalBaseUrl(): string | null {
   return apiBaseUrl.replace(/\/+$/, "");
 }
 
+export function readOpenWaAdminApiKey(): string | null {
+  const apiKey = process.env.OPENWA_ADMIN_API_KEY;
+  return apiKey?.trim() || null;
+}
+
 export function readOpenWaWebhookUrl(): string {
   const base =
     process.env.APP_URL ??

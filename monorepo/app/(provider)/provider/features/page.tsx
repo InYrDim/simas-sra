@@ -2,14 +2,38 @@ import { OpenWaCredentialForm } from "@/app/(provider)/provider/features/openwa-
 import { FeatureSettingsForm } from "@/app/(provider)/provider/features/feature-settings-form";
 import { MenuVisibilityForm } from "@/app/(provider)/provider/features/menu-visibility-form";
 import { TenantFeatureCombobox } from "@/app/(provider)/provider/features/tenant-feature-combobox";
+import {
+  WhatsAppRequestReviewList,
+  type WhatsAppProviderRequestView,
+} from "@/components/provider/whatsapp-request-review";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { readTenantOpenWaCredential } from "@/lib/integrations/whatsapp-bot/tenant-openwa-credential";
+import { listWhatsAppBotRequestsForProvider } from "@/lib/integrations/whatsapp-bot/whatsapp-bot-request-data";
 import {
   getTenantFeatureConfiguration,
   listTenantsForFeatureManagement,
 } from "@/lib/provider/provider-feature-data";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
+
+function toRequestView(request: Awaited<ReturnType<typeof listWhatsAppBotRequestsForProvider>>[number]): WhatsAppProviderRequestView {
+  return {
+    id: request.id,
+    tenantName: request.tenantName,
+    tenantNpsn: request.tenantNpsn,
+    tenantDomain: request.tenantDomain,
+    requestedPhone: request.requestedPhone,
+    desiredSessionName: request.desiredSessionName,
+    picName: request.picName,
+    note: request.note,
+    status: request.status,
+    providerNote: request.providerNote,
+    openwaSessionId: request.openwaSessionId,
+    resolutionMethod: request.resolutionMethod,
+    resolvedAt: request.resolvedAt ? request.resolvedAt.toISOString() : null,
+    createdAt: request.createdAt.toISOString(),
+  };
+}
 
 export default async function ProviderFeaturesPage({
   searchParams,
@@ -18,10 +42,11 @@ export default async function ProviderFeaturesPage({
 }) {
   const params = await searchParams;
   const tenantId = typeof params.tenantId === "string" ? params.tenantId : "";
-  const [tenants, selectedTenant, openWaCredential] = await Promise.all([
+  const [tenants, selectedTenant, openWaCredential, requests] = await Promise.all([
     listTenantsForFeatureManagement(),
     tenantId ? getTenantFeatureConfiguration(tenantId) : Promise.resolve(null),
     tenantId ? readTenantOpenWaCredential(tenantId) : Promise.resolve(null),
+    tenantId ? listWhatsAppBotRequestsForProvider({ tenantId }) : Promise.resolve([]),
   ]);
 
   return (
@@ -111,6 +136,24 @@ export default async function ProviderFeaturesPage({
               sessionKey={openWaCredential?.sessionKey ?? null}
               overrideBaseUrl={openWaCredential?.apiBaseUrl ?? null}
             />
+          </CardContent>
+        ) : null}
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>5. Pengajuan WhatsApp Bot</CardTitle>
+          <CardDescription>
+            {selectedTenant
+              ? `Tinjau pengajuan WA Bot ${selectedTenant.name}. Setujui untuk membuka penyiapan mandiri, atau tolak dengan catatan.`
+              : tenantId
+                ? "Tenant tidak ditemukan. Pilih Tenant lain."
+                : "Pilih Tenant terlebih dahulu untuk meninjau pengajuan."}
+          </CardDescription>
+        </CardHeader>
+        {selectedTenant ? (
+          <CardContent>
+            <WhatsAppRequestReviewList requests={requests.map(toRequestView)} />
           </CardContent>
         ) : null}
       </Card>
