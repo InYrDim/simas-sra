@@ -6,6 +6,8 @@ import { saveModeSettingsAction, type SaveModeSettingsResult } from "@/app/(tena
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 
 export function ModeSettingsForm({
     domain,
@@ -13,12 +15,16 @@ export function ModeSettingsForm({
     message,
     scanStart,
     scanEnd,
+    notifyEnabled,
+    notifyMessage,
 }: {
     domain: string;
     mode: string;
     message: string;
     scanStart: string;
     scanEnd: string;
+    notifyEnabled?: boolean;
+    notifyMessage?: string;
 }) {
     const [, formAction, pending] = useActionState<SaveModeSettingsResult, FormData>(
         (_state, formData) => saveModeSettingsAction(domain, mode, formData),
@@ -55,6 +61,27 @@ export function ModeSettingsForm({
                 <p className="text-sm text-muted-foreground">
                     Format HH:MM. Menggantikan jendela default lapisan bila diisi keduanya.
                 </p>
+            </fieldset>
+
+            <fieldset className="space-y-3">
+                <Legend>Notifikasi WhatsApp</Legend>
+                <div className="flex items-center gap-2">
+                    <Switch id="notifyEnabled" name="notifyEnabled" defaultChecked={notifyEnabled} />
+                    <Label htmlFor="notifyEnabled">Kirim notifikasi WA saat absensi dicatat</Label>
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="notifyMessage">Pesan Notifikasi WA</Label>
+                    <Textarea
+                        id="notifyMessage"
+                        name="notifyMessage"
+                        defaultValue={notifyMessage ?? ""}
+                        placeholder="Yth. Orang tua {nama} ({nis}), anak Anda tercatat {status} pada {waktu}."
+                        rows={3}
+                    />
+                    <p className="text-sm text-muted-foreground">
+                        Placeholder: <code>{'{nama}'}</code> <code>{'{nis}'}</code> <code>{'{status}'}</code> <code>{'{waktu}'}</code> <code>{'{layer}'}</code>
+                    </p>
+                </div>
             </fieldset>
 
             <Button type="submit" disabled={pending}>

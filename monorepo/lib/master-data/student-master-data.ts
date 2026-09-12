@@ -9,9 +9,10 @@ export type SchoolPerson = Readonly<{ id: string; tenantId: string; fullName: st
 export type StudentProfile = Readonly<{ id: string; tenantId: string; personId: string; nis: string; normalizedNis: string; nisn: string | null; externalStudentId: string | null; entryDate: string; status: StudentStatus; archived: boolean; archivedAt?: Date | null; archiveReason?: string | null; version: number; createdAt: Date; updatedAt: Date }>;
 export type StudentLifecyclePeriod = Readonly<{ id: string; tenantId: string; studentId: string; status: StudentStatus; startedAt: string; endedAt: string | null; reason: string; notes: string | null; corrected: boolean; createdByUserId: string; createdAt: Date }>;
 export type StudentRelationshipBlocker = Readonly<{ id: string; tenantId: string; studentId: string; kind: string; label: string; active: boolean }>;
-export type StudentRecord = Readonly<{ person: SchoolPerson; student: StudentProfile; classGroupName: string | null; archiveBlockers?: readonly StudentRelationshipBlocker[] }>;
+export type GuardianRelationship = Readonly<{ id?: string; tenantId: string; studentId: string; kind: string; label: string; active: boolean; phone: string | null }>;
+export type StudentRecord = Readonly<{ person: SchoolPerson; student: StudentProfile; classGroupName: string | null; archiveBlockers?: readonly StudentRelationshipBlocker[]; guardians?: readonly GuardianRelationship[] }>;
 export type StudentAudit = Readonly<{ id: string; tenantId: string; personId: string; studentId: string | null; actorUserId: string; operation: "created-person" | "created-student" | "attached-student" | "edited" | "status-transitioned" | "graduation-corrected" | "archive-denied" | "archived" | "reactivated"; fromPersonVersion: number; toPersonVersion: number; fromStudentVersion: number; toStudentVersion: number; sensitiveBefore: { nik: string | null; nip: string | null; nis: string | null; nisn: string | null } | null; sensitiveAfter: { nik: string | null; nip: string | null; nis: string | null; nisn: string | null } | null; lifecycleBefore?: { status: StudentStatus; effectiveDate: string } | null; lifecycleAfter?: { status: StudentStatus; effectiveDate: string } | null; reason?: string | null; occurredAt: Date }>;
-export interface StudentTransaction { listPeople(): Promise<SchoolPerson[]>; listStudents(): Promise<StudentProfile[]>; listLifecyclePeriods(studentId: string): Promise<StudentLifecyclePeriod[]>; listRelationshipBlockers(studentId: string): Promise<StudentRelationshipBlocker[]>; appendLifecyclePeriod(value: StudentLifecyclePeriod): Promise<void>; closeLifecyclePeriod(id: string, endedAt: string): Promise<boolean>; savePerson(value: SchoolPerson, expectedVersion: number | null): Promise<boolean>; saveStudent(value: StudentProfile, expectedVersion: number | null): Promise<boolean>; appendAudit(value: StudentAudit): Promise<void> }
+export interface StudentTransaction { listPeople(): Promise<SchoolPerson[]>; listStudents(): Promise<StudentProfile[]>; listLifecyclePeriods(studentId: string): Promise<StudentLifecyclePeriod[]>; listRelationshipBlockers(studentId: string): Promise<StudentRelationshipBlocker[]>; listGuardians(studentId: string): Promise<GuardianRelationship[]>; saveGuardian(value: GuardianRelationship): Promise<{ ok: true; id: string } | { ok: false; code: string }>; deleteGuardian(id: string): Promise<boolean>; appendLifecyclePeriod(value: StudentLifecyclePeriod): Promise<void>; closeLifecyclePeriod(id: string, endedAt: string): Promise<boolean>; savePerson(value: SchoolPerson, expectedVersion: number | null): Promise<boolean>; saveStudent(value: StudentProfile, expectedVersion: number | null): Promise<boolean>; appendAudit(value: StudentAudit): Promise<void> }
 export interface StudentMasterDataStore { list(tenantId: string): Promise<StudentRecord[]>; listAvailablePeople(tenantId: string): Promise<SchoolPerson[]>; transaction<T>(tenantId: string, work: (transaction: StudentTransaction) => Promise<T>): Promise<T> }
 export type StudentInput = Readonly<{ fullName: string; preferredName?: string; birthPlace: string; birthDate: string; gender: string; nik?: string; nip?: string; religion?: string; street: string; village?: string; district?: string; city?: string; province?: string; postalCode?: string; phone?: string; email?: string; nis: string; nisn?: string; externalStudentId?: string; entryDate: string; existingPersonId?: string; confirmDistinct?: boolean }>;
 type FailureCode = "read-only" | "invalid-input" | "duplicate-nik" | "duplicate-nip" | "duplicate-nis" | "duplicate-nisn" | "identifier-conflict" | "link-required" | "duplicate-profile" | "possible-duplicate" | "not-found" | "conflict" | "archived" | "invalid-transition" | "invalid-effective-date" | "future-transition" | "graduation-correction-required" | "active-status" | "relationship-blocked" | "not-archived";
@@ -88,12 +89,35 @@ export function createStudentMasterDataService(dependencies: { store: StudentMas
       return dependencies.store.transaction(principal.tenantId, async (tx) => {
         const people = await tx.listPeople(), students = await tx.listStudents(), currentStudent = students.find((item) => item.id === studentId), currentPerson = currentStudent && people.find((item) => item.id === currentStudent.personId);
         if (!currentStudent || !currentPerson) return failure("not-found"); if (currentPerson.version !== personVersion || currentStudent.version !== studentVersion) return failure("conflict"); if (currentStudent.archived || currentPerson.archived) return failure("archived");
-        if (people.some((item) => item.id !== currentPerson.id && value.person.nik && item.nik === value.person.nik)) return failure("duplicate-nik"); if (people.some((item) => item.id !== currentPerson.id && value.person.nip && item.nip === value.person.nip)) return failure("duplicate-nip"); if (students.some((item) => item.id !== currentStudent.id && item.normalizedNis === value.student.normalizedNis)) return failure("duplicate-nis"); if (students.some((item) => item.id !== currentStudent.id && value.student.nisn && item.nisn === value.student.nisn)) return failure("duplicate-nisn");
+        if (people.some((item) => item.id !== currentPerson.id && value.person.nik && item.nik === value.person.nik)) return failure("duplicate-nik"); if (people.some((item) => item.id !== currentPerson.id && value.person.nip && item.nip === value.person.nip)) return failure("duplicate-nip");         if (students.some((item) => item.id !== currentStudent.id && item.normalizedNis === value.student.normalizedNis)) return failure("duplicate-nis"); if (students.some((item) => item.id !== currentStudent.id && item.nisn && item.nisn === value.student.nisn)) return failure("duplicate-nisn");
         const person: SchoolPerson = { ...currentPerson, ...value.person, version: personVersion + 1, updatedAt: timestamp }, student: StudentProfile = { ...currentStudent, ...value.student, version: studentVersion + 1, updatedAt: timestamp };
         if (!await tx.savePerson(person, personVersion) || !await tx.saveStudent(student, studentVersion)) return failure("conflict");
         await tx.appendAudit({ id: id(), tenantId: principal.tenantId, personId: person.id, studentId: student.id, actorUserId: principal.userId, operation: "edited", fromPersonVersion: personVersion, toPersonVersion: person.version, fromStudentVersion: studentVersion, toStudentVersion: student.version, sensitiveBefore: sensitive(currentPerson, currentStudent), sensitiveAfter: sensitive(person, student), occurredAt: timestamp });
         return { ok: true, record: { person, student, classGroupName: null } } as const;
       });
+    },
+    async listGuardians(principal: MasterDataPrincipal, studentId: string) {
+      if (!principal.capabilities.read) return [];
+      return dependencies.store.transaction(principal.tenantId, async (tx) => tx.listGuardians(studentId));
+    },
+    async saveGuardian(principal: MasterDataPrincipal, input: GuardianRelationship) {
+      if (!principal.capabilities.write) return { ok: false, code: "read-only" } as const;
+      if (input.tenantId !== principal.tenantId) return { ok: false, code: "not-found" } as const;
+      const value = {
+        ...input,
+        label: collapse(input.label),
+        phone: input.phone ? collapse(input.phone) : null,
+      };
+      if (!value.label) return { ok: false, code: "invalid-input" } as const;
+      if (value.phone && !/^\+?\d{7,15}$/.test(value.phone)) return { ok: false, code: "invalid-input" } as const;
+      return dependencies.store.transaction(principal.tenantId, async (tx) => {
+        const result = await tx.saveGuardian(value);
+        return result;
+      });
+    },
+    async deleteGuardian(principal: MasterDataPrincipal, guardianId: string) {
+      if (!principal.capabilities.write) return false;
+      return dependencies.store.transaction(principal.tenantId, async (tx) => tx.deleteGuardian(guardianId));
     },
   };
 }

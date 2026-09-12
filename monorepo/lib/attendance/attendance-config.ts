@@ -70,6 +70,10 @@ export type ModeSettings = {
     message?: string;
     /** Scan session window (QR/Kartu). Overrides the layer default when set. */
     scanWindow?: SessionWindow;
+    /** Whether WhatsApp notification should be sent when attendance is recorded in this mode. */
+    notifyEnabled?: boolean;
+    /** Template for the WhatsApp notification message. Placeholders: {nama}, {nis}, {status}, {waktu}, {layer} */
+    notifyMessage?: string;
 };
 
 export const DEFAULT_GERBANG_SESSION_WINDOW: SessionWindow = { start: "06:00", end: "07:30" };
@@ -170,6 +174,8 @@ export function readAbsensiSettings(settings: unknown): AbsensiSettings {
                 const ms: ModeSettings = {};
                 if (typeof mv.message === "string") ms.message = mv.message;
                 if (isSessionWindow(mv.scanWindow)) ms.scanWindow = mv.scanWindow;
+                if (typeof mv.notifyEnabled === "boolean") ms.notifyEnabled = mv.notifyEnabled;
+                if (typeof mv.notifyMessage === "string") ms.notifyMessage = mv.notifyMessage;
                 modeSettings[mode] = ms;
             }
         }

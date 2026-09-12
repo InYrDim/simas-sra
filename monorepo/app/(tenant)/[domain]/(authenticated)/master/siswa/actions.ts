@@ -62,3 +62,36 @@ export async function manageStudentLifecycleAction(domain: string, formData: For
   if (!result) finish(domain, "error", parsed.id);
   finish(domain, studentResultCode(result), parsed.id);
 }
+
+export async function saveStudentGuardianAction(domain: string, formData: FormData) {
+  const principal = await enforceTenantMasterDataOperation(domain, "students.update", ["students.students.update"]);
+  const studentId = String(formData.get("studentId") ?? "").trim();
+  const guardianId = String(formData.get("guardianId") ?? "").trim();
+  const kind = String(formData.get("kind") ?? "orangtua").trim();
+  const label = String(formData.get("label") ?? "").trim();
+  const phone = String(formData.get("phone") ?? "").trim();
+  const active = formData.get("active") === "on";
+  if (!studentId || !label) finish(domain, "invalid-input", studentId);
+  if (phone && !/^\+?\d{7,15}$/.test(phone)) finish(domain, "invalid-input", studentId);
+  const result = await service.saveGuardian(principal, {
+    ...(guardianId ? { id: guardianId } : {}),
+    tenantId: principal.tenantId,
+    studentId,
+    kind: kind || "orangtua",
+    label,
+    phone: phone || null,
+    active,
+  });
+  if (!result || !result.ok) finish(domain, result?.code ?? "error", studentId);
+  finish(domain, "saved", studentId);
+}
+
+export async function deleteStudentGuardianAction(domain: string, formData: FormData) {
+  const principal = await enforceTenantMasterDataOperation(domain, "students.update", ["students.students.update"]);
+  const studentId = String(formData.get("studentId") ?? "").trim();
+  const guardianId = String(formData.get("guardianId") ?? "").trim();
+  if (!studentId || !guardianId) finish(domain, "invalid-input", studentId);
+  const ok = await service.deleteGuardian(principal, guardianId);
+  if (!ok) finish(domain, "error", studentId);
+  finish(domain, "saved", studentId);
+}

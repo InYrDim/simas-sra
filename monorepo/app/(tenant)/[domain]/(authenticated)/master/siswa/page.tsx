@@ -10,6 +10,8 @@ import {
 
 import {
   manageStudentLifecycleAction,
+  saveStudentGuardianAction,
+  deleteStudentGuardianAction,
 } from "@/app/(tenant)/[domain]/(authenticated)/master/siswa/actions";
 import { StudentForm } from "@/app/(tenant)/[domain]/(authenticated)/master/siswa/student-form";
 import { MasterDataFormDialog } from "@/components/master-data/master-data-form-dialog";
@@ -250,7 +252,7 @@ export default async function StudentsPage({
                 ) : null}
               </div>
             ) : (
-              <StudentDetail record={selected} />
+              <StudentDetail domain={domain} record={selected} />
             )
           ) : undefined
         }
@@ -423,7 +425,7 @@ function StudentRowActions({
   );
 }
 
-function StudentDetail({ record }: { record: StudentRecord }) {
+function StudentDetail({ domain, record }: { domain: string; record: StudentRecord }) {
   const { person, student, classGroupName } = record;
   return (
     <div className="space-y-5">
@@ -468,6 +470,7 @@ function StudentDetail({ record }: { record: StudentRecord }) {
           <Item label="Alamat" value={person.street} />
         </dl>
       </section>
+      <GuardianSection domain={domain} student={student} guardians={record.guardians ?? []} />
       <section>
         <h3 className="font-semibold">Profil Siswa</h3>
         <dl className="mt-2 grid gap-3 sm:grid-cols-2">
@@ -499,6 +502,71 @@ function StudentDetail({ record }: { record: StudentRecord }) {
     </div>
   );
 }
+
+function GuardianSection({ domain, student, guardians }: { domain: string; student: { id: string; archived: boolean }; guardians: readonly { id?: string; label: string; kind: string; phone: string | null; active: boolean }[] }) {
+  return (
+    <section className="space-y-3">
+      <h3 className="font-semibold">Data Wali / Orang Tua</h3>
+      {guardians.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Belum ada data wali.</p>
+      ) : (
+        <ul className="space-y-2">
+          {guardians.map((g) => (
+            <li key={g.id} className="rounded-lg border p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium">{g.label}</p>
+                  <p className="text-sm text-muted-foreground">{g.kind}</p>
+                  <p className="text-sm font-mono">{g.phone ?? "—"}</p>
+                </div>
+                <form action={deleteStudentGuardianAction.bind(null, domain)} className="flex items-center gap-2">
+                  <input type="hidden" name="studentId" value={student.id} />
+                  <input type="hidden" name="guardianId" value={g.id} />
+                  <Button type="submit" size="icon" variant="ghost" className="size-8 text-destructive">
+                    <Trash2Icon aria-hidden="true" className="size-4" />
+                    <span className="sr-only">Hapus</span>
+                  </Button>
+                </form>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!student.archived ? (
+        <Collapsible className="rounded-lg border p-4">
+          <CollapsibleTrigger className="cursor-pointer font-medium">
+            Tambah Wali / Orang Tua
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <form action={saveStudentGuardianAction.bind(null, domain)} className="mt-4 space-y-3">
+              <input type="hidden" name="studentId" value={student.id} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Label className="flex flex-col gap-1.5">
+                  <span className="text-sm font-medium">Nama</span>
+                  <Input required name="label" placeholder="Nama wali" />
+                </Label>
+                <Label className="flex flex-col gap-1.5">
+                  <span className="text-sm font-medium">Hubungan</span>
+                  <Input name="kind" defaultValue="orangtua" placeholder="orangtua / wali" />
+                </Label>
+              </div>
+              <Label className="flex flex-col gap-1.5">
+                <span className="text-sm font-medium">Nomor WhatsApp</span>
+                <Input name="phone" placeholder="62812..." />
+              </Label>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="active" defaultChecked className="h-4 w-4 rounded border" />
+                Aktif
+              </label>
+              <Button type="submit" size="sm">Simpan</Button>
+            </form>
+          </CollapsibleContent>
+        </Collapsible>
+      ) : null}
+    </section>
+  );
+}
+
 function LifecycleForm({
   domain,
   record,

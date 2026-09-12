@@ -119,19 +119,44 @@ test("Absensi mode and layer capabilities require the parent and fail closed whe
 });
 
 test("Integrasi is opt-in for tenants and integrates follows its parent and Master Data dependency", () => {
-  assert.equal(isTenantFeatureEnabled(fullyEnabledMasterData, "integrasi"), false);
-  assert.equal(isTenantFeatureEnabled(fullyEnabledMasterData, "integrasiRead"), false);
+    assert.equal(isTenantFeatureEnabled(fullyEnabledMasterData, "integrasi"), false);
+    assert.equal(isTenantFeatureEnabled(fullyEnabledMasterData, "integrasiRead"), false);
 
-  const enabled = {
-    features: { ...fullyEnabledMasterData.features, integrasi: true, integrasiRead: true },
+    const enabled = {
+      features: { ...fullyEnabledMasterData.features, integrasi: true, integrasiRead: true },
+    };
+    assert.equal(isTenantFeatureEnabled(enabled, "integrasi"), true);
+    assert.equal(isTenantFeatureEnabled(enabled, "integrasiRead"), true);
+
+    assert.equal(isTenantFeatureEnabled({
+      features: { ...enabled.features, masterData: false },
+    }, "integrasiRead"), false);
+    assert.equal(isTenantFeatureEnabled({
+      features: { ...enabled.features, integrasi: false },
+    }, "integrasiRead"), false);
+  });
+
+test("Absensi WA notifications are opt-in for legacy tenants", () => {
+  assert.equal(isTenantFeatureEnabled(fullyEnabledMasterData, "absensiWhatsapp"), false);
+  assert.equal(isTenantFeatureEnabled(fullyEnabledMasterData, "absensiWhatsappNotify"), false);
+});
+
+test("Absensi WA notification descendants require their parents and fail closed when disabled", () => {
+  const settings = {
+    features: {
+      ...fullyEnabledMasterData.features,
+      absensi: true,
+      absensiWhatsapp: true,
+      absensiWhatsappNotify: true,
+    },
   };
-  assert.equal(isTenantFeatureEnabled(enabled, "integrasi"), true);
-  assert.equal(isTenantFeatureEnabled(enabled, "integrasiRead"), true);
+  assert.equal(isTenantFeatureEnabled(settings, "absensiWhatsapp"), true);
+  assert.equal(isTenantFeatureEnabled(settings, "absensiWhatsappNotify"), true);
 
-  assert.equal(isTenantFeatureEnabled({
-    features: { ...enabled.features, masterData: false },
-  }, "integrasiRead"), false);
-  assert.equal(isTenantFeatureEnabled({
-    features: { ...enabled.features, integrasi: false },
-  }, "integrasiRead"), false);
+  const waOff = { features: { ...settings.features, absensiWhatsapp: false } };
+  assert.equal(isTenantFeatureEnabled(waOff, "absensiWhatsappNotify"), false);
+
+  const absensiOff = { features: { ...settings.features, absensi: false } };
+  assert.equal(isTenantFeatureEnabled(absensiOff, "absensiWhatsapp"), false);
+  assert.equal(isTenantFeatureEnabled(absensiOff, "absensiWhatsappNotify"), false);
 });

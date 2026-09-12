@@ -4,9 +4,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { enforceTenantOperation } from "@/lib/features/tenant-feature-route-access";
+import { OpenWaClient } from "@/lib/integrations/whatsapp-bot/openwa-client";
+import { resolveTenantOpenWaCredential } from "@/lib/integrations/whatsapp-bot/tenant-openwa-credential";
+import { readConnectionByTenantId, recordOutboundMessage } from "@/lib/integrations/whatsapp-bot/whatsapp-bot-data";
+import type { WhatsAppBotSendDependencies } from "@/lib/integrations/whatsapp-bot/whatsapp-bot-send";
 import { tenantAuthorizationStore } from "@/lib/authorization/tenant-authorization-data";
 import { saveAbsensiConfig, saveModeSettings } from "@/lib/attendance/attendance-config-data";
 import { recordAttendance, openSession, closeSession, deleteSession, deleteAttendanceRecord, getSessionById } from "@/lib/attendance/attendance-record-data";
+import { sendAttendanceNotification } from "@/lib/attendance/attendance-notify";
 import { decodeQrToken } from "@/lib/attendance/attendance-qr";
 import { getSessionWindow, readAbsensiSettings, readTenantTimezone } from "@/lib/attendance/attendance-config";
 import {
@@ -27,6 +32,15 @@ export type SaveAbsensiConfigResult = {
     ok: boolean;
     code?: "invalid-input" | "not-found" | "error";
 };
+
+function waSendDependencies(): WhatsAppBotSendDependencies {
+    return {
+        resolveCredential: resolveTenantOpenWaCredential,
+        createClient: (config) => new OpenWaClient({ config }),
+        readConnectionByTenantId,
+        recordOutboundMessage,
+    };
+}
 
 /**
  * Persists the School Admin's layer→mode selection. The Provider-allowed set is
@@ -108,11 +122,13 @@ export async function saveModeSettingsAction(
         rawStart !== "" && rawEnd !== "" && isSessionWindow({ start: rawStart, end: rawEnd })
             ? { start: rawStart, end: rawEnd }
             : undefined;
+    const notifyEnabled = formData.get("notifyEnabled") === "on";
+    const notifyMessage = String(formData.get("notifyMessage") ?? "").trim() || undefined;
 
     const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
     if (!tenant) return { ok: false, code: "not-found" };
 
-    const result = await saveModeSettings(tenant.id, mode, { message, scanWindow });
+    const result = await saveModeSettings(tenant.id, mode, { message, scanWindow, notifyEnabled, notifyMessage });
     if (!result) return { ok: false, code: "not-allowed" };
 
     revalidatePath(`/${domain}/absensi/settings`);
@@ -163,6 +179,16 @@ export async function recordGerbangAction(
     if (!result.ok) {
         return { ok: false, code: result.code === "student-not-found" ? "student-not-found" : result.code === "invalid-status" ? "invalid-status" : "error" };
     }
+
+    await sendAttendanceNotification(waSendDependencies(), {
+        tenantId: tenant.id,
+        tenantSettings: tenant.settings,
+        studentId,
+        layer: "gerbang",
+        mode: "manual",
+        status,
+        recordedAt: new Date(),
+    }).catch(() => undefined);
 
     revalidatePath(`/${domain}/absensi/gerbang`);
     return { ok: true };
@@ -310,6 +336,16 @@ export async function recordKelasAction(
     if (!result.ok) {
         return { ok: false, code: result.code === "student-not-found" ? "student-not-found" : result.code === "invalid-status" ? "invalid-status" : "error" };
     }
+
+    await sendAttendanceNotification(waSendDependencies(), {
+        tenantId: tenant.id,
+        tenantSettings: tenant.settings,
+        studentId,
+        layer: "kelas",
+        mode: "manual",
+        status,
+        recordedAt: new Date(),
+    }).catch(() => undefined);
 
     revalidatePath(`/${domain}/absensi/kelas`);
     return { ok: true };

@@ -1,0 +1,1 @@
+ALTER TABLE `student_relationship` ADD `phone` varchar(32);
