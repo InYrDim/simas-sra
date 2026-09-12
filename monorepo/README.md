@@ -1,36 +1,91 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SIMAS (Monorepo)
 
-## Getting Started
+Aplikasi SIMAS — platform multitenant manajemen sekolah (tenant approval, onboarding, dan RBAC role/permission per tenant). Folder ini berisi aplikasi utama (Next.js); konteks keseluruhan repo ada di [`../README.md`](../README.md).
 
-First, run the development server:
+## Stack & Konvensi
+
+- **Next.js 16 (App Router)** + **React 19** + **TypeScript**; semua perintah memakai `pnpm`.
+- **Server Component** adalah default; `'use client'` hanya bila butuh interaktivitas, browser API, atau hook.
+- **Async Request APIs** — `params`, `searchParams`, `cookies()`, `headers()` semuanya async; selalu `await`.
+- **`proxy`** (bukan middleware) untuk logic level route, mis. cek tenant dari subdomain.
+- **Caching opt-in** — pakai direktif `"use cache"`, tidak implisit.
+- **Tailwind v4** — design token lewat `@theme` di CSS, bukan `tailwind.config.js`.
+- **UI** — Base UI + shadcn; komponen reusable di `components/ui`.
+- **Data & auth** — Drizzle ORM + mysql2, better-auth.
+
+Konvensi dan aturan editor lengkap: [`Monorepo/AGENTS.md`](AGENTS.md).
+
+## Prasyarat
+
+- Node.js (LTS) dan pnpm (lihat `packageManager` di `package.json` — `pnpm@11.8.0`)
+- Docker untuk MySQL dev
+
+## Install & Menjalankan
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Jalankan MySQL dev dari `compose.yml` (MySQL 8.4, volume `db_data`):
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+docker compose up -d mysql
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+MySQL dev: port `DB_PORT` (default 3337), database `DB_NAME` (default `simas`).
 
-## Learn More
+### Environment
 
-To learn more about Next.js, take a look at the following resources:
+Isi variabel environment di `.env` (git-ignored, tidak di-commit; `.env.prod` untuk produksi):
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `DATABASE_URL` — DSN MySQL ke database dev `simas` (host port `DB_PORT`, sesuaikan dengan `.env`/`compose.yml`).
+- `SDN191_SCHOOL_ADMIN_PASSWORD`, `SDN191_GURU_PASSWORD`, `SDN191_SISWA_PASSWORD` — nilai password untuk akun uji tiga role SDN 191 diambil dari env **non-commit**. Jangan pernah commit kredensial literal; `.env` sudah di-ignore oleh git.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Dev server
 
-## Deploy on Vercel
+```bash
+pnpm dev
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Aplikasi: `http://localhost:3000`
+- Akses per tenant via subdomain: `http://<domain>.localhost:3000`
+- Tenant uji: SDN 191 — `uptd-sdn-191-inpres-batunapara`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Script
+
+| Perintah | Keterangan |
+| --- | --- |
+| `pnpm dev` | Dev server (port 3000) |
+| `pnpm typecheck` | `tsc --noEmit` |
+| `pnpm lint` | ESLint |
+| `pnpm test:unit` | Unit test |
+| `pnpm test:mysql` | Test yang memerlukan MySQL aktif |
+| `pnpm test:e2e` | E2E Playwright (seluruh spec) |
+| `pnpm rbac:health:check` | Health check RBAC tenant aktif (mis. SDN 191) |
+| `pnpm db:provision:sdn191` | Provisioning tenant SDN 191 — **idempoten** |
+| `pnpm db:assign:sdn191-guru-absensi` | Assign role guru ke module absensi SDN 191 |
+| `pnpm db:cleanup:sdn191` | Cleanup role legacy SDN 191 |
+
+## Permission & RBAC
+
+- **Registry permission** — `lib/authorization/tenant-rbac-contract.ts`; key berformat `${module}.${resource}.${action}` (3 segmen).
+- **Evaluator** — `lib/authorization/tenant-authorization.ts`; menentukan apakah sebuah aksi diizinkan untuk role pada tenant tertentu.
+- **Guard server** — `enforceAuthorizedTenantOperation`; melindungi operation (halaman/API) dengan permission tenant.
+- **Filter menu** — `isNavigationItemAuthorized` di `lib/authorization/tenant-nav-item-authorization.ts` (modul server-safe); menu hanya tampil sesuai izin.
+- **Homepage fallback** — `lib/authorization/tenant-home-route.ts`; mengarahkan tenant ke halaman pertama yang boleh diakses.
+- **Sidebar tenant (redesigned)** — section **Manajemen** berisi collapsible **Pengguna** dengan sub-item: **Manajemen Pengguna** (`/{domain}/users`), **Pemberian Role** (`/{domain}/settings/assignments`), **Roles** (`/{domain}/settings/roles`), **Permission** (`/{domain}/settings/permissions`); section **Sistem & Keamanan** berisi item flat: **Riwayat Keamanan** (`/{domain}/security-history`), **Pengaturan Sistem** (`/{domain}/settings`), **Backup & Restore** (`/{domain}/settings/backup-restore`). Semua item admin-only (school-admin).
+- **Manajemen roles (UI)** — menu sidebar **"Roles"** (admin-only, `tenant.roles.list`) pada grup "Manajemen" → `/{domain}/settings/roles`. Dialog create/edit menampilkan permission nyata dari registry lewat katalog `lib/authorization/tenant-role-permission-catalog.ts` (key tenant-assignable, dikelompokkan per modul). Lifecycle role: **draft → active → archived**; "hapus" = archive (hanya bila `userCount = 0`), tidak ada delete permanen maupun restore dari UI.
+- **Permission Explorer** — halaman read-only `/{domain}/settings/permissions` yang menampilkan seluruh registry permission dari `lib/authorization/tenant-rbac-contract.ts` (155 key: Module/Key/Classification/Assignable) dengan search/filter; guard oleh permission `tenant.permissions.view` (school-admin-only), guru/siswa di-deny.
+
+Tenant uji RBAC: **SDN 191** (`uptd-sdn-191-inpres-batunapara`). Provisioning data dilakukan `scripts/provision-sdn-191.ts` (idempoten); assignment role via `scripts/assign-sdn191-guru-absensi.ts`.
+
+### Test E2E RBAC
+
+Spec E2E RBAC ada di `e2e/rbac-*.spec.ts` (total 9 spec), termasuk `e2e/rbac-roles-ui.spec.ts` untuk UI manajemen roles dan `e2e/rbac-permissions.spec.ts` untuk Permission Explorer. Dari folder ini:
+
+```powershell
+$env:E2E_BASE_URL = "http://localhost:3000"
+pnpm exec playwright test "rbac-"
+```
+
+Pastikan dev server (port 3000) dan MySQL aktif; argumen `"rbac-"` diperlakukan sebagai string literal (PowerShell tidak glob-expand path), sehingga hanya spec `rbac-*` yang dijalankan. Untuk seluruh suite: `pnpm test:e2e`.

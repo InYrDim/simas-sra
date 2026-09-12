@@ -11,27 +11,112 @@ function request(host: string, pathname: string) {
   });
 }
 
-test("passes Provider routes through on the main host", () => {
-  const response = proxy(request("localhost:3000", "/provider/tenants"));
+function forwardedRequest(host: string, pathname: string) {
+  return new NextRequest(`http://app:3000${pathname}`, {
+    headers: {
+      host,
+      "x-forwarded-host": host,
+      "x-forwarded-proto": "https",
+    },
+  });
+}
+
+test("passes Provider routes through on the main host", async () => {
+  const response = await proxy(request("localhost:3000", "/provider/tenants"));
 
   assert.equal(response.status, 200);
   assert.equal(response.headers.get("x-middleware-next"), "1");
   assert.equal(response.headers.get("x-middleware-rewrite"), null);
 });
 
-test("returns 404 for Provider routes on Tenant hosts", () => {
-  const response = proxy(request("sekolah.localhost:3000", "/provider"));
+test("returns 404 for Provider routes on Tenant hosts", async () => {
+  const response = await proxy(request("sekolah.localhost:3000", "/provider"));
 
   assert.equal(response.status, 404);
   assert.equal(response.headers.get("x-middleware-rewrite"), null);
 });
 
-test("rewrites ordinary Tenant routes", () => {
-  const response = proxy(request("sekolah.localhost:3000", "/dashboard"));
+test("central auth rejects and logs encoded intent at the route boundary", async () => {
+  const events: unknown[] = [];
+  const originalWarn = console.warn;
+  console.warn = (event) => events.push(event);
+  try {
+    const response = await proxy(request("localhost:3000", "/login?intent=%61pply"));
+    assert.equal(response.status, 200);
+    assert.deepEqual(events, [{ event: "central_auth_intent_rejected", value: "%61pply" }]);
+  } finally {
+    console.warn = originalWarn;
+  }
+});
+
+test("rewrites a session-scoped Tenant PPDB route to the public application", async () => {
+  const response = await proxy(request("sekolah.localhost:3000", "/ppdb/session-1/daftar"));
+
+  assert.equal(response.status, 200);
+  assert.equal(
+    response.headers.get("x-middleware-rewrite"),
+    "http://sekolah.localhost:3000/ppdb/sekolah/session-1/daftar",
+  );
+});
+
+test("redirects internal session-scoped PPDB paths to the public route", async () => {
+  const response = await proxy(request("sekolah.localhost:3000", "/ppdb/sekolah/session-1/status"));
+
+  assert.equal(response.status, 307);
+  assert.equal(response.headers.get("location"), "http://sekolah.localhost:3000/ppdb/session-1/status");
+});
+
+test("keeps PPDB administration separate from the public PPDB page", async () => {
+  const response = await proxy(request("sekolah.localhost:3000", "/ppdb/settings"));
+
+  assert.equal(response.status, 200);
+  assert.equal(
+    response.headers.get("x-middleware-rewrite"),
+    "http://sekolah.localhost:3000/sekolah/ppdb/settings",
+  );
+  assert.equal(
+    response.headers.get("x-middleware-request-x-tenant-pathname"),
+    "/sekolah/ppdb/settings",
+  );
+});
+
+test("rewrites the Tenant host root to the public landing page route", async () => {
+  const response = await proxy(request("sekolah.localhost:3000", "/"));
+
+  assert.equal(response.status, 200);
+  assert.equal(
+    response.headers.get("x-middleware-rewrite"),
+    "http://sekolah.localhost:3000/sekolah",
+  );
+  assert.equal(response.headers.get("location"), null);
+});
+
+test("rewrites ordinary Tenant routes and forwards the canonical path to guards", async () => {
+  const response = await proxy(request("sekolah.localhost:3000", "/dashboard"));
 
   assert.equal(response.status, 200);
   assert.equal(
     response.headers.get("x-middleware-rewrite"),
     "http://sekolah.localhost:3000/sekolah/dashboard",
   );
+  assert.equal(response.headers.get("x-middleware-request-x-tenant-pathname"), "/sekolah/dashboard");
+});
+
+test("keeps rewrites internal while forwarding the canonical public origin", async () => {
+  const host = "uptd-sdn-191-inpres-batunapara.simas.biz.id";
+  const response = await proxy(forwardedRequest(host, "/dashboard"));
+
+  assert.equal(
+    response.headers.get("x-middleware-rewrite"),
+    "http://app:3000/uptd-sdn-191-inpres-batunapara/dashboard",
+  );
+  assert.equal(response.headers.get("x-middleware-request-host"), host);
+  assert.equal(response.headers.get("x-middleware-request-x-forwarded-host"), host);
+  assert.equal(response.headers.get("x-middleware-request-x-forwarded-proto"), "https");
+  assert.equal(response.headers.get("x-middleware-request-x-forwarded-port"), "443");
+});
+
+test("rewrites Tenant login without treating the requested domain as membership", async () => {
+  const response = await proxy(request("sekolah.localhost:3000", "/login"));
+  assert.equal(response.headers.get("x-middleware-rewrite"), "http://sekolah.localhost:3000/sekolah/login");
 });

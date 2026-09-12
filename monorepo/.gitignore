@@ -19,6 +19,7 @@
 
 # production
 /build
+/compose.cloudflare.yml
 
 # misc
 .DS_Store
@@ -39,3 +40,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+.data/
+.operational-evidence/
+.operational-evidence/**/*.sql

@@ -1,6 +1,8 @@
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
 
+import { FeatureAction } from "@/components/features/feature-action"
+import type { TenantFeatureAvailability } from "@/lib/features/tenant-feature-availability"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
@@ -42,13 +44,32 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  featureAvailability,
+  render,
   ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants> & {
+  featureAvailability?: TenantFeatureAvailability
+}) {
+  const classes = cn(buttonVariants({ variant, size, className }))
+  const enabledTrigger = (
+    <ButtonPrimitive data-slot="button" className={classes} render={render} {...props} />
+  )
+  if (!featureAvailability) return enabledTrigger
+
   return (
-    <ButtonPrimitive
-      data-slot="button"
-      className={cn(buttonVariants({ variant, size, className }))}
-      {...props}
+    <FeatureAction
+      availability={featureAvailability}
+      enabledTrigger={enabledTrigger}
+      disabledTrigger={
+        <ButtonPrimitive
+          data-slot="button"
+          className={classes}
+          {...props}
+          disabled
+          render={undefined}
+          nativeButton={true}
+        />
+      }
     />
   )
 }

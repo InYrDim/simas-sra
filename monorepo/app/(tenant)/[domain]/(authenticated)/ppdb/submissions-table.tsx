@@ -1,0 +1,246 @@
+"use client";
+
+import { useFormStatus } from "react-dom";
+import { Check, CheckCircle, Clock, Eye, FileText, Loader2, X, XCircle } from "lucide-react";
+
+import { decideSubmissionAction } from "@/app/(tenant)/[domain]/(authenticated)/ppdb/actions";
+import { DocumentPreview } from "@/app/(tenant)/[domain]/(authenticated)/ppdb/document-preview";
+import { PrintSubmissionsDialog } from "@/app/(tenant)/[domain]/(authenticated)/ppdb/print-submissions-dialog";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import type { PpdbSubmission } from "@/lib/admissions/ppdb-submission";
+import type { TenantFeatureAvailability } from "@/lib/features/tenant-feature-availability";
+
+function formatAnswer(value: unknown) {
+  if (value === undefined || value === null || String(value).trim() === "") return "–";
+  if (Array.isArray(value)) return value.join(", ");
+  return String(value);
+}
+
+function SubmissionFormDetail({ domain, submission }: { domain: string; submission: PpdbSubmission }) {
+  return (
+    <Dialog>
+      <DialogTrigger render={<Button type="button" size="sm" variant="ghost" className="gap-1.5 text-sky-700 hover:bg-sky-50 hover:text-sky-800" />}>
+        <Eye className="size-3.5" />
+        Lihat Isian
+      </DialogTrigger>
+      <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Isian Form {submission.studentName}</DialogTitle>
+          <DialogDescription>
+            Data ditampilkan berdasarkan snapshot form saat pendaftaran {submission.registrationCode} dikirim.
+          </DialogDescription>
+        </DialogHeader>
+        {submission.formFields.length ? (
+          <dl className="grid gap-3 sm:grid-cols-2">
+            {submission.formFields.map((field) => {
+              const document = field.type === "file"
+                ? submission.documents.find((item) => item.fieldId === field.id)
+                : null;
+              return (
+                <div key={field.id} className="rounded-lg border border-slate-200 p-3">
+                  <dt className="text-xs font-medium text-slate-500">
+                    {field.label} · {field.required ? "Wajib" : "Opsional"}
+                  </dt>
+                  <dd className="mt-1 break-words text-sm font-medium text-slate-900">
+                    {field.type === "file" ? (
+                      document ? (
+                        <DocumentPreview
+                          domain={domain}
+                          submissionId={submission.id}
+                          document={document}
+                          fieldLabel={field.label}
+                          showLabel={true}
+                        />
+                      ) : "–"
+                    ) : formatAnswer(submission.formData[field.id])}
+                  </dd>
+                </div>
+              );
+            })}
+          </dl>
+        ) : (
+          <p className="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">
+            Snapshot struktur form tidak tersedia untuk pendaftaran ini.
+          </p>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function StatusBadge({ status }: { status: PpdbSubmission["status"] }) {
+  if (status === "accepted") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+        <CheckCircle className="size-3.5" /> Diterima
+      </span>
+    );
+  }
+  if (status === "rejected") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700">
+        <XCircle className="size-3.5" /> Ditolak
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
+      <Clock className="size-3.5" /> Menunggu
+    </span>
+  );
+}
+
+function SubmissionActions({
+  domain,
+  submissionId,
+  currentScore,
+  redirectPath,
+  availability,
+}: {
+  domain: string;
+  submissionId: string;
+  currentScore: number | null;
+  redirectPath: string;
+  availability: TenantFeatureAvailability;
+}) {
+  const { pending } = useFormStatus();
+
+  return (
+    <form action={decideSubmissionAction.bind(null, domain)} className="flex items-center justify-end gap-2">
+      <input type="hidden" name="submissionId" value={submissionId} />
+      <input type="hidden" name="redirectPath" value={redirectPath} />
+      <Input
+        aria-label="Skor"
+        name="score"
+        type="number"
+        defaultValue={currentScore ?? ""}
+        className="h-9 w-20"
+        disabled={pending || !availability.enabled}
+      />
+      <Button
+        type="submit"
+        name="status"
+        value="accepted"
+        size="sm"
+        variant="outline"
+        disabled={pending}
+        featureAvailability={availability}
+        className="gap-1.5 border-emerald-600 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
+      >
+        {pending ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+        Terima
+      </Button>
+      <Button
+        type="submit"
+        name="status"
+        value="rejected"
+        size="sm"
+        variant="outline"
+        disabled={pending}
+        featureAvailability={availability}
+        className="gap-1.5 border-red-600 text-red-700 hover:bg-red-50 hover:text-red-800"
+      >
+        {pending ? <Loader2 className="size-3.5 animate-spin" /> : <X className="size-3.5" />}
+        Tolak
+      </Button>
+    </form>
+  );
+}
+
+// Terima/Tolak tetap bisa dilakukan meski Sesi induknya sudah diakhiri — hanya submission baru & struktur Form yang terkunci.
+export function SubmissionsTable({
+  domain,
+  submissions,
+  writable,
+  redirectPath,
+  availability,
+}: {
+  domain: string;
+  submissions: readonly PpdbSubmission[];
+  writable: boolean;
+  redirectPath: string;
+  availability: TenantFeatureAvailability;
+}) {
+  if (!submissions.length) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-2 py-12 text-center">
+        <FileText className="size-8 text-slate-300" />
+        <p className="text-sm text-slate-500">Belum ada pendaftar untuk Sesi ini.</p>
+      </div>
+    );
+  }
+  return (
+    <div>
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-4">
+        <p className="text-sm text-slate-500">{submissions.length} calon siswa</p>
+        <PrintSubmissionsDialog domain={domain} submissions={submissions} />
+      </div>
+      <Table>
+      <TableHeader className="bg-slate-50">
+        <TableRow>
+          <TableHead className="font-semibold">Kode Pendaftaran</TableHead>
+          <TableHead className="font-semibold">Nama Peserta</TableHead>
+          <TableHead className="font-semibold">NISN</TableHead>
+          <TableHead className="font-semibold">Data Form</TableHead>
+          <TableHead className="font-semibold text-center">Skor</TableHead>
+          <TableHead className="font-semibold">Dokumen</TableHead>
+          <TableHead className="font-semibold">Tanggal</TableHead>
+          <TableHead className="font-semibold">Status</TableHead>
+          {writable ? <TableHead className="font-semibold text-right">Aksi</TableHead> : null}
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {submissions.map((submission) => (
+          <TableRow key={submission.id}>
+            <TableCell className="font-medium">{submission.registrationCode}</TableCell>
+            <TableCell className="font-semibold text-slate-900">{submission.studentName}</TableCell>
+            <TableCell className="text-slate-500">{submission.nisn || "–"}</TableCell>
+            <TableCell><SubmissionFormDetail domain={domain} submission={submission} /></TableCell>
+            <TableCell className="text-center">{submission.score ?? "–"}</TableCell>
+            <TableCell>
+              {submission.documents.length ? (
+                <div className="flex flex-col gap-1">
+                  {submission.documents.map((document) => (
+                    <DocumentPreview
+                      key={document.id}
+                      domain={domain}
+                      submissionId={submission.id}
+                      document={document}
+                      fieldLabel={submission.formFields.find((field) => field.id === document.fieldId)?.label ?? document.fieldId}
+                    />
+                  ))}
+                </div>
+              ) : "–"}
+            </TableCell>
+            <TableCell className="text-slate-500">{submission.submittedAt.toLocaleDateString("id-ID")}</TableCell>
+            <TableCell>
+              <StatusBadge status={submission.status} />
+            </TableCell>
+            {writable ? (
+              <TableCell className="text-right">
+                <SubmissionActions
+                  domain={domain}
+                  submissionId={submission.id}
+                  currentScore={submission.score}
+                  redirectPath={redirectPath}
+                  availability={availability}
+                />
+              </TableCell>
+            ) : null}
+          </TableRow>
+        ))}
+      </TableBody>
+      </Table>
+    </div>
+  );
+}

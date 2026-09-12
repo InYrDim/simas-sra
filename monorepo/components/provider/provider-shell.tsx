@@ -7,7 +7,7 @@ import {
   SidebarProvider,
   useSidebar,
 } from "@/components/ui/sidebar";
-import type { ProviderPrincipal } from "@/lib/provider-access";
+import type { ProviderPrincipal } from "@/lib/provider/provider-access";
 import { PanelLeft } from "lucide-react";
 
 function ProviderHeader() {

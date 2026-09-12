@@ -5,8 +5,8 @@ import { ResetCredentialForm } from "@/app/(provider)/provider/tenants/[tenantId
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getProviderTenantDetail } from "@/lib/provider-tenant-data";
-import { tenantUsageStageLabel } from "@/lib/provider-tenants";
+import { getProviderTenantDetail } from "@/lib/provider/provider-tenant-data";
+import { tenantUsageStageLabel } from "@/lib/provider/provider-tenants";
 
 export default async function ProviderTenantDetailPage({
   params,
@@ -16,7 +16,8 @@ export default async function ProviderTenantDetailPage({
   const { tenantId } = await params;
   const detail = await getProviderTenantDetail(tenantId);
   if (!detail) notFound();
-  const canReset = !detail.firstAuthenticatedAt && detail.passwordChangeRequired;
+  const hasTemporaryCredential = detail.temporaryCredentialActivationUserId !== null;
+  const canReset = hasTemporaryCredential && !detail.firstAuthenticatedAt && detail.passwordChangeRequired;
   const usage = tenantUsageStageLabel(detail);
 
   return (
@@ -52,17 +53,25 @@ export default async function ProviderTenantDetailPage({
           <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field label="Nama" value={detail.schoolAdminName} />
             <Field label="Email" value={detail.schoolAdminEmail} />
-            <Field label="Status akun" value={detail.firstAuthenticatedAt ? "Sudah login" : "Menunggu login pertama"} />
             <Field label="Email terverifikasi" value={detail.schoolAdminEmailVerified ? "Ya" : "Belum"} />
-            <Field label="Login pertama" value={formatDate(detail.firstAuthenticatedAt, true)} />
-            <Field label="Kredensial diterbitkan" value={formatDate(detail.temporaryCredentialIssuedAt, true)} />
+            {hasTemporaryCredential ? (
+              <>
+                <Field label="Status Kredensial sementara" value={detail.firstAuthenticatedAt ? "Sudah login" : "Menunggu login pertama"} />
+                <Field label="Login pertama" value={formatDate(detail.firstAuthenticatedAt, true)} />
+                <Field label="Kredensial diterbitkan" value={formatDate(detail.temporaryCredentialIssuedAt, true)} />
+              </>
+            ) : null}
           </dl>
           {canReset ? (
             <ResetCredentialForm userId={detail.schoolAdminUserId} />
-          ) : (
+          ) : hasTemporaryCredential ? (
             <p className="rounded-md border p-3 text-sm">
-              Reset kredensial sementara tidak tersedia setelah login pertama. Arahkan School Admin ke{" "}
+              Reset Kredensial sementara tidak tersedia setelah login pertama. Arahkan School Admin ke{" "}
               <Link className="text-primary underline" href="/forgot-password">pemulihan kata sandi biasa</Link>.
+            </p>
+          ) : (
+            <p className="rounded-md border p-3 text-sm text-muted-foreground">
+              School Admin ini menggunakan akun yang sudah dimiliki dan tidak mempunyai Kredensial sementara.
             </p>
           )}
         </CardContent>

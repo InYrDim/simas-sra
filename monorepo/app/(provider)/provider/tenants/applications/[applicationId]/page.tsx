@@ -7,11 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { getProviderApplicationDetail } from "@/lib/provider-application-data";
+import { getProviderApplicationDetail } from "@/lib/provider/provider-application-data";
 import {
   APPLICATION_STATUS_LABELS,
   suggestSubdomain,
-} from "@/lib/provider-applications";
+} from "@/lib/provider/provider-applications";
 
 function matchLabels(
   target: { npsn: string; contactEmail: string },

@@ -10,7 +10,7 @@ async function main() {
     process.exit(1);
   }
 
-  const { provisionProviderAdminByEmail } = await import("@/lib/provider-admin");
+  const { provisionProviderAdminByEmail } = await import("@/lib/provider/provider-admin");
   const result = await provisionProviderAdminByEmail(email);
   console.log(JSON.stringify(result));
 

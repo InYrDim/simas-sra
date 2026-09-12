@@ -1,11 +1,14 @@
 import { type LucideIcon } from "lucide-react"
-import { type TenantRoleMatcher } from "@/types/TenantRole"
-
+import type { TenantFeatureKey } from "@/config/tenant-features"
 export type TenantNavItem = {
+  /** Stable identifier used by Provider to toggle sidebar visibility per Tenant. */
+  key: string
   title: string
   url?: string
   icon?: LucideIcon
-  roles: TenantRoleMatcher[]
+  requiredPermissions?: readonly string[]
+  permissionMode?: "all" | "any"
   group?: string
+  feature?: TenantFeatureKey
   items?: Omit<TenantNavItem, "icon" | "group">[]
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { ShieldCheck } from "lucide-react";
+import { LogOut, ShieldCheck } from "lucide-react";
 
 import { providerNavItems } from "@/components/provider-navigation/config";
 import { ProviderNavMenu } from "@/components/provider-navigation/provider-nav-menu";
@@ -14,7 +14,8 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import type { ProviderPrincipal } from "@/lib/provider-access";
+import { authClient } from "@/lib/platform/auth-client";
+import type { ProviderPrincipal } from "@/lib/provider/provider-access";
 
 export function ProviderSidebar({ principal }: { principal: ProviderPrincipal }) {
   return (
@@ -49,6 +50,15 @@ export function ProviderSidebar({ principal }: { principal: ProviderPrincipal })
                 <span className="truncate text-xs text-muted-foreground">{principal.email}</span>
                 <span className="text-xs text-muted-foreground">Provider Admin</span>
               </span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              onClick={() => authClient.signOut({ fetchOptions: { onSuccess: () => window.location.assign("/login") } })}
+              tooltip="Keluar"
+            >
+              <LogOut aria-hidden="true" />
+              <span>Keluar</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

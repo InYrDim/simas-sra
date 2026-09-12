@@ -29,22 +29,10 @@ export function ApprovalForm({
         <div className="rounded-lg border border-primary/30 bg-primary/5 p-4">
           <h3 className="font-semibold">Tenant berhasil disediakan</h3>
           <p className="mt-2 text-sm">
-            Salin kredensial sementara ini sekarang. Kredensial tidak dapat
-            ditampilkan kembali setelah meninggalkan halaman ini.
+            Pemohon existing telah dipromosikan menjadi School Admin. Seluruh sesi lamanya dicabut dan tidak ada kredensial sementara yang diterbitkan.
           </p>
         </div>
-        <dl className="space-y-3 text-sm">
-          <div>
-            <dt className="text-xs font-medium uppercase text-muted-foreground">Email School Admin</dt>
-            <dd className="mt-1 break-all font-mono">{state.schoolAdminEmail}</dd>
-          </div>
-          <div>
-            <dt className="text-xs font-medium uppercase text-muted-foreground">Kredensial sementara</dt>
-            <dd className="mt-1 break-all rounded-md border bg-muted p-3 font-mono text-base">
-              {state.temporaryCredential}
-            </dd>
-          </div>
-        </dl>
+
         <Link className={buttonVariants({ className: "w-full" })} href={`/provider/tenants/${state.tenantId}`}>
           Lihat Tenant
         </Link>
@@ -55,7 +43,7 @@ export function ApprovalForm({
   if (state.status === "already-approved") {
     return (
       <div className="space-y-4" role="status">
-        <p className="text-sm">Pengajuan ini sudah disetujui. Kredensial sementara tidak diterbitkan ulang.</p>
+        <p className="text-sm">Pengajuan ini sudah disetujui dan Pemohon telah dipromosikan menggunakan akun existing.</p>
         <Link className={buttonVariants({ className: "w-full" })} href={`/provider/tenants/${state.tenantId}`}>
           Lihat Tenant
         </Link>

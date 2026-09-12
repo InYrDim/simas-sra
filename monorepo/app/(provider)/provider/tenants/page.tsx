@@ -12,18 +12,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { listProviderApplications } from "@/lib/provider-application-data";
+import { listProviderApplications } from "@/lib/provider/provider-application-data";
 import {
+  APPLICATION_STATUS_BADGE_CLASS,
   APPLICATION_STATUS_LABELS,
   type ApplicationStatus,
-} from "@/lib/provider-applications";
-import { listProviderTenants } from "@/lib/provider-tenant-data";
+} from "@/lib/provider/provider-applications";
+import { listProviderTenants } from "@/lib/provider/provider-tenant-data";
 import {
   normalizeTenantListQuery,
   TENANT_USAGE_STAGE_LABELS,
   tenantUsageStageLabel,
   type TenantListQuery,
-} from "@/lib/provider-tenants";
+} from "@/lib/provider/provider-tenants";
 import { cn } from "@/lib/utils";
 
 
@@ -239,7 +240,7 @@ export default async function ProviderTenantsPage({
                     <TableCell>{application.npsn}</TableCell>
                     <TableCell>{application.contactEmail}</TableCell>
                     <TableCell>
-                      <Badge variant={application.status === "rejected" ? "destructive" : "outline"}>
+                      <Badge variant="outline" className={APPLICATION_STATUS_BADGE_CLASS[application.status]}>
                         {APPLICATION_STATUS_LABELS[application.status]}
                       </Badge>
                     </TableCell>

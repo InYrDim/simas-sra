@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { forbidden } from "next/navigation";
+
 
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
@@ -12,18 +12,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getProviderPageAccess } from "@/lib/provider-access";
-import { APPLICATION_STATUS_LABELS } from "@/lib/provider-applications";
-import { getProviderSummary } from "@/lib/provider-summary-data";
+
+import { APPLICATION_STATUS_LABELS } from "@/lib/provider/provider-applications";
+import { getProviderSummary } from "@/lib/provider/provider-summary-data";
 
 function formatDate(value: Date | null) {
   return value?.toLocaleDateString("id-ID", { dateStyle: "medium" }) ?? "—";
 }
 
 export default async function ProviderSummaryPage() {
-  const access = await getProviderPageAccess();
-  if (access.status === "forbidden") forbidden();
-
   const summary = await getProviderSummary();
   const metrics = [
     { label: "Menunggu peninjauan", value: summary.counts.pendingApplications },

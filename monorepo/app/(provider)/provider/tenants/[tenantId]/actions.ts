@@ -1,11 +1,11 @@
 "use server";
 
-import { requireProviderActionAccess } from "@/lib/provider-access";
+import { requireProviderActionAccess } from "@/lib/provider/provider-access";
 import {
   createResetTemporaryCredentialCommand,
   TemporaryCredentialResetDeniedError,
-} from "@/lib/school-admin-activation";
-import { schoolAdminActivationStore } from "@/lib/school-admin-activation-data";
+} from "@/lib/tenancy/temporary-credential-activation";
+import { temporaryCredentialActivationStore } from "@/lib/tenancy/temporary-credential-activation-data";
 
 export type ResetCredentialState =
   | { status: "idle" }
@@ -20,7 +20,7 @@ export async function resetTemporaryCredentialAction(
   void previousState;
   const reset = createResetTemporaryCredentialCommand({
     authorize: requireProviderActionAccess,
-    store: schoolAdminActivationStore,
+    store: temporaryCredentialActivationStore,
   });
   try {
     const result = await reset(userId);

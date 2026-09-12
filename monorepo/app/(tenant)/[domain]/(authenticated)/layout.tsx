@@ -1,38 +1,78 @@
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar"
-import { DashboardHeader } from "@/components/dashboard/dashboard-header"
-import { TrialBanner } from "@/components/dashboard/trial-banner"
-import { TenantSidebar } from "@/components/dashboard/tenant-sidebar"
-import { requireTenantFeatureAccess } from "@/lib/tenant-access"
-import { TenantActivationError } from "@/lib/school-admin-activation"
-import { redirect } from "next/navigation"
+import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { TenantSidebar } from "@/components/dashboard/tenant-sidebar";
+import { TrialBanner } from "@/components/dashboard/trial-banner";
+import { MasterDataAccessBlocked } from "@/components/dashboard/master-data-access-blocked";
+import { db } from "@/db";
+import { tenant as tenantTable } from "@/db/schema";
+import { and, eq } from "drizzle-orm";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 
-export default async function DashboardLayout({
-  children,
-  params
-}: {
-  children: React.ReactNode,
-  params: Promise<{ domain: string }>
+import {
+  getMasterDataGatedArea,
+  getMissingUrgentMasterData,
+  getTenantRelativePath,
+} from "@/lib/master-data/dashboard-master-data";
+import { getUrgentMasterDataPresence } from "@/lib/master-data/dashboard-master-data-data";
+import { getResolvedTenantFeatures } from "@/lib/features/tenant-feature-access-data";
+import { readTenantMenuVisibility, resolveMenuKeyForPath } from "@/lib/features/tenant-menu-visibility";
+import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
+import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
+import { TENANT_PATHNAME_HEADER } from "@/lib/platform/proxy-routing";
+
+import { headers } from "next/headers";
+import { notFound, redirect } from "next/navigation";
+
+
+export default async function DashboardLayout({ children, params }: {
+  children: React.ReactNode;
+  params: Promise<{ domain: string }>;
 }) {
   const { domain } = await params;
-  try {
-    await requireTenantFeatureAccess(domain);
-  } catch (error) {
-    if (error instanceof TenantActivationError && error.code === "password-change-required") {
-      redirect("/change-password");
-    }
-    throw error;
+  const requestHeaders = await headers();
+  const evaluator = await createHttpTenantAuthorizationEvaluator();
+  const layoutDecision = await evaluator.evaluate({ surface: "page", domain, operationId: "authenticated.layout" });
+  const principal = enforceAuthorizedTenantOperation(layoutDecision, { domain, operationId: "authenticated.layout" });
+  const [tenant] = await db
+    .select({ id: tenantTable.id, name: tenantTable.name, onboardingCompletedAt: tenantTable.onboardingCompletedAt, settings: tenantTable.settings })
+    .from(tenantTable)
+    .where(and(eq(tenantTable.id, principal.tenantId), eq(tenantTable.domain, domain)))
+    .limit(1);
+  if (!tenant) throw new Error("Authorized Tenant disappeared during request");
+  const permissions = [...principal.permissions].sort();
+
+  const features = await getResolvedTenantFeatures(tenant.id);
+  const menuVisibility = readTenantMenuVisibility(tenant.settings);
+  const pathname = requestHeaders.get(TENANT_PATHNAME_HEADER);
+  const relativePath = pathname ? getTenantRelativePath(domain, pathname) : "/";
+  if (tenant.onboardingCompletedAt === null && relativePath !== "/dashboard") {
+    redirect(`/${domain}/dashboard`);
   }
 
-  return (
-    <SidebarProvider>
-      <TenantSidebar role="staff" />
-      <SidebarInset>
-        <TrialBanner domain={domain} />
-        <DashboardHeader domain={domain} />
-        <div className="flex flex-1 flex-col p-4 md:p-6 pt-6 gap-6">
-          {children}
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
-  )
+  // Server-side enforcement: a hidden sidebar menu must not be reachable by
+  // typing its URL directly. The dashboard is always allowed. Provider-owned
+  // visibility and per-role assignment visibility both block direct access.
+  const roleHiddenMenuKeys = principal.hiddenMenuKeys;
+  if (relativePath !== "/dashboard") {
+    const menuKey = resolveMenuKeyForPath(relativePath);
+    if (menuKey && (menuVisibility[menuKey] === false || roleHiddenMenuKeys.has(menuKey))) notFound();
+  }
+
+  const gatedArea = pathname
+    ? getMasterDataGatedArea(relativePath)
+    : null;
+  const missing = gatedArea
+    ? getMissingUrgentMasterData(domain, await getUrgentMasterDataPresence(tenant.id))
+    : [];
+  const content = gatedArea && missing.length > 0 && !principal.readOnly
+    ? <MasterDataAccessBlocked area={gatedArea} missing={missing} domain={domain} canManageMasterData={permissions.some((permission) => permission.startsWith("school-profile.") || permission.startsWith("academic-years."))} />
+    : children;
+
+  return <SidebarProvider>
+    <TenantSidebar permissions={permissions} domain={domain} tenantName={tenant.name} features={features} trialStarted={tenant.onboardingCompletedAt !== null} menuVisibility={menuVisibility} hiddenMenuKeys={principal.hiddenMenuKeys} />
+    <SidebarInset>
+      <TrialBanner domain={domain} />
+      <DashboardHeader domain={domain} />
+      <div className="flex flex-1 flex-col gap-6 p-4 pt-6 md:p-6">{content}</div>
+    </SidebarInset>
+  </SidebarProvider>;
 }

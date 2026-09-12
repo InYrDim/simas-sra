@@ -1,0 +1,22 @@
+{
+  "evidenceVersion": "tenant-rbac-incident@1",
+  "evidenceKind": "tenant-rbac-incident",
+  "synthetic": true,
+  "incidentId": "SYNTHETIC-INCIDENT-NOT-REAL-EVIDENCE",
+  "tenantId": "synthetic-tenant",
+  "correlationIds": ["synthetic-correlation"],
+  "detectedAt": "2026-01-01T00:00:00.000Z",
+  "recordedAt": "2026-01-01T00:02:00.000Z",
+  "trigger": "isolation-mismatch",
+  "actorIds": ["synthetic-provider-actor"],
+  "providerReauthentication": { "proofId": "synthetic-proof-reference", "verifiedAt": "2026-01-01T00:03:00.000Z" },
+  "reason": "Synthetic schema demonstration only",
+  "expectedEpoch": "7",
+  "observedEpochBefore": "7",
+  "impactPreviewDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "policyHash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "emergencyReviewAt": "2026-01-01T01:00:00.000Z",
+  "convergence": { "httpMode": "rbac-emergency", "workerMode": "rbac-emergency", "httpEpoch": "8", "workerEpoch": "8", "verifiedAt": "2026-01-01T00:04:00.000Z" },
+  "exit": { "evidenceDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "reviewedAt": "2026-01-01T00:40:00.000Z", "observedEpochAfter": "9", "httpMode": "rbac", "workerMode": "rbac" },
+  "remainingBlockers": []
+}
