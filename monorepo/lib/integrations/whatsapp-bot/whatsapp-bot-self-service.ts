@@ -34,15 +34,15 @@ export type StartWhatsAppBotSelfServiceResult =
 
 export type SelfServiceQrResult =
   | { ok: true; qrCode: string; status: string }
-  | { ok: false; code: "not-started" | "provisioning-disabled" | "admin-key-invalid" | "openwa-unreachable" | "qr-unavailable" | "openwa-error" };
+  | { ok: false; code: "not-started" | "provisioning-disabled" | "admin-key-invalid" | "openwa-unreachable" | "qr-unavailable" | "already-connected" | "openwa-error" };
 
 export type CompleteWhatsAppBotSelfServiceResult =
   | { ok: true; sessionId: string; sessionName: string; webhookId: string }
-  | { ok: false; code: "not-started" | "session-not-ready" | "unconfigured" | "connect-failed" };
+  | { ok: false; code: "not-started" | "session-not-ready" | "session-gone" | "unconfigured" | "connect-failed" };
 
 export type SelfServiceSessionStatusResult =
   | { ok: true; status: string | null; connected: boolean }
-  | { ok: false; code: "not-started" | "provisioning-disabled" | "admin-key-invalid" | "openwa-unreachable" | "qr-unavailable" | "openwa-error" };
+  | { ok: false; code: "not-started" | "provisioning-disabled" | "admin-key-invalid" | "openwa-unreachable" | "session-gone" | "openwa-error" };
 
 function missingProvisioningConfig(dependencies: WhatsAppBotSelfServiceDependencies): boolean {
   return !dependencies.adminApiBaseUrl || !dependencies.adminApiKey;
@@ -56,6 +56,32 @@ function mapProvisioningError(error: unknown): StartWhatsAppBotSelfServiceResult
   return { ok: false, code: "openwa-error" };
 }
 
+function isSessionConnected(status: string | null): boolean {
+  return status === "ready" || status === "connected";
+}
+
+async function retrySessionQr(
+  client: OpenWaClient,
+  sessionId: string,
+  attempts = 5,
+  delayMs = 800,
+): Promise<{ qrCode: string; status: string }> {
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      return await client.getSessionQr(sessionId);
+    } catch (error) {
+      lastError = error;
+      const transient =
+        error instanceof OpenWaApiError &&
+        (error.code === "invalid" || error.code === "not-found" || error.code === "conflict");
+      if (!transient || attempt === attempts - 1) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+  throw lastError ?? new OpenWaApiError("invalid", "QR code was not ready");
+}
+
 export async function startWhatsAppBotSelfService(
   dependencies: WhatsAppBotSelfServiceDependencies,
   tenantId: string,
@@ -64,12 +90,24 @@ export async function startWhatsAppBotSelfService(
   const request = await dependencies.readLatestRequest(tenantId);
   if (!request || request.status !== "approved") return { ok: false, code: "not-approved" };
   if (request.openwaSessionId) {
-    return {
-      ok: true,
-      sessionId: request.openwaSessionId,
-      sessionName: request.desiredSessionName ?? domain,
-      alreadyStarted: true,
-    };
+    const client = dependencies.createClient({
+      apiBaseUrl: dependencies.adminApiBaseUrl!,
+      apiKey: dependencies.adminApiKey!,
+    });
+    let existing: Awaited<ReturnType<OpenWaClient["getSession"]>>;
+    try {
+      existing = await client.getSession(request.openwaSessionId);
+    } catch (error) {
+      return mapProvisioningError(error);
+    }
+    if (existing) {
+      return {
+        ok: true,
+        sessionId: existing.id,
+        sessionName: request.desiredSessionName ?? domain,
+        alreadyStarted: true,
+      };
+    }
   }
   if (missingProvisioningConfig(dependencies)) return { ok: false, code: "provisioning-disabled" };
 
@@ -130,6 +168,7 @@ export async function startWhatsAppBotSelfService(
 export async function readSelfServiceQr(
   dependencies: WhatsAppBotSelfServiceDependencies,
   tenantId: string,
+  domain: string,
 ): Promise<SelfServiceQrResult> {
   const request = await dependencies.readLatestRequest(tenantId);
   if (!request || request.status !== "approved" || !request.openwaSessionId) {
@@ -142,7 +181,31 @@ export async function readSelfServiceQr(
     apiKey: dependencies.adminApiKey!,
   });
   try {
-    const qr = await client.getSessionQr(request.openwaSessionId);
+    let session = await client.getSession(request.openwaSessionId);
+    if (!session) {
+      // The stored session no longer exists on OpenWA (e.g. it was deleted). Re-provision it
+      // so the tenant is not stuck: a fresh QR is returned from the recreated session.
+      const started = await startWhatsAppBotSelfService(dependencies, tenantId, domain);
+      if (!started.ok) {
+        if (started.code === "admin-key-invalid") return { ok: false, code: "admin-key-invalid" };
+        if (started.code === "openwa-unreachable") return { ok: false, code: "openwa-unreachable" };
+        if (started.code === "provisioning-disabled") return { ok: false, code: "provisioning-disabled" };
+        return { ok: false, code: "openwa-error" };
+      }
+      const refreshed = await dependencies.readLatestRequest(tenantId);
+      if (!refreshed?.openwaSessionId) return { ok: false, code: "openwa-error" };
+      session = await client.getSession(refreshed.openwaSessionId);
+      if (!session) return { ok: false, code: "openwa-error" };
+    }
+    if (isSessionConnected(session.status)) return { ok: false, code: "already-connected" };
+    // OpenWA only serves a QR once the session process has been started. Restart
+    // disconnected/stopped sessions (e.g. after an OpenWA restart) so a fresh pairing
+    // code can be generated again. A freshly created session may need a beat before the
+    // QR becomes readable, so retry briefly instead of failing on the first 400.
+    if (!session.status || !/qr/i.test(session.status)) {
+      session = await client.startSession(session.id);
+    }
+    const qr = await retrySessionQr(client, session.id);
     return { ok: true, qrCode: qr.qrCode, status: qr.status };
   } catch (error) {
     if (error instanceof OpenWaApiError) {
@@ -172,15 +235,46 @@ export async function readSelfServiceSessionStatus(
   });
   try {
     const session = await client.getSession(request.openwaSessionId);
-    if (!session) return { ok: false, code: "qr-unavailable" };
-    return { ok: true, status: session.status, connected: session.status === "connected" };
+    if (!session) return { ok: false, code: "session-gone" };
+    return { ok: true, status: session.status, connected: isSessionConnected(session.status) };
   } catch (error) {
     if (error instanceof OpenWaApiError) {
       if (error.code === "unauthorized") return { ok: false, code: "admin-key-invalid" };
       if (error.code === "unreachable") return { ok: false, code: "openwa-unreachable" };
       if (error.code === "not-found" || error.code === "conflict" || error.code === "invalid") {
-        return { ok: false, code: "qr-unavailable" };
+        return { ok: false, code: "session-gone" };
       }
+    }
+    return { ok: false, code: "openwa-error" };
+  }
+}
+
+export type WhatsAppSessionStatusResult =
+  | { ok: true; sessionId: string | null; status: string | null; connected: boolean }
+  | { ok: false; code: "provisioning-disabled" | "admin-key-invalid" | "openwa-unreachable" | "openwa-error" };
+
+export async function readWhatsAppSessionStatus(
+  dependencies: WhatsAppBotSelfServiceDependencies,
+  tenantId: string,
+): Promise<WhatsAppSessionStatusResult> {
+  const request = await dependencies.readLatestRequest(tenantId);
+  if (!request?.openwaSessionId) {
+    return { ok: true, sessionId: null, status: null, connected: false };
+  }
+  if (missingProvisioningConfig(dependencies)) return { ok: false, code: "provisioning-disabled" };
+
+  const client = dependencies.createClient({
+    apiBaseUrl: dependencies.adminApiBaseUrl!,
+    apiKey: dependencies.adminApiKey!,
+  });
+  try {
+    const session = await client.getSession(request.openwaSessionId);
+    if (!session) return { ok: true, sessionId: request.openwaSessionId, status: null, connected: false };
+    return { ok: true, sessionId: session.id, status: session.status, connected: isSessionConnected(session.status) };
+  } catch (error) {
+    if (error instanceof OpenWaApiError) {
+      if (error.code === "unauthorized") return { ok: false, code: "admin-key-invalid" };
+      if (error.code === "unreachable") return { ok: false, code: "openwa-unreachable" };
     }
     return { ok: false, code: "openwa-error" };
   }
@@ -199,7 +293,7 @@ export async function completeWhatsAppBotSelfService(
 
   const connected = await dependencies.connect(domain, tenantId);
   if (!connected.ok) {
-    if (connected.code === "session-not-found") return { ok: false, code: "session-not-ready" };
+    if (connected.code === "session-not-found") return { ok: false, code: "session-gone" };
     if (connected.code === "unconfigured") return { ok: false, code: "unconfigured" };
     return { ok: false, code: "connect-failed" };
   }

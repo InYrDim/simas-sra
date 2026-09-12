@@ -81,6 +81,13 @@ export default async function WhatsAppIntegrasiPage({
         </p>
       </header>
 
+      {connection ? null : (
+        <WhatsAppBotRequestCard
+          domain={domain}
+          request={toRequestView(latestRequest)}
+        />
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -123,14 +130,6 @@ export default async function WhatsAppIntegrasiPage({
           />
         </CardContent>
       </Card>
-
-      {connection ? null : (
-        <WhatsAppBotRequestCard
-          domain={domain}
-          request={toRequestView(latestRequest)}
-          connected={false}
-        />
-      )}
 
       {connection?.status === "connected" ? (
         <Card>

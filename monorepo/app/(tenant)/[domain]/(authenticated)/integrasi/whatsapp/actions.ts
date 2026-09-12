@@ -32,12 +32,14 @@ import {
   completeWhatsAppBotSelfService,
   readSelfServiceQr,
   readSelfServiceSessionStatus,
+  readWhatsAppSessionStatus,
   startWhatsAppBotSelfService,
   type CompleteWhatsAppBotSelfServiceResult,
   type SelfServiceQrResult,
   type SelfServiceSessionStatusResult,
   type StartWhatsAppBotSelfServiceResult,
   type WhatsAppBotSelfServiceDependencies,
+  type WhatsAppSessionStatusResult,
 } from "@/lib/integrations/whatsapp-bot/whatsapp-bot-self-service";
 import { resolveTenantOpenWaCredential, upsertTenantOpenWaCredential } from "@/lib/integrations/whatsapp-bot/tenant-openwa-credential";
 import type {
@@ -156,7 +158,7 @@ export async function refreshWhatsAppBotSelfServiceQrAction(
 ): Promise<SelfServiceQrResult> {
   const principal = await enforceTenantOperation(domain, "integrasi.whatsapp-bot.load");
   await enforceTenantFeatureEnabled(domain, "integrasi");
-  return readSelfServiceQr(selfServiceDependencies(), principal.tenantId);
+  return readSelfServiceQr(selfServiceDependencies(), principal.tenantId, domain);
 }
 
 export async function readWhatsAppBotSelfServiceStatusAction(
@@ -165,6 +167,14 @@ export async function readWhatsAppBotSelfServiceStatusAction(
   const principal = await enforceTenantOperation(domain, "integrasi.whatsapp-bot.load");
   await enforceTenantFeatureEnabled(domain, "integrasi");
   return readSelfServiceSessionStatus(selfServiceDependencies(), principal.tenantId);
+}
+
+export async function readWhatsAppBotSessionStatusAction(
+  domain: string,
+): Promise<WhatsAppSessionStatusResult> {
+  const principal = await enforceTenantOperation(domain, "integrasi.whatsapp-bot.load");
+  await enforceTenantFeatureEnabled(domain, "integrasi");
+  return readWhatsAppSessionStatus(selfServiceDependencies(), principal.tenantId);
 }
 
 export async function completeWhatsAppBotSelfServiceAction(

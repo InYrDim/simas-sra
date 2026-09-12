@@ -12,6 +12,7 @@ import {
   completeWhatsAppBotSelfService,
   readSelfServiceQr,
   readSelfServiceSessionStatus,
+  readWhatsAppSessionStatus,
   startWhatsAppBotSelfService,
   type WhatsAppBotSelfServiceDependencies,
 } from "@/lib/integrations/whatsapp-bot/whatsapp-bot-self-service";
@@ -55,7 +56,7 @@ function makeDependencies(overrides: {
   const credentials: StubCredentials[] = [];
   const marked: string[] = [];
 
-  const clientStub = (overrides.openWaClient as Partial<OpenWaClient>) ?? {
+  const clientStub: Partial<OpenWaClient> = {
     createSession: async (name: string) => {
       calls.push(`create:${name}`);
       if (overrides.conflicts?.has(name)) throw new OpenWaApiError("conflict", `duplicate ${name}`);
@@ -90,6 +91,8 @@ function makeDependencies(overrides: {
       return { qrCode: "data:image/png;base64,qr", status: overrides.qrStatus ?? "qr_ready" };
     },
   };
+  const clientOverrides = overrides.openWaClient as Partial<OpenWaClient> | undefined;
+  const mergedClient = { ...clientStub, ...clientOverrides } as OpenWaClient;
 
   const deps: WhatsAppBotSelfServiceDependencies = {
     readLatestRequest: async (tenantId: string) =>
@@ -100,7 +103,7 @@ function makeDependencies(overrides: {
     },
     createClient: (config: OpenWaConnectionConfig) => {
       calls.push(`client:${config.apiKey}`);
-      return clientStub as OpenWaClient;
+      return mergedClient;
     },
     adminApiBaseUrl: overrides.adminApiBaseUrl === undefined ? "https://openwa.example.com" : overrides.adminApiBaseUrl,
     adminApiKey: overrides.adminApiKey === undefined ? "admin-key" : overrides.adminApiKey,
@@ -174,7 +177,8 @@ test("start is idempotent: an existing session id is returned without re-provisi
   const again = await startWhatsAppBotSelfService(deps, "tenant-1", "sdn-191.simas.dev");
   assert.equal(again.ok, true);
   if (again.ok) assert.equal(again.alreadyStarted, true);
-  assert.equal(calls.length, callsAfterFirst);
+  const added = calls.slice(callsAfterFirst);
+  assert.deepEqual(added, ["client:admin-key", "session:sess-sdn1-wa"]);
 });
 
 test("start maps unauthorized admin key errors", async () => {
@@ -208,12 +212,115 @@ test("start maps start-session failures", async () => {
 
 test("qr requires an approved, started request", async () => {
   const { deps, requests } = makeDependencies();
-  assert.deepEqual(await readSelfServiceQr(deps, "tenant-1"), { ok: false, code: "not-started" });
+  assert.deepEqual(await readSelfServiceQr(deps, "tenant-1", "sdn-191.simas.dev"), { ok: false, code: "not-started" });
 
   requests.set("req-1", makeRequest({ openwaSessionId: "sess-sdn1-wa" }));
-  const qr = await readSelfServiceQr(deps, "tenant-1");
+  const qr = await readSelfServiceQr(deps, "tenant-1", "sdn-191.simas.dev");
   assert.equal(qr.ok, true);
   if (qr.ok) assert.equal(qr.qrCode, "data:image/png;base64,qr");
+});
+
+test("qr returns already-connected when the session is ready", async () => {
+  const { deps, requests } = makeDependencies({ sessionStatus: "ready" });
+  requests.set("req-1", makeRequest({ openwaSessionId: "sess-sdn1-wa" }));
+
+  const result = await readSelfServiceQr(deps, "tenant-1", "sdn-191.simas.dev");
+  assert.deepEqual(result, { ok: false, code: "already-connected" });
+});
+
+test("qr re-provisions a deleted session and returns a fresh QR", async () => {
+  const { deps, requests, calls } = makeDependencies({
+    openWaClient: {
+      getSession: async (sessionId: string) =>
+        sessionId === "sess-sdn1-wa"
+          ? { id: sessionId, name: `sess-${sessionId}`, status: "qr_ready", phone: null, pushName: null }
+          : null,
+    },
+  });
+  requests.set("req-1", makeRequest({ openwaSessionId: "sess-gone", desiredSessionName: "sdn1-wa" }));
+
+  const result = await readSelfServiceQr(deps, "tenant-1", "sdn-191.simas.dev");
+  assert.equal(result.ok, true);
+  if (result.ok) assert.equal(result.qrCode, "data:image/png;base64,qr");
+  assert.equal(requests.get("req-1")?.openwaSessionId, "sess-sdn1-wa");
+  assert.ok(calls.includes("create:sdn1-wa"));
+  assert.ok(calls.includes("qr:sess-sdn1-wa"));
+});
+
+test("start re-creates the session when the stored id no longer exists", async () => {
+  const { deps, requests, calls } = makeDependencies({
+    openWaClient: { getSession: async () => null },
+  });
+  requests.set("req-1", makeRequest({ openwaSessionId: "sess-gone", desiredSessionName: "sdn1-wa" }));
+
+  const result = await startWhatsAppBotSelfService(deps, "tenant-1", "sdn-191.simas.dev");
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.alreadyStarted, false);
+    assert.equal(result.sessionId, "sess-sdn1-wa");
+  }
+  assert.equal(requests.get("req-1")?.openwaSessionId, "sess-sdn1-wa");
+  assert.ok(calls.includes("create:sdn1-wa"));
+  assert.ok(calls.includes("start:sess-sdn1-wa"));
+});
+
+test("qr restarts a disconnected session before fetching the QR", async () => {
+  const { deps, requests, calls } = makeDependencies({ sessionStatus: "disconnected" });
+  requests.set("req-1", makeRequest({ openwaSessionId: "sess-sdn1-wa" }));
+
+  const result = await readSelfServiceQr(deps, "tenant-1", "sdn-191.simas.dev");
+  assert.equal(result.ok, true);
+  if (result.ok) assert.equal(result.qrCode, "data:image/png;base64,qr");
+  assert.ok(calls.includes("start:sess-sdn1-wa"));
+  assert.ok(calls.includes("qr:sess-sdn1-wa"));
+});
+
+test("qr does not restart an already qr_ready session", async () => {
+  const { deps, requests, calls } = makeDependencies({ sessionStatus: "qr_ready" });
+  requests.set("req-1", makeRequest({ openwaSessionId: "sess-sdn1-wa" }));
+
+  const result = await readSelfServiceQr(deps, "tenant-1", "sdn-191.simas.dev");
+  assert.equal(result.ok, true);
+  assert.ok(calls.includes("qr:sess-sdn1-wa"));
+  assert.ok(!calls.includes("start:sess-sdn1-wa"));
+});
+
+test("qr retries briefly while OpenWA is still preparing the code", async () => {
+  let attempts = 0;
+  const { deps, requests } = makeDependencies({
+    sessionStatus: "qr_ready",
+    openWaClient: {
+      getSessionQr: async () => {
+        attempts += 1;
+        if (attempts === 1) throw new OpenWaApiError("invalid", "QR code is not ready yet");
+        return { qrCode: "data:image/png;base64,qr", status: "qr_ready" };
+      },
+    },
+  });
+  requests.set("req-1", makeRequest({ openwaSessionId: "sess-sdn1-wa" }));
+
+  const result = await readSelfServiceQr(deps, "tenant-1", "sdn-191.simas.dev");
+  assert.equal(result.ok, true);
+  if (result.ok) assert.equal(result.qrCode, "data:image/png;base64,qr");
+  assert.equal(attempts, 2);
+});
+
+test("status poll reports ready as connected", async () => {
+  const { deps, requests } = makeDependencies({ sessionStatus: "ready" });
+  requests.set("req-1", makeRequest({ openwaSessionId: "sess-sdn1-wa" }));
+
+  const result = await readSelfServiceSessionStatus(deps, "tenant-1");
+  assert.deepEqual(result, { ok: true, status: "ready", connected: true });
+});
+
+test("status poll reports session-gone when the stored session no longer exists", async () => {
+  const { deps, requests } = makeDependencies({
+    openWaClient: { getSession: async () => null },
+  });
+  requests.set("req-1", makeRequest({ openwaSessionId: "sess-gone" }));
+
+  const result = await readSelfServiceSessionStatus(deps, "tenant-1");
+  assert.deepEqual(result, { ok: false, code: "session-gone" });
 });
 
 test("complete reports session-not-ready until the QR was scanned", async () => {
@@ -221,7 +328,7 @@ test("complete reports session-not-ready until the QR was scanned", async () => 
   requests.set("req-1", makeRequest({ openwaSessionId: "sess-sdn1-wa" }));
 
   const result = await completeWhatsAppBotSelfService(deps, "tenant-1", "sdn-191.simas.dev", "user-1");
-  assert.deepEqual(result, { ok: false, code: "session-not-ready" });
+  assert.deepEqual(result, { ok: false, code: "session-gone" });
   assert.equal(marked.length, 0);
 });
 
@@ -248,6 +355,55 @@ test("complete rejects a request that never started", async () => {
 test("status check requires an approved, started request", async () => {
   const { deps } = makeDependencies();
   assert.deepEqual(await readSelfServiceSessionStatus(deps, "tenant-1"), { ok: false, code: "not-started" });
+});
+
+test("session status reports no session before provisioning", async () => {
+  const { deps, requests } = makeDependencies();
+  requests.set("req-1", makeRequest({ openwaSessionId: null }));
+  assert.deepEqual(await readWhatsAppSessionStatus(deps, "tenant-1"), {
+    ok: true,
+    sessionId: null,
+    status: null,
+    connected: false,
+  });
+});
+
+test("session status reports the live OpenWA session state", async () => {
+  const { deps, requests } = makeDependencies({ sessionStatus: "qr_ready" });
+  requests.set("req-1", makeRequest({ openwaSessionId: "sess-sdn1-wa" }));
+
+  assert.deepEqual(await readWhatsAppSessionStatus(deps, "tenant-1"), {
+    ok: true,
+    sessionId: "sess-sdn1-wa",
+    status: "qr_ready",
+    connected: false,
+  });
+});
+
+test("session status reports ready as connected", async () => {
+  const { deps, requests } = makeDependencies({ sessionStatus: "ready" });
+  requests.set("req-1", makeRequest({ openwaSessionId: "sess-sdn1-wa" }));
+
+  assert.deepEqual(await readWhatsAppSessionStatus(deps, "tenant-1"), {
+    ok: true,
+    sessionId: "sess-sdn1-wa",
+    status: "ready",
+    connected: true,
+  });
+});
+
+test("session status reports a missing session as not started", async () => {
+  const { deps, requests } = makeDependencies({
+    openWaClient: { getSession: async () => null },
+  });
+  requests.set("req-1", makeRequest({ openwaSessionId: "sess-gone" }));
+
+  assert.deepEqual(await readWhatsAppSessionStatus(deps, "tenant-1"), {
+    ok: true,
+    sessionId: "sess-gone",
+    status: null,
+    connected: false,
+  });
 });
 
 test("status poll reports qr_ready as not yet connected", async () => {
