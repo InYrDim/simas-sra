@@ -244,7 +244,17 @@ export class OpenWaClient {
   async resolveSession(input: string): Promise<OpenWaSession> {
     const trimmed = input.trim();
     if (!trimmed) throw new OpenWaApiError("invalid", "Session identifier must not be empty");
-    const byId = await this.getSession(trimmed);
+    let byId: OpenWaSession | null = null;
+    try {
+      byId = await this.getSession(trimmed);
+    } catch (error) {
+      // A session-scoped operator key is denied a by-*name* lookup with 401
+      // (by-uuid is allowed), even when the session belongs to the key. That is
+      // not a credential failure — fall through to the name match below so a
+      // stored session key (a session name) still resolves. A genuinely invalid
+      // key then fails the same way on listSessions and is rethrown.
+      if (!(error instanceof OpenWaApiError && error.code === "unauthorized")) throw error;
+    }
     if (byId) return byId;
     const normalized = trimmed.toLowerCase();
     const byName = (await this.listSessions()).find(

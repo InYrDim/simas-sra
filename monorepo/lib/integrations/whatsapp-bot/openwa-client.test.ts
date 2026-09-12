@@ -138,6 +138,40 @@ test("resolveSession falls back to a name match when the id lookup 400s (stored 
   assert.equal(session.status, "ready");
 });
 
+test("resolveSession falls back to the name match when a session-scoped key is denied a by-name lookup with 401", async () => {
+  const client = new OpenWaClient({
+    config,
+    fetch: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/api/sessions/spf-sd-inpres")) {
+        return jsonResponse({ message: "API key not authorized for this session" }, 401);
+      }
+      if (url.endsWith("/api/sessions")) {
+        return jsonResponse({
+          data: [{ id: "9e7efebd-b743-4026-ab3e-b9dfc81866b1", name: "spf-sd-inpres", status: "ready" }],
+        });
+      }
+      return jsonResponse({ error: "unexpected" }, 500);
+    },
+  });
+
+  const session = await client.resolveSession("spf-sd-inpres");
+  assert.equal(session.id, "9e7efebd-b743-4026-ab3e-b9dfc81866b1");
+  assert.equal(session.status, "ready");
+});
+
+test("resolveSession still propagates unauthorized when listSessions rejects an invalid key", async () => {
+  const client = new OpenWaClient({
+    config,
+    fetch: async () => jsonResponse({ message: "Invalid API key" }, 401),
+  });
+
+  await assert.rejects(
+    () => client.resolveSession("9e7efebd-b743-4026-ab3e-b9dfc81866b1"),
+    (error) => error instanceof OpenWaApiError && error.code === "unauthorized",
+  );
+});
+
 test("resolveSession throws not-found when nothing matches", async () => {
   const client = new OpenWaClient({
     config,
