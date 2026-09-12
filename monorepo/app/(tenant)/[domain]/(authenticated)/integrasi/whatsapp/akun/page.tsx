@@ -14,10 +14,14 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
 import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
+import { OpenWaClient } from "@/lib/integrations/whatsapp-bot/openwa-client";
+import { listWhatsAppBotChats } from "@/lib/integrations/whatsapp-bot/whatsapp-bot-chats";
 import { readConnectionByTenantId } from "@/lib/integrations/whatsapp-bot/whatsapp-bot-data";
-import { readTenantOpenWaCredential } from "@/lib/integrations/whatsapp-bot/tenant-openwa-credential";
+import { readTenantOpenWaCredential, resolveTenantOpenWaCredential } from "@/lib/integrations/whatsapp-bot/tenant-openwa-credential";
 
 const timeFormat = new Intl.DateTimeFormat("id-ID", { dateStyle: "short", timeStyle: "short" });
+
+const CHATS_BOOT_LIMIT = 1000;
 
 export default async function WhatsAppAkunPage({
   params,
@@ -36,6 +40,20 @@ export default async function WhatsAppAkunPage({
     readConnectionByTenantId(principal.tenantId),
     readTenantOpenWaCredential(principal.tenantId),
   ]);
+
+  const serverChats =
+    connection?.status === "connected"
+      ? await listWhatsAppBotChats(
+          {
+            resolveCredential: resolveTenantOpenWaCredential,
+            createClient: (config) => new OpenWaClient({ config }),
+            readConnectionByTenantId,
+          },
+          principal.tenantId,
+          { offset: 0, limit: CHATS_BOOT_LIMIT },
+        )
+      : null;
+  const bootChats = serverChats?.ok === true ? serverChats.chats : null;
 
   return (
     <main className="mx-auto w-full max-w-5xl space-y-6">
@@ -154,7 +172,7 @@ export default async function WhatsAppAkunPage({
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <WhatsAppBotChatsTab domain={domain} connected={connection?.status === "connected"} />
+              <WhatsAppBotChatsTab domain={domain} connected={connection?.status === "connected"} bootChats={bootChats} />
             </CardContent>
           </Card>
         </TabsContent>

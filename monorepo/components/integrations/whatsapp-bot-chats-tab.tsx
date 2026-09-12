@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useSyncExternalStore, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore, useState } from "react";
 import { ChevronLeft, ChevronRight, MessagesSquare, CircleOff } from "lucide-react";
 
 import { listWhatsAppBotChatsAction } from "@/app/(tenant)/[domain]/(authenticated)/integrasi/whatsapp/akun/actions";
@@ -34,6 +34,7 @@ import {
 const PAGE_SIZE = 50;
 const FETCH_LIMIT = 1000;
 const CHATS_CACHE_TTL_MS = 60_000;
+const ACTION_TIMEOUT_MS = 30_000;
 
 type ChatsErrorCode =
   | "unconfigured"
@@ -138,15 +139,38 @@ function formatActivity(timestamp: number | null): string {
   return activityFormat.format(new Date(timestamp * 1000));
 }
 
-export function WhatsAppBotChatsTab({ domain, connected }: { domain: string; connected: boolean }) {
+export function WhatsAppBotChatsTab({
+  domain,
+  connected,
+  bootChats,
+}: {
+  domain: string;
+  connected: boolean;
+  bootChats: OpenWaChat[] | null;
+}) {
   const state = useChatsState(domain, connected);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [page, setPage] = useState(0);
   const [retryNonce, setRetryNonce] = useState(0);
+  const prevConnected = useRef(connected);
+
+  useEffect(() => {
+    if (connected === prevConnected.current) return;
+    prevConnected.current = connected;
+    if (connected) {
+      setTransientState(domain, LOADING_STATE);
+    } else {
+      clearTransientState(domain);
+    }
+  }, [connected, domain]);
 
   useEffect(() => {
     if (!connected || state.status !== "loading") return;
+    if (bootChats) {
+      setCachedState(domain, { status: "ready", chats: bootChats, loadedAt: Date.now() });
+      return;
+    }
     if (retryNonce === 0) {
       const cached = rawChatsCache.get(domain);
       if (cached) {
@@ -155,19 +179,29 @@ export function WhatsAppBotChatsTab({ domain, connected }: { domain: string; con
       }
     }
     let cancelled = false;
-    listWhatsAppBotChatsAction(domain, { offset: 0, limit: FETCH_LIMIT }).then((result) => {
+    listWhatsAppBotChatsAction(domain, { offset: 0, limit: FETCH_LIMIT })
+      .then((result) => {
+        if (cancelled) return;
+        if (result.ok) {
+          const next: ChatsState = { status: "ready", chats: result.chats, loadedAt: Date.now() };
+          setCachedState(domain, next);
+        } else {
+          setTransientState(domain, { status: "error", code: result.code });
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setTransientState(domain, { status: "error", code: "error" });
+      });
+    const timeout = setTimeout(() => {
       if (cancelled) return;
-      if (result.ok) {
-        const next: ChatsState = { status: "ready", chats: result.chats, loadedAt: Date.now() };
-        setCachedState(domain, next);
-      } else {
-        setTransientState(domain, { status: "error", code: result.code });
-      }
-    });
+      setTransientState(domain, { status: "error", code: "error" });
+    }, ACTION_TIMEOUT_MS);
     return () => {
       cancelled = true;
+      clearTimeout(timeout);
     };
-  }, [domain, connected, state.status, retryNonce]);
+  }, [domain, connected, state.status, retryNonce, bootChats]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query.trim()), 300);
