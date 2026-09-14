@@ -96,6 +96,8 @@ export default async function AbsensiModePage({
                 message={modeSettings?.message ?? ""}
                 scanStart={modeSettings?.scanWindow?.start ?? ""}
                 scanEnd={modeSettings?.scanWindow?.end ?? ""}
+                notifyEnabled={modeSettings?.notifyEnabled ?? false}
+                notifyMessage={modeSettings?.notifyMessage ?? ""}
             />
         </div>
     );

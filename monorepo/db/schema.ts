@@ -506,7 +506,13 @@ export const studentLifecyclePeriod = mysqlTable(
 export const studentRelationship = mysqlTable(
   "student_relationship",
   {
-    id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), studentId: varchar("student_id", { length: 36 }).notNull(), kind: varchar("kind", { length: 50 }).notNull(), label: varchar("label", { length: 255 }).notNull(), active: boolean("active").default(true).notNull(),
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    studentId: varchar("student_id", { length: 36 }).notNull(),
+    kind: varchar("kind", { length: 50 }).notNull(),
+    label: varchar("label", { length: 255 }).notNull(),
+    active: boolean("active").default(true).notNull(),
+    phone: varchar("phone", { length: 32 }),
   },
   (table) => [foreignKey({ columns: [table.tenantId, table.studentId], foreignColumns: [studentProfile.tenantId, studentProfile.id], name: "student_relationship_tenant_student_fkey" }), index("student_relationship_tenant_student_active_idx").on(table.tenantId, table.studentId, table.active)],
 );

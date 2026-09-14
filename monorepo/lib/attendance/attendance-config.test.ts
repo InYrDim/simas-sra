@@ -142,3 +142,32 @@ test("filterAllowedActiveLayers tolerates missing absensi settings", () => {
     const result = filterAllowedActiveLayers({}, ATTENDANCE_MODES, ATTENDANCE_LAYERS);
     assert.deepEqual(result, {});
 });
+
+test("readAbsensiSettings reads notifyEnabled and notifyMessage from modeSettings", () => {
+    const settings = {
+        absensi: {
+            modeSettings: {
+                manual: { message: "Isi manual", notifyEnabled: true, notifyMessage: "Notif {nama}" },
+                qr: { scanWindow: { start: "06:00", end: "07:30" }, notifyEnabled: false },
+            },
+        },
+    };
+    const result = readAbsensiSettings(settings);
+    assert.equal(result.modeSettings?.manual?.notifyEnabled, true);
+    assert.equal(result.modeSettings?.manual?.notifyMessage, "Notif {nama}");
+    assert.equal(result.modeSettings?.qr?.notifyEnabled, false);
+    assert.equal(result.modeSettings?.qr?.notifyMessage, undefined);
+});
+
+test("readAbsensiSettings ignores non-boolean notifyEnabled and non-string notifyMessage", () => {
+    const settings = {
+        absensi: {
+            modeSettings: {
+                manual: { notifyEnabled: "yes", notifyMessage: 123 },
+            },
+        },
+    };
+    const result = readAbsensiSettings(settings);
+    assert.equal(result.modeSettings?.manual?.notifyEnabled, undefined);
+    assert.equal(result.modeSettings?.manual?.notifyMessage, undefined);
+});

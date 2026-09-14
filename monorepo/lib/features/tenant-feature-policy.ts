@@ -57,6 +57,8 @@ export function readTenantFeatureSelection(settings: unknown): TenantFeatureSele
     "absensiKartu",
     "absensiGerbang",
     "absensiKelas",
+    "absensiWhatsapp",
+    "absensiWhatsappNotify",
   ] as const) {
     if (!Object.prototype.hasOwnProperty.call(features, key)) selection[key] = false;
   }

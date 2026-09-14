@@ -169,6 +169,22 @@ export const TENANT_FEATURES = [
     requires: ["absensi"],
   },
   {
+    key: "absensiWhatsapp",
+    label: "Notifikasi WhatsApp",
+    description: "Mengizinkan School Admin mengonfigurasi notifikasi WhatsApp absensi ke orang tua.",
+    functionalDomain: "attendance",
+    routes: ["/absensi/**"],
+    requires: ["absensi"],
+  },
+  {
+    key: "absensiWhatsappNotify",
+    label: "Kirim Notifikasi WA",
+    description: "Mengizinkan sistem mengirim notifikasi WhatsApp saat absensi siswa dicatat.",
+    functionalDomain: "attendance",
+    routes: ["/absensi/**"],
+    requires: ["absensi", "absensiWhatsapp"],
+  },
+  {
     key: "integrasi",
     label: "Integrasi",
     description: "Fitur induk untuk seluruh akses dan operasi Integrasi.",

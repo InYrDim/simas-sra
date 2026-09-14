@@ -10,6 +10,8 @@ import {
 
 import {
   manageStudentLifecycleAction,
+  saveStudentGuardianAction,
+  deleteStudentGuardianAction,
 } from "@/app/(tenant)/[domain]/(authenticated)/master/siswa/actions";
 import { StudentForm } from "@/app/(tenant)/[domain]/(authenticated)/master/siswa/student-form";
 import { MasterDataFormDialog } from "@/components/master-data/master-data-form-dialog";
@@ -24,6 +26,7 @@ import {
   createStudentMasterDataService,
   STUDENT_STATUSES,
   type StudentRecord,
+  type GuardianRelationship,
 } from "@/lib/master-data/student-master-data";
 import { studentMasterDataStore } from "@/lib/master-data/student-master-data-data";
 import {
@@ -221,6 +224,7 @@ export default async function StudentsPage({
                   <SharedPersonImpact aggregate={selectedAggregate} current="student" />
                 ) : null}
                 <StudentForm domain={domain} record={selected} />
+                <GuardianSection domain={domain} student={selected.student} guardians={selected.guardians ?? []} />
               </div>
             ) : selectedAction === "status" && principal.capabilities.write && !selected.student.archived ? (
               <LifecycleForm
@@ -250,7 +254,7 @@ export default async function StudentsPage({
                 ) : null}
               </div>
             ) : (
-              <StudentDetail record={selected} />
+              <StudentDetail record={{ ...selected, guardians: selected.guardians ?? [] }} />
             )
           ) : undefined
         }
@@ -423,8 +427,8 @@ function StudentRowActions({
   );
 }
 
-function StudentDetail({ record }: { record: StudentRecord }) {
-  const { person, student, classGroupName } = record;
+function StudentDetail({ record }: { record: StudentRecord & { guardians?: readonly GuardianRelationship[] } }) {
+  const { person, student, classGroupName, guardians } = record;
   return (
     <div className="space-y-5">
       {student.archived ? (
@@ -495,10 +499,91 @@ function StudentDetail({ record }: { record: StudentRecord }) {
           />
         </dl>
       </section>
+      <section>
+        <h3 className="font-semibold">Data Wali / Orang Tua</h3>
+        {guardians && guardians.length > 0 ? (
+          <ul className="mt-2 space-y-2">
+            {guardians.map((g) => (
+              <li key={g.id} className="rounded-lg border p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{g.label}</p>
+                    <p className="text-sm text-muted-foreground">{g.kind}</p>
+                    <p className="text-sm font-mono">{g.phone ?? "—"}</p>
+                  </div>
+                  <span className={`text-xs font-medium ${g.active ? "text-emerald-600" : "text-muted-foreground"}`}>
+                    {g.active ? "Aktif" : "Tidak aktif"}
+                  </span>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-muted-foreground">Belum ada data wali.</p>
+        )}
+      </section>
 
     </div>
   );
 }
+
+function GuardianSection({ domain, student, guardians }: { domain: string; student: { id: string; archived: boolean }; guardians: readonly { id?: string; label: string; kind: string; phone: string | null; active: boolean }[] }) {
+  return (
+    <section className="space-y-3">
+      <h3 className="font-semibold">Data Wali / Orang Tua</h3>
+      {guardians.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Belum ada data wali.</p>
+      ) : (
+        <ul className="space-y-2">
+          {guardians.map((g) => (
+            <li key={g.id} className="rounded-lg border p-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium">{g.label}</p>
+                  <p className="text-sm text-muted-foreground">{g.kind}</p>
+                  <p className="text-sm font-mono">{g.phone ?? "—"}</p>
+                </div>
+                <form action={deleteStudentGuardianAction.bind(null, domain)} className="flex items-center gap-2">
+                  <input type="hidden" name="studentId" value={student.id} />
+                  <input type="hidden" name="guardianId" value={g.id} />
+                  <Button type="submit" size="icon" variant="ghost" className="size-8 text-destructive">
+                    <Trash2Icon aria-hidden="true" className="size-4" />
+                    <span className="sr-only">Hapus</span>
+                  </Button>
+                </form>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {!student.archived ? (
+        <form action={saveStudentGuardianAction.bind(null, domain)} className="space-y-3 rounded-lg border p-4">
+          <input type="hidden" name="studentId" value={student.id} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Label className="flex flex-row items-center gap-3">
+              <span className="text-sm font-medium w-20 shrink-0">Nama</span>
+              <Input required name="label" placeholder="Nama wali" className="flex-1" />
+            </Label>
+            <Label className="flex flex-row items-center gap-3">
+              <span className="text-sm font-medium w-20 shrink-0">Hubungan</span>
+              <Input name="kind" defaultValue="orangtua" placeholder="orangtua / wali" className="flex-1" />
+            </Label>
+          </div>
+          <Label className="flex flex-row items-center gap-3">
+            <span className="text-sm font-medium w-20 shrink-0">Nomor WhatsApp</span>
+            <Input name="phone" placeholder="62812..." className="flex-1" />
+          </Label>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="active" defaultChecked className="h-4 w-4 rounded border" />
+            Aktif
+          </label>
+          <Button type="submit" size="sm">Simpan</Button>
+        </form>
+      ) : null}
+    </section>
+  );
+}
+
 function LifecycleForm({
   domain,
   record,
