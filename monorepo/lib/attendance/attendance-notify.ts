@@ -5,7 +5,9 @@ import { schoolPerson, studentProfile, studentRelationship } from "@/db/schema";
 import type { SendWhatsAppTextResult, WhatsAppBotSendDependencies } from "@/lib/integrations/whatsapp-bot/whatsapp-bot-send";
 import { sendWhatsAppText } from "@/lib/integrations/whatsapp-bot/whatsapp-bot-send";
 import { isTenantFeatureEnabled } from "@/lib/features/tenant-feature-policy";
-import { readAbsensiSettings } from "@/lib/attendance/attendance-config";
+import { readAbsensiSettings, readTenantTimezone } from "@/lib/attendance/attendance-config";
+import { resolveOpenSession } from "@/lib/attendance/attendance-record-write";
+import { localHHMMInZone } from "@/lib/attendance/attendance-date";
 import { resolveStudentIdentity } from "@/lib/attendance/attendance-record-write";
 import type { AttendanceLayer, AttendanceMode } from "@/lib/attendance/attendance-config";
 
@@ -79,19 +81,21 @@ export function parseConditionalTemplate(template: string): ParsedConditionalTem
   return { branches };
 }
 
-export function evaluateConditional(parsed: ParsedConditionalTemplate, layer: string, status: string): string {
-  const key = `${layer}_${status}`.toLowerCase();
+export function evaluateConditional(parsed: ParsedConditionalTemplate, layer: string, status: string, late: boolean): string {
+  const lateKey = `${layer}_${status}_late`.toLowerCase();
+  const normalKey = `${layer}_${status}`.toLowerCase();
   for (const branch of parsed.branches) {
     if (branch.condition === null) return branch.content;
-    if (branch.condition === key) return branch.content;
+    if (late && branch.condition === lateKey) return branch.content;
+    if (!late && branch.condition === normalKey) return branch.content;
   }
   return "";
 }
 
-export function resolveMessageTemplate(template: string, layer: string, status: string): string {
+export function resolveMessageTemplate(template: string, layer: string, status: string, late: boolean): string {
   const parsed = parseConditionalTemplate(template);
   if (!parsed) return template;
-  const selected = evaluateConditional(parsed, layer, status);
+  const selected = evaluateConditional(parsed, layer, status, late);
   return selected.trim();
 }
 
@@ -125,6 +129,14 @@ export async function sendAttendanceNotification(
   if (!template) {
     console.warn("[attendance-notify] skipped: no-template", { tenantId, studentId, layer, mode });
     return { ok: true, skipped: true, reason: "no-template" };
+  }
+
+  const timezone = readTenantTimezone(tenantSettings);
+  const session = await resolveOpenSession(tenantId, layer, recordedAt, timezone);
+  let outOfSession = true;
+  if (session) {
+    const hhmm = localHHMMInZone(recordedAt, timezone);
+    outOfSession = !(hhmm >= session.plannedStart && hhmm <= session.plannedEnd);
   }
 
   const resolved = await resolveStudentIdentity(tenantId, studentId);
@@ -169,9 +181,10 @@ export async function sendAttendanceNotification(
     status: resolveStatusLabel(status, layer),
     waktu: `${dateStr} ${timeStr}`,
     layer: layer === "gerbang" ? "gerbang" : "kelas",
+    terlambat: outOfSession ? "Ya" : "Tidak",
   };
 
-  const text = renderTemplate(resolveMessageTemplate(template, layer, status), vars);
+  const text = renderTemplate(resolveMessageTemplate(template, layer, status, outOfSession), vars);
 
   const results: Array<{ phone: string; result: SendWhatsAppTextResult }> = [];
   for (const phone of phones) {

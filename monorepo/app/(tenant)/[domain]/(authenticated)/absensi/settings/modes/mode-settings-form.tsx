@@ -9,10 +9,16 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 
-const EXAMPLE_TEMPLATE = `{{#if gerbang_masuk}}
+const EXAMPLE_TEMPLATE = `{{#if gerbang_masuk_late}}
+Yth. Orang tua {nama} ({nis}), anak Anda tercatat MASUK DI LUAR SESI (terlambat) pada {waktu}.
+{{elseif gerbang_masuk}}
 Yth. Orang tua {nama} ({nis}), anak Anda tercatat MASUK di gerbang pada {waktu}.
+{{elseif gerbang_keluar_late}}
+Yth. Orang tua {nama} ({nis}), anak Anda tercatat KELUAR DI LUAR SESI pada {waktu}.
 {{elseif gerbang_keluar}}
 Yth. Orang tua {nama} ({nis}), anak Anda tercatat KELUAR dari gerbang pada {waktu}.
+{{elseif kelas_hadir_late}}
+Yth. Orang tua {nama} ({nis}), anak Anda tercatat HADIR DI LUAR SESI (terlambat) pada {waktu}.
 {{elseif kelas_hadir}}
 Yth. Orang tua {nama} ({nis}), anak Anda tercatat HADIR di kelas pada {waktu}.
 {{elseif kelas_izin}}
@@ -31,10 +37,13 @@ Yth. Orang tua {nama} ({nis}), anak Anda tercatat {status} pada {waktu}.
 
 const AVAILABLE_CONDITIONS = [
   { condition: "gerbang_masuk", label: "Gerbang - Masuk" },
+  { condition: "gerbang_masuk_late", label: "Gerbang - Masuk (terlambat)" },
   { condition: "gerbang_keluar", label: "Gerbang - Keluar" },
+  { condition: "gerbang_keluar_late", label: "Gerbang - Keluar (terlambat)" },
   { condition: "gerbang_izin", label: "Gerbang - Izin" },
   { condition: "gerbang_sakit", label: "Gerbang - Sakit" },
   { condition: "kelas_hadir", label: "Kelas - Hadir" },
+  { condition: "kelas_hadir_late", label: "Kelas - Hadir (terlambat)" },
   { condition: "kelas_izin", label: "Kelas - Izin" },
   { condition: "kelas_sakit", label: "Kelas - Sakit" },
   { condition: "kelas_alpa", label: "Kelas - Alpa" },
@@ -135,7 +144,7 @@ export function ModeSettingsForm({
                         </ul>
                     </div>
                     <p className="text-sm text-muted-foreground">
-                        Variabel: <code>{'{nama}'}</code> <code>{'{nis}'}</code> <code>{'{status}'}</code> <code>{'{waktu}'}</code> <code>{'{layer}'}</code>
+                        Variabel: <code>{'{nama}'}</code> <code>{'{nis}'}</code> <code>{'{status}'}</code> <code>{'{waktu}'}</code> <code>{'{layer}'}</code> <code>{'{terlambat}'}</code>
                     </p>
                 </div>
             </fieldset>

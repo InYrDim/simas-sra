@@ -99,33 +99,52 @@ test("parseConditionalTemplate parses if/elseif/else/endif", () => {
 
 test("evaluateConditional returns matching branch content", () => {
     const parsed = parseConditionalTemplate(`{{#if gerbang_masuk}}Masuk{{elseif gerbang_keluar}}Keluar{{else}}Lain{{/if}}`)!;
-    assert.equal(evaluateConditional(parsed, "gerbang", "masuk"), "Masuk");
-    assert.equal(evaluateConditional(parsed, "gerbang", "keluar"), "Keluar");
-    assert.equal(evaluateConditional(parsed, "kelas", "hadir"), "Lain");
+    assert.equal(evaluateConditional(parsed, "gerbang", "masuk", false), "Masuk");
+    assert.equal(evaluateConditional(parsed, "gerbang", "keluar", false), "Keluar");
+    assert.equal(evaluateConditional(parsed, "kelas", "hadir", false), "Lain");
+});
+
+test("evaluateConditional prefers _late branch when late is true", () => {
+    const parsed = parseConditionalTemplate(`{{#if gerbang_masuk_late}}Terlambat{{elseif gerbang_masuk}}Tepat{{else}}Lain{{/if}}`)!;
+    assert.equal(evaluateConditional(parsed, "gerbang", "masuk", true), "Terlambat");
+    assert.equal(evaluateConditional(parsed, "gerbang", "masuk", false), "Tepat");
 });
 
 test("resolveMessageTemplate falls back to plain template when no conditional blocks", () => {
-    const result = resolveMessageTemplate("Hello {nama}", "gerbang", "masuk");
+    const result = resolveMessageTemplate("Hello {nama}", "gerbang", "masuk", false);
     assert.equal(result, "Hello {nama}");
 });
 
 test("resolveMessageTemplate selects matching conditional block", () => {
     const template = `{{#if gerbang_masuk}}Masuk{{elseif gerbang_keluar}}Keluar{{else}}Lain{{/if}}`;
-    assert.equal(resolveMessageTemplate(template, "gerbang", "masuk"), "Masuk");
-    assert.equal(resolveMessageTemplate(template, "gerbang", "keluar"), "Keluar");
-    assert.equal(resolveMessageTemplate(template, "kelas", "hadir"), "Lain");
+    assert.equal(resolveMessageTemplate(template, "gerbang", "masuk", false), "Masuk");
+    assert.equal(resolveMessageTemplate(template, "gerbang", "keluar", false), "Keluar");
+    assert.equal(resolveMessageTemplate(template, "kelas", "hadir", false), "Lain");
+});
+
+test("resolveMessageTemplate selects _late conditional block when late is true", () => {
+    const template = `{{#if gerbang_masuk_late}}Terlambat{{elseif gerbang_masuk}}Tepat{{else}}Lain{{/if}}`;
+    assert.equal(resolveMessageTemplate(template, "gerbang", "masuk", true), "Terlambat");
+    assert.equal(resolveMessageTemplate(template, "gerbang", "masuk", false), "Tepat");
 });
 
 test("resolveMessageTemplate trims selected content", () => {
     const template = `{{#if gerbang_masuk}}
       Masuk
     {{/if}}`;
-    assert.equal(resolveMessageTemplate(template, "gerbang", "masuk"), "Masuk");
+    assert.equal(resolveMessageTemplate(template, "gerbang", "masuk", false), "Masuk");
 });
 
-test("renderTemplate substitutes variables", () => {
-    const result = renderTemplate("Yth {nama}, status {status}", { nama: "Andi", status: "Masuk" });
-    assert.equal(result, "Yth Andi, status Masuk");
+test("resolveMessageTemplate selects matching _late conditional block", () => {
+    const template = `{{#if gerbang_masuk_late}}Terlambat{{elseif gerbang_masuk}}Tepat{{else}}Lain{{/if}}`;
+    assert.equal(resolveMessageTemplate(template, "gerbang", "masuk", true), "Terlambat");
+    assert.equal(resolveMessageTemplate(template, "gerbang", "masuk", false), "Tepat");
+    assert.equal(resolveMessageTemplate(template, "gerbang", "keluar", false), "Lain");
+});
+
+test("renderTemplate substitutes terlambat variable", () => {
+    const result = renderTemplate("Status: {terlambat}", { terlambat: "Ya" });
+    assert.equal(result, "Status: Ya");
 });
 
 test("renderTemplate leaves unmatched placeholders intact", () => {
