@@ -223,6 +223,7 @@ export default async function StudentsPage({
                   <SharedPersonImpact aggregate={selectedAggregate} current="student" />
                 ) : null}
                 <StudentForm domain={domain} record={selected} />
+                <GuardianSection domain={domain} student={selected.student} guardians={selected.guardians ?? []} />
               </div>
             ) : selectedAction === "status" && principal.capabilities.write && !selected.student.archived ? (
               <LifecycleForm
@@ -252,7 +253,7 @@ export default async function StudentsPage({
                 ) : null}
               </div>
             ) : (
-              <StudentDetail domain={domain} record={selected} />
+              <StudentDetail record={selected} />
             )
           ) : undefined
         }
@@ -425,7 +426,7 @@ function StudentRowActions({
   );
 }
 
-function StudentDetail({ domain, record }: { domain: string; record: StudentRecord }) {
+function StudentDetail({ record }: { record: StudentRecord }) {
   const { person, student, classGroupName } = record;
   return (
     <div className="space-y-5">
@@ -470,7 +471,6 @@ function StudentDetail({ domain, record }: { domain: string; record: StudentReco
           <Item label="Alamat" value={person.street} />
         </dl>
       </section>
-      <GuardianSection domain={domain} student={student} guardians={record.guardians ?? []} />
       <section>
         <h3 className="font-semibold">Profil Siswa</h3>
         <dl className="mt-2 grid gap-3 sm:grid-cols-2">
