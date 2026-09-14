@@ -542,6 +542,16 @@ export async function recordQrAction(
         return { ok: false, code: result.code === "student-not-found" ? "student-not-found" : result.code === "invalid-status" ? "invalid-status" : "error" };
     }
 
+    await sendAttendanceNotification(waSendDependencies(), {
+        tenantId: tenant.id,
+        tenantSettings: tenant.settings,
+        studentId: decoded.value.studentRef,
+        layer: session.layer,
+        mode: "qr",
+        status,
+        recordedAt: new Date(),
+    }).catch(() => undefined);
+
     revalidatePath(`/${domain}/absensi/${session.layer}`);
     return { ok: true, status };
 }

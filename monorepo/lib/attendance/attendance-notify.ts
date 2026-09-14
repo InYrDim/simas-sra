@@ -6,6 +6,7 @@ import type { SendWhatsAppTextResult, WhatsAppBotSendDependencies } from "@/lib/
 import { sendWhatsAppText } from "@/lib/integrations/whatsapp-bot/whatsapp-bot-send";
 import { isTenantFeatureEnabled } from "@/lib/features/tenant-feature-policy";
 import { readAbsensiSettings } from "@/lib/attendance/attendance-config";
+import { resolveStudentIdentity } from "@/lib/attendance/attendance-record-write";
 import type { AttendanceLayer, AttendanceMode } from "@/lib/attendance/attendance-config";
 
 export type AttendanceNotificationDependencies = WhatsAppBotSendDependencies;
@@ -44,19 +45,25 @@ export async function sendAttendanceNotification(
   const { tenantId, tenantSettings, studentId, layer, mode, status, recordedAt } = input;
 
   if (!isTenantFeatureEnabled(tenantSettings, "absensiWhatsappNotify")) {
+    console.warn("[attendance-notify] skipped: feature-disabled", { tenantId, studentId, layer, mode });
     return { ok: true, skipped: true, reason: "feature-disabled" };
   }
 
   const settings = readAbsensiSettings(tenantSettings);
   const modeSettings = settings.modeSettings?.[mode];
   if (!modeSettings || modeSettings.notifyEnabled !== true) {
+    console.warn("[attendance-notify] skipped: notify-disabled", { tenantId, studentId, layer, mode, hasModeSettings: Boolean(modeSettings) });
     return { ok: true, skipped: true, reason: "notify-disabled" };
   }
 
   const template = modeSettings.notifyMessage?.trim();
   if (!template) {
+    console.warn("[attendance-notify] skipped: no-template", { tenantId, studentId, layer, mode });
     return { ok: true, skipped: true, reason: "no-template" };
   }
+
+  const resolved = await resolveStudentIdentity(tenantId, studentId);
+  const resolvedStudentId = resolved?.studentId ?? studentId;
 
   const guardianRows = await db
     .select({ phone: studentRelationship.phone })
@@ -64,7 +71,7 @@ export async function sendAttendanceNotification(
     .where(
       and(
         eq(studentRelationship.tenantId, tenantId),
-        eq(studentRelationship.studentId, studentId),
+        eq(studentRelationship.studentId, resolvedStudentId),
         eq(studentRelationship.active, true),
       ),
     )
@@ -75,6 +82,7 @@ export async function sendAttendanceNotification(
     .filter((p): p is string => !!p && p.length > 0);
 
   if (phones.length === 0) {
+    console.warn("[attendance-notify] skipped: no-guardian-phone", { tenantId, studentId, resolvedStudentId, layer, mode, guardians: guardianRows.length });
     return { ok: true, skipped: true, reason: "no-guardian-phone" };
   }
 
@@ -82,7 +90,7 @@ export async function sendAttendanceNotification(
     .select({ studentName: schoolPerson.fullName })
     .from(studentProfile)
     .innerJoin(schoolPerson, and(eq(schoolPerson.tenantId, studentProfile.tenantId), eq(schoolPerson.id, studentProfile.personId)))
-    .where(and(eq(studentProfile.tenantId, tenantId), eq(studentProfile.id, studentId)))
+    .where(and(eq(studentProfile.tenantId, tenantId), eq(studentProfile.id, resolvedStudentId)))
     .limit(1);
 
   const studentName = studentRow?.studentName ?? "";
@@ -102,8 +110,13 @@ export async function sendAttendanceNotification(
 
   const results: Array<{ phone: string; result: SendWhatsAppTextResult }> = [];
   for (const phone of phones) {
-    const result = await sendWhatsAppText(dependencies, tenantId, { chatId: phone, text });
-    results.push({ phone, result });
+    try {
+      const result = await sendWhatsAppText(dependencies, tenantId, { chatId: phone, text });
+      results.push({ phone, result });
+    } catch (error) {
+      console.error("[attendance-notify] send error", { tenantId, studentId, phone, error });
+      results.push({ phone, result: { ok: false, code: "error" } });
+    }
   }
 
   return { ok: true, skipped: false, results };
