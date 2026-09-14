@@ -5,7 +5,13 @@ import type {
     AttendanceNotificationDependencies,
     SendAttendanceNotificationInput,
 } from "@/lib/attendance/attendance-notify";
-import { sendAttendanceNotification } from "@/lib/attendance/attendance-notify";
+import {
+    sendAttendanceNotification,
+    renderTemplate,
+    parseConditionalTemplate,
+    evaluateConditional,
+    resolveMessageTemplate,
+} from "@/lib/attendance/attendance-notify";
 
 function stubClient() {
     return {
@@ -71,4 +77,58 @@ test("sendAttendanceNotification skips when notifyMessage is empty", async () =>
     assert.equal(result.ok, true);
     assert.equal(result.skipped, true);
     if (result.ok && result.skipped) assert.equal(result.reason, "no-template");
+});
+
+test("parseConditionalTemplate returns null for plain template", () => {
+    const parsed = parseConditionalTemplate("Hello {nama}, you are {status}.");
+    assert.equal(parsed, null);
+});
+
+test("parseConditionalTemplate parses if/elseif/else/endif", () => {
+    const template = `{{#if gerbang_masuk}}Masuk{{elseif gerbang_keluar}}Keluar{{else}}Lain{{/if}}`;
+    const parsed = parseConditionalTemplate(template);
+    assert.ok(parsed);
+    assert.equal(parsed!.branches.length, 3);
+    assert.equal(parsed!.branches[0].condition, "gerbang_masuk");
+    assert.equal(parsed!.branches[0].content, "Masuk");
+    assert.equal(parsed!.branches[1].condition, "gerbang_keluar");
+    assert.equal(parsed!.branches[1].content, "Keluar");
+    assert.equal(parsed!.branches[2].condition, null);
+    assert.equal(parsed!.branches[2].content, "Lain");
+});
+
+test("evaluateConditional returns matching branch content", () => {
+    const parsed = parseConditionalTemplate(`{{#if gerbang_masuk}}Masuk{{elseif gerbang_keluar}}Keluar{{else}}Lain{{/if}}`)!;
+    assert.equal(evaluateConditional(parsed, "gerbang", "masuk"), "Masuk");
+    assert.equal(evaluateConditional(parsed, "gerbang", "keluar"), "Keluar");
+    assert.equal(evaluateConditional(parsed, "kelas", "hadir"), "Lain");
+});
+
+test("resolveMessageTemplate falls back to plain template when no conditional blocks", () => {
+    const result = resolveMessageTemplate("Hello {nama}", "gerbang", "masuk");
+    assert.equal(result, "Hello {nama}");
+});
+
+test("resolveMessageTemplate selects matching conditional block", () => {
+    const template = `{{#if gerbang_masuk}}Masuk{{elseif gerbang_keluar}}Keluar{{else}}Lain{{/if}}`;
+    assert.equal(resolveMessageTemplate(template, "gerbang", "masuk"), "Masuk");
+    assert.equal(resolveMessageTemplate(template, "gerbang", "keluar"), "Keluar");
+    assert.equal(resolveMessageTemplate(template, "kelas", "hadir"), "Lain");
+});
+
+test("resolveMessageTemplate trims selected content", () => {
+    const template = `{{#if gerbang_masuk}}
+      Masuk
+    {{/if}}`;
+    assert.equal(resolveMessageTemplate(template, "gerbang", "masuk"), "Masuk");
+});
+
+test("renderTemplate substitutes variables", () => {
+    const result = renderTemplate("Yth {nama}, status {status}", { nama: "Andi", status: "Masuk" });
+    assert.equal(result, "Yth Andi, status Masuk");
+});
+
+test("renderTemplate leaves unmatched placeholders intact", () => {
+    const result = renderTemplate("Hello {nama}, {missing}", { nama: "Andi" });
+    assert.equal(result, "Hello Andi, {missing}");
 });

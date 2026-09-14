@@ -26,8 +26,73 @@ export type SendAttendanceNotificationResult =
   | { ok: true; skipped: false; results: Array<{ phone: string; result: SendWhatsAppTextResult }> }
   | { ok: false; code: "feature-disabled" | "notify-disabled" | "no-guardian-phone" | "no-template" | "error" };
 
-function renderTemplate(template: string, vars: Record<string, string>): string {
+export function renderTemplate(template: string, vars: Record<string, string>): string {
   return template.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? `{${key}}`);
+}
+
+export interface ConditionalBranch {
+  condition: string | null;
+  content: string;
+}
+
+export interface ParsedConditionalTemplate {
+  branches: ConditionalBranch[];
+}
+
+export function parseConditionalTemplate(template: string): ParsedConditionalTemplate | null {
+  const trimmed = template.trim();
+  if (!trimmed.startsWith("{{#if ")) return null;
+
+  const firstIfMatch = trimmed.match(/^\{\{#if\s+([a-z_]+)\s*\}\}([\s\S]*)/i);
+  if (!firstIfMatch) return null;
+
+  const branches: ConditionalBranch[] = [];
+  let currentCondition: string | null = firstIfMatch[1].toLowerCase();
+  let currentContent = "";
+  let remaining = firstIfMatch[2];
+
+  while (remaining.length > 0) {
+    const elseifMatch = remaining.match(/^\{\{elseif\s+([a-z_]+)\s*\}\}/i);
+    const elseMatch = remaining.match(/^\{\{else\s*\}\}/i);
+    const endifMatch = remaining.match(/^\{\{\/if\s*\}\}/i);
+
+    if (endifMatch) {
+      branches.push({ condition: currentCondition, content: currentContent });
+      remaining = remaining.slice(endifMatch[0].length);
+      break;
+    } else if (elseifMatch) {
+      branches.push({ condition: currentCondition, content: currentContent });
+      currentCondition = elseifMatch[1].toLowerCase();
+      currentContent = "";
+      remaining = remaining.slice(elseifMatch[0].length);
+    } else if (elseMatch) {
+      branches.push({ condition: currentCondition, content: currentContent });
+      currentCondition = null;
+      currentContent = "";
+      remaining = remaining.slice(elseMatch[0].length);
+    } else {
+      currentContent += remaining[0];
+      remaining = remaining.slice(1);
+    }
+  }
+
+  return { branches };
+}
+
+export function evaluateConditional(parsed: ParsedConditionalTemplate, layer: string, status: string): string {
+  const key = `${layer}_${status}`.toLowerCase();
+  for (const branch of parsed.branches) {
+    if (branch.condition === null) return branch.content;
+    if (branch.condition === key) return branch.content;
+  }
+  return "";
+}
+
+export function resolveMessageTemplate(template: string, layer: string, status: string): string {
+  const parsed = parseConditionalTemplate(template);
+  if (!parsed) return template;
+  const selected = evaluateConditional(parsed, layer, status);
+  return selected.trim();
 }
 
 function resolveStatusLabel(status: string, layer: AttendanceLayer): string {
@@ -106,7 +171,7 @@ export async function sendAttendanceNotification(
     layer: layer === "gerbang" ? "gerbang" : "kelas",
   };
 
-  const text = renderTemplate(template, vars);
+  const text = renderTemplate(resolveMessageTemplate(template, layer, status), vars);
 
   const results: Array<{ phone: string; result: SendWhatsAppTextResult }> = [];
   for (const phone of phones) {
