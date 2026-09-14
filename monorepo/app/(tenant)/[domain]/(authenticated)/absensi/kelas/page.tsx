@@ -16,8 +16,8 @@ import { db } from "@/db";
 import { classGroup, academicYear, studentProfile, schoolPerson, classMembership } from "@/db/schema";
 import { KelasRecordForm } from "./kelas-record-form";
 import { KelasSessionPanel } from "./kelas-session-panel";
+import { ScanAbsensiModal } from "../scan-absensi-modal";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { QrCode } from "lucide-react";
 
 type KelasSearchParams = {
     classGroupId?: string;
@@ -151,13 +151,7 @@ export default async function AbsensiKelasPage({
             {openSession ? (
                 <div className="flex flex-wrap items-center gap-2">
                     {tenant && isTenantFeatureEnabled(tenant.settings, "absensiQr") && modes.includes("qr") ? (
-                        <a
-                            href={`/${domain}/scan/absensi/${openSession.id}`}
-                            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted"
-                        >
-                            <QrCode className="size-4" aria-hidden />
-                            Scan QR
-                        </a>
+                        <ScanAbsensiModal domain={domain} sessionId={openSession.id} layer="kelas" />
                     ) : null}
                     <KelasRecordForm domain={domain} students={studentRows} recordedStudentIds={recordedStudentIds} />
                 </div>

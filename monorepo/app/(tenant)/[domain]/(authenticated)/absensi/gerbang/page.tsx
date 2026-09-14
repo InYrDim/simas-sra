@@ -13,7 +13,8 @@ import { db } from "@/db";
 import { studentProfile, schoolPerson } from "@/db/schema";
 import { GerbangRecordForm } from "./gerbang-record-form";
 import { GerbangSessionPanel } from "./gerbang-session-panel";
-import { ExternalLink, QrCode } from "lucide-react";
+import { ScanAbsensiModal } from "../scan-absensi-modal";
+import { ExternalLink } from "lucide-react";
 
 export default async function AbsensiGerbangPage({
     params,
@@ -120,13 +121,7 @@ export default async function AbsensiGerbangPage({
                         Buka Monitoring Publik
                     </a>
                     {tenant && isTenantFeatureEnabled(tenant.settings, "absensiQr") ? (
-                        <a
-                            href={`/${domain}/scan/absensi/${openSession.id}`}
-                            className="inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted"
-                        >
-                            <QrCode className="size-4" aria-hidden />
-                            Scan QR
-                        </a>
+                        <ScanAbsensiModal domain={domain} sessionId={openSession.id} layer="gerbang" />
                     ) : null}
                 </div>
             ) : null}

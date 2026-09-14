@@ -49,8 +49,8 @@ export type RecordAttendanceInput = {
 };
 
 export type RecordAttendanceResult =
-    | { ok: true; id: string }
-    | { ok: false; code: "student-not-found" | "invalid-status" | "error" };
+     | { ok: true; id: string }
+     | { ok: false; code: "student-not-found" | "invalid-status" | "duplicate" | "error" };
 
 /**
  * Resolves a student reference to a `student_profile.id` within a tenant.
@@ -190,6 +190,25 @@ export async function recordAttendance(
 
     const id = randomUUID();
     try {
+        const duplicate = await db
+            .select({ id: attendanceRecord.id })
+            .from(attendanceRecord)
+            .where(
+                and(
+                    eq(attendanceRecord.tenantId, input.tenantId),
+                    eq(attendanceRecord.studentId, resolved.studentId),
+                    eq(attendanceRecord.layer, input.layer),
+                    eq(attendanceRecord.status, input.status),
+                    sessionId
+                        ? eq(attendanceRecord.sessionId, sessionId)
+                        : sql`${attendanceRecord.sessionId} IS NULL`,
+                ),
+            )
+            .limit(1);
+        if (duplicate.length > 0) {
+            return { ok: false, code: "duplicate" };
+        }
+
         await db.insert(attendanceRecord).values({
             id,
             tenantId: input.tenantId,

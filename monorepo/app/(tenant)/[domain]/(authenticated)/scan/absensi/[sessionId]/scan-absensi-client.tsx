@@ -111,6 +111,8 @@ export function ScanAbsensiClient({ domain, sessionId, layer }: { domain: string
                                           ? "Siswa tidak ditemukan."
                                           : result.code === "bad-token"
                                             ? "Format QR tidak valid."
+                                          : result.code === "duplicate"
+                                            ? "Absensi sudah tercatat sebelumnya."
                                             : "Gagal mencatat absensi.",
                             });
                         }

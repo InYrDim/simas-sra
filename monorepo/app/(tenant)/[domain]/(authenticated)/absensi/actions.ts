@@ -139,7 +139,7 @@ export async function saveModeSettingsAction(
 
 export type RecordGerbangResult = {
     ok: boolean;
-    code?: "invalid-input" | "student-not-found" | "invalid-status" | "not-found" | "error";
+    code?: "invalid-input" | "student-not-found" | "invalid-status" | "duplicate" | "not-found" | "error";
 };
 
 /**
@@ -177,7 +177,7 @@ export async function recordGerbangAction(
     });
 
     if (!result.ok) {
-        return { ok: false, code: result.code === "student-not-found" ? "student-not-found" : result.code === "invalid-status" ? "invalid-status" : "error" };
+        return { ok: false, code: result.code === "student-not-found" ? "student-not-found" : result.code === "invalid-status" ? "invalid-status" : result.code === "duplicate" ? "duplicate" : "error" };
     }
 
     await sendAttendanceNotification(waSendDependencies(), {
@@ -282,7 +282,7 @@ export async function deleteGerbangSessionAction(
 
 export type RecordKelasResult = {
     ok: boolean;
-    code?: "invalid-input" | "student-not-found" | "invalid-status" | "not-in-rombel" | "not-found" | "error";
+    code?: "invalid-input" | "student-not-found" | "invalid-status" | "not-in-rombel" | "duplicate" | "not-found" | "error";
 };
 
 /**
@@ -334,7 +334,7 @@ export async function recordKelasAction(
     });
 
     if (!result.ok) {
-        return { ok: false, code: result.code === "student-not-found" ? "student-not-found" : result.code === "invalid-status" ? "invalid-status" : "error" };
+        return { ok: false, code: result.code === "student-not-found" ? "student-not-found" : result.code === "invalid-status" ? "invalid-status" : result.code === "duplicate" ? "duplicate" : "error" };
     }
 
     await sendAttendanceNotification(waSendDependencies(), {
@@ -482,7 +482,7 @@ export async function deleteHistoryRecordAction(
 
 export type RecordQrResult = {
     ok: boolean;
-    code?: "invalid-input" | "not-found" | "wrong-tenant" | "bad-token" | "student-not-found" | "invalid-status" | "error";
+    code?: "invalid-input" | "not-found" | "wrong-tenant" | "bad-token" | "student-not-found" | "invalid-status" | "duplicate" | "error";
     studentName?: string;
     status?: string;
 };
@@ -539,7 +539,7 @@ export async function recordQrAction(
     });
 
     if (!result.ok) {
-        return { ok: false, code: result.code === "student-not-found" ? "student-not-found" : result.code === "invalid-status" ? "invalid-status" : "error" };
+        return { ok: false, code: result.code === "student-not-found" ? "student-not-found" : result.code === "invalid-status" ? "invalid-status" : result.code === "duplicate" ? "duplicate" : "error" };
     }
 
     await sendAttendanceNotification(waSendDependencies(), {
