@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 import { NavigationProgress } from "@/components/navigation-progress";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
+import { Suspense } from "react";
 
 // For adding custom fonts with other frameworks, see:
 // https://tailwindcss.com/docs/font-family
@@ -47,7 +48,9 @@ export default function RootLayout({
       className={cn("h-full antialiased", fontSans.variable, fontSerif.variable, fontMono.variable)}
     >
       <body className="min-h-full flex flex-col">
-        <NavigationProgress />
+        <Suspense fallback={null}>
+          <NavigationProgress />
+        </Suspense>
         <TooltipProvider>{children}</TooltipProvider>
         <Toaster />
       </body>
