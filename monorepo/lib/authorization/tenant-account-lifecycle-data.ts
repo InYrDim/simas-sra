@@ -274,7 +274,7 @@ export function createTenantAccountLifecycleDataRepository(
         eq(tenantAccountLifecycleCase.id, caseId),
         eq(tenantAccountLifecycleCase.state, "pending"),
       ));
-      return updated[0].affectedRows === 1;
+      return updated.rowCount === 1;
     },
 
     async activateConsumedAccount(tenantId, userId, updatedAt) {
@@ -289,7 +289,7 @@ export function createTenantAccountLifecycleDataRepository(
         eq(tenantAccountSecurity.userId, userId),
         eq(tenantAccountSecurity.lifecycle, "pending-activation"),
       ));
-      return updated[0].affectedRows === 1;
+      return updated.rowCount === 1;
     },
 
     async resetCredential(tenantId, userId, credential, updatedAt) {
@@ -304,7 +304,7 @@ export function createTenantAccountLifecycleDataRepository(
         eq(account.userId, userId),
         eq(account.providerId, "credential"),
       ));
-      return updated[0].affectedRows === 1;
+      return updated.rowCount === 1;
     },
 
     async createAccount(input) {
@@ -370,7 +370,7 @@ export function createTenantAccountLifecycleDataRepository(
         eq(schoolPerson.archived, false),
         isNull(schoolPerson.accountUserId),
       ));
-      if (updated[0].affectedRows !== 1) throw new SecurityCommandError("stale-version");
+      if (updated.rowCount !== 1) throw new SecurityCommandError("stale-version");
     },
 
     async createCase(value) {
@@ -408,7 +408,7 @@ export function createTenantAccountLifecycleDataRepository(
         eq(tenantAccountSecurity.userId, input.userId),
         eq(tenantAccountSecurity.version, input.expectedVersion),
       ));
-      return updated[0].affectedRows === 1;
+      return updated.rowCount === 1;
     },
 
     async suspendAssignments(tenantId, userId, updatedAt) {
@@ -426,7 +426,7 @@ export function createTenantAccountLifecycleDataRepository(
           eq(tenantRoleAssignment.version, row.version),
           eq(tenantRoleAssignment.state, "active"),
         ));
-        if (updated[0].affectedRows !== 1) throw new SecurityCommandError("stale-version");
+        if (updated.rowCount !== 1) throw new SecurityCommandError("stale-version");
       }
       return active.map((row) => row.roleId).sort();
     },
@@ -448,7 +448,7 @@ export function createTenantAccountLifecycleDataRepository(
           eq(tenantRoleAssignment.version, row.version),
           eq(tenantRoleAssignment.state, "suspended"),
         ));
-        if (updated[0].affectedRows !== 1) throw new SecurityCommandError("stale-version");
+        if (updated.rowCount !== 1) throw new SecurityCommandError("stale-version");
       }
       return suspended.map((row) => row.roleId).sort();
     },
@@ -456,7 +456,7 @@ export function createTenantAccountLifecycleDataRepository(
     async revokeSessions(userId) {
       assertIdentifier(userId);
       const deleted = await database.delete(session).where(eq(session.userId, userId));
-      return deleted[0].affectedRows;
+      return deleted.rowCount;
     },
 
     async deleteCredential(tenantId, userId, updatedAt) {
@@ -495,7 +495,7 @@ export function createTenantAccountLifecycleDataRepository(
         eq(schoolPerson.archived, false),
         isNull(schoolPerson.accountUserId),
       ));
-      return updated[0].affectedRows;
+      return updated.rowCount;
     },
   };
 }

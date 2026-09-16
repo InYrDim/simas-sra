@@ -90,7 +90,7 @@ export async function deliverPendingLifecycleEvents(input: Readonly<{ limit?: nu
       if (event.deliveryChannel !== "email" || !event.expiresAt || event.expiresAt <= now) {
         await db.transaction(async (transaction) => {
           const marked = await transaction.update(securityOutbox).set({ publishedAt: now, attempts: sql`${securityOutbox.attempts} + 1`, lastError: "lifecycle case is not deliverable" }).where(and(eq(securityOutbox.id, event.outboxId), isNull(securityOutbox.publishedAt)));
-          if (marked[0].affectedRows === 1) {
+          if (marked.rowCount === 1) {
             await transaction.update(tenantAccountLifecycleCase).set({ deliveryAttempts: sql`${tenantAccountLifecycleCase.deliveryAttempts} + 1`, updatedAt: now }).where(eq(tenantAccountLifecycleCase.id, event.caseId));
           }
           if (event.expiresAt && event.expiresAt <= now) {
@@ -106,17 +106,17 @@ export async function deliverPendingLifecycleEvents(input: Readonly<{ limit?: nu
         await input.send(delivery);
         const published = await db.transaction(async (transaction) => {
           const updated = await transaction.update(securityOutbox).set({ publishedAt: now, attempts: sql`${securityOutbox.attempts} + 1`, lastError: null }).where(and(eq(securityOutbox.id, event.outboxId), isNull(securityOutbox.publishedAt)));
-          if (updated[0].affectedRows === 1) {
+          if (updated.rowCount === 1) {
             await transaction.update(tenantAccountLifecycleCase).set({ deliveryAttempts: sql`${tenantAccountLifecycleCase.deliveryAttempts} + 1`, updatedAt: now }).where(eq(tenantAccountLifecycleCase.id, event.caseId));
           }
           return updated;
         });
-        if (published[0].affectedRows === 1) delivered.push(delivery);
+        if (published.rowCount === 1) delivered.push(delivery);
       } catch {
         const retryAt = new Date(now.getTime() + Math.min(60 * 60_000, 5_000 * 2 ** Math.min(event.attempts, 8)));
         await db.transaction(async (transaction) => {
           const marked = await transaction.update(securityOutbox).set({ attempts: sql`${securityOutbox.attempts} + 1`, availableAt: retryAt, lastError: "lifecycle delivery adapter failed" }).where(and(eq(securityOutbox.id, event.outboxId), isNull(securityOutbox.publishedAt)));
-          if (marked[0].affectedRows === 1) {
+          if (marked.rowCount === 1) {
             await transaction.update(tenantAccountLifecycleCase).set({ deliveryAttempts: sql`${tenantAccountLifecycleCase.deliveryAttempts} + 1`, updatedAt: now }).where(eq(tenantAccountLifecycleCase.id, event.caseId));
           }
         });

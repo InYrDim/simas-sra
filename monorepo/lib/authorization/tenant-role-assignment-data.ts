@@ -194,7 +194,7 @@ export function createTenantRoleAssignmentDataRepository(
           eq(tenantAccountSecurity.userId, input.userId),
           eq(tenantAccountSecurity.assignmentVersion, input.expectedAssignmentVersion),
         ));
-      if (updatedAccount[0].affectedRows !== 1) return { updated: false, assignments: [] };
+      if (updatedAccount.rowCount !== 1) return { updated: false, assignments: [] };
 
       const selected = new Set(input.roleIds);
       const existingByRole = new Map(input.existingAssignments.map((assignment) => [assignment.roleId, assignment]));
@@ -229,7 +229,7 @@ export function createTenantRoleAssignmentDataRepository(
               eq(tenantRoleAssignment.id, existing.assignmentId),
               eq(tenantRoleAssignment.version, existing.version),
             ));
-          if (reactivated[0].affectedRows !== 1) throw new SecurityCommandError("stale-version");
+          if (reactivated.rowCount !== 1) throw new SecurityCommandError("stale-version");
           transitions.push({ assignmentId: existing.assignmentId, roleId, transition: "reactivated" as const });
         } else {
           transitions.push({ assignmentId: existing.assignmentId, roleId, transition: "unchanged" as const });
@@ -251,7 +251,7 @@ export function createTenantRoleAssignmentDataRepository(
             eq(tenantRoleAssignment.id, existing.assignmentId),
             eq(tenantRoleAssignment.version, existing.version),
           ));
-        if (suspended[0].affectedRows !== 1) throw new SecurityCommandError("stale-version");
+        if (suspended.rowCount !== 1) throw new SecurityCommandError("stale-version");
         transitions.push({
           assignmentId: existing.assignmentId,
           roleId: existing.roleId,

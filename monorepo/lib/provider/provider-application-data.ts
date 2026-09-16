@@ -356,7 +356,7 @@ export function createApplicationApprovalStore(options: Readonly<{
               isNull(user.tenantId),
               isNull(user.tenantRole),
             ));
-            if (promoted[0].affectedRows !== 1) throw new ApprovalConflictError("concurrent");
+            if (promoted.rowCount !== 1) throw new ApprovalConflictError("concurrent");
             await afterStep("user-promoted");
 
             await tx.insert(schoolAdminAuthority).values({
@@ -374,7 +374,7 @@ export function createApplicationApprovalStore(options: Readonly<{
 
             const removedApplicant = await tx.delete(applicant)
               .where(eq(applicant.userId, values.ownerUserId));
-            if (removedApplicant[0].affectedRows !== 1) throw new ApprovalConflictError("concurrent");
+            if (removedApplicant.rowCount !== 1) throw new ApprovalConflictError("concurrent");
             await afterStep("applicant-removed");
 
             await tx.delete(session).where(eq(session.userId, values.ownerUserId));
@@ -395,7 +395,7 @@ export function createApplicationApprovalStore(options: Readonly<{
                   eq(simasApplication.status, "pending"),
                 ),
               );
-            if (finalized[0].affectedRows !== 1) throw new ApprovalConflictError("concurrent");
+            if (finalized.rowCount !== 1) throw new ApprovalConflictError("concurrent");
             await afterStep("application-finalized");
 
             await tx.insert(transactionalOutbox).values({

@@ -162,7 +162,7 @@ export function createSchoolAdminLifecycleDataRepository(
         eq(schoolAdminAuthority.tenantId, input.tenantId),
         eq(schoolAdminAuthority.version, input.expectedVersion),
       ));
-      return updated[0].affectedRows === 1;
+      return updated.rowCount === 1;
     },
 
     async loadProofByCaseId(tenantId, caseId) {
@@ -232,7 +232,7 @@ export function createSchoolAdminLifecycleDataRepository(
         eq(schoolAdminProof.tenantId, input.tenantId),
         eq(schoolAdminProof.version, input.expectedVersion),
       ));
-      return updated[0].affectedRows === 1;
+      return updated.rowCount === 1;
     },
 
     async setUserTenantRole(input) {
@@ -246,13 +246,13 @@ export function createSchoolAdminLifecycleDataRepository(
             eq(user.tenantRole, "school-admin"),
           );
       const updated = await database.update(user).set({ tenantRole: input.tenantRole }).where(where);
-      return updated[0].affectedRows === 1;
+      return updated.rowCount === 1;
     },
 
     async revokeSessions(userId) {
       assertIdentifier(userId);
       const deleted = await database.delete(session).where(eq(session.userId, userId));
-      return deleted[0].affectedRows;
+      return deleted.rowCount;
     },
   };
 }

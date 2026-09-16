@@ -28,7 +28,7 @@ export const subjectCatalogStore: SubjectCatalogStore = {
             return true;
           }
           const result = await transaction.update(subject).set({ code: value.code, normalizedCode: value.normalizedCode, name: value.name, normalizedName: value.normalizedName, educationLevels, description: value.description, archived: value.archived, archivedAt: value.archivedAt, version: value.version, updatedAt: value.updatedAt }).where(and(eq(subject.tenantId, tenantId), eq(subject.id, value.id), eq(subject.version, expectedVersion)));
-          return result[0].affectedRows === 1;
+          return result.rowCount === 1;
         },
         async appendHistory(event) {
           if (event.tenantId !== tenantId) throw new Error("Cross-Tenant subject history write denied");

@@ -41,7 +41,7 @@ export const auth = betterAuth({
     ...(process.env.NODE_ENV === "development" ? ["http://*.localhost:3100"] : []),
   ],
   database: drizzleAdapter(db, {
-    provider: "mysql",
+    provider: "pg",
     schema,
   }),
   emailAndPassword: {

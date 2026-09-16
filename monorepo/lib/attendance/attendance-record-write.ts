@@ -859,7 +859,7 @@ export async function closeSession(
                     eq(attendanceSession.status, "open"),
                 ),
             );
-        const affected = ((result as unknown[])[0] as { affectedRows?: number } | undefined)?.affectedRows ?? 0;
+        const affected = ((result as unknown[])[0] as { affectedRows?: number } | undefined)?.rowCount ?? 0;
         if (affected === 0) return { ok: false, code: "not-found" };
         return { ok: true };
     } catch {
@@ -895,7 +895,7 @@ export async function deleteSession(
         const result = await db
             .delete(attendanceSession)
             .where(and(eq(attendanceSession.tenantId, tenantId), eq(attendanceSession.id, sessionId)));
-        const affected = ((result as unknown[])[0] as { affectedRows?: number } | undefined)?.affectedRows ?? 0;
+        const affected = ((result as unknown[])[0] as { affectedRows?: number } | undefined)?.rowCount ?? 0;
         if (affected === 0) return { ok: false, code: "not-found" };
         return { ok: true };
     } catch {
@@ -914,7 +914,7 @@ export async function deleteAttendanceRecord(
         const result = await db
             .delete(attendanceRecord)
             .where(and(eq(attendanceRecord.tenantId, tenantId), eq(attendanceRecord.id, recordId)));
-        const affected = ((result as unknown[])[0] as { affectedRows?: number } | undefined)?.affectedRows ?? 0;
+        const affected = ((result as unknown[])[0] as { affectedRows?: number } | undefined)?.rowCount ?? 0;
         if (affected === 0) return { ok: false, code: "not-found" };
         return { ok: true };
     } catch {

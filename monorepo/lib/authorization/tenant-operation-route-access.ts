@@ -5,7 +5,7 @@ import { forbidden, notFound } from "next/navigation";
 import type { TenantAuthorizationResult } from "@/lib/authorization/tenant-authorization";
 import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
 import { tenantOperationMap } from "@/lib/authorization/tenant-rbac-contract";
-import { alias } from "drizzle-orm/mysql-core";
+import { alias } from "drizzle-orm/pg-core";
 import { and, eq, gt, gte, isNull, lte, or } from "drizzle-orm";
 import { db } from "@/db";
 import { academicYear, classGroup, classMembership, schoolPerson, studentProfile, teacherProfile, teachingAssignment } from "@/db/schema";

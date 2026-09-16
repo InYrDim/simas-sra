@@ -188,7 +188,7 @@ export const ppdbSubmissionStore: PpdbSubmissionStore = {
         .update(ppdbSubmission)
         .set({ status: patch.status, score: patch.score, version: expectedVersion + 1, updatedAt: patch.updatedAt })
         .where(and(eq(ppdbSubmission.tenantId, tenantId), eq(ppdbSubmission.id, submissionId), eq(ppdbSubmission.version, expectedVersion)));
-      return result[0].affectedRows === 1 ? "updated" : "conflict";
+      return result.rowCount === 1 ? "updated" : "conflict";
     });
   },
 };

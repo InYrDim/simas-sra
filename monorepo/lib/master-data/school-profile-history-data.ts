@@ -39,7 +39,7 @@ export const schoolAssetStore: SchoolAssetStore = {
         await transaction.insert(schoolAsset).values(asset);
         const result = await transaction.update(schoolProfile).set({ logoAssetId: asset.id, version: sql`${schoolProfile.version} + 1`, updatedAt: asset.createdAt })
           .where(eq(schoolProfile.tenantId, asset.tenantId));
-        if (result[0].affectedRows !== 1) throw new Error("School profile not found");
+        if (result.rowCount !== 1) throw new Error("School profile not found");
         await transaction.insert(schoolProfileAudit).values({
           id: crypto.randomUUID(), tenantId: asset.tenantId, profileId: profile.id,
           actorUserId: asset.createdByUserId, operation: "school-profile.logo-replaced",
@@ -67,7 +67,7 @@ export const schoolAccreditationStore: SchoolAccreditationStore = {
       async invalidate(tenantId, id, correctionId, reason, invalidatedAt) {
         const result = await transaction.update(schoolAccreditation).set({ correctionId, invalidationReason: reason, invalidatedAt })
           .where(and(eq(schoolAccreditation.tenantId, tenantId), eq(schoolAccreditation.id, id), isNull(schoolAccreditation.invalidatedAt)));
-        return result[0].affectedRows === 1;
+        return result.rowCount === 1;
       },
     }));
   },

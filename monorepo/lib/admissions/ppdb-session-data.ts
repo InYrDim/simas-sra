@@ -136,7 +136,7 @@ export const ppdbSessionStore: PpdbSessionStore = {
               updatedAt: session.updatedAt,
             })
             .where(and(eq(ppdbSession.tenantId, tenantId), eq(ppdbSession.id, session.id)));
-          if (result[0].affectedRows !== 1) throw new Error("PPDB session not found");
+          if (result.rowCount !== 1) throw new Error("PPDB session not found");
         },
       });
     });

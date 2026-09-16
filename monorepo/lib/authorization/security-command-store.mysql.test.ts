@@ -82,7 +82,7 @@ function securityCommand(
         eq(tenantRole.id, input.roleId),
         eq(tenantRole.version, input.expectedVersion),
       ));
-      requireOptimisticUpdate(updated[0].affectedRows === 1, `tenant-role:${input.roleId}`);
+      requireOptimisticUpdate(updated[0].rowCount === 1, `tenant-role:${input.roleId}`);
       return {
         result: { roleId: input.roleId, version: input.expectedVersion + 1, name: input.name },
         versionTransitions: [{
