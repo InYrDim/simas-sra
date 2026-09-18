@@ -252,7 +252,7 @@ export function createSchoolAdminLifecycleDataRepository(
     async revokeSessions(userId) {
       assertIdentifier(userId);
       const deleted = await database.delete(session).where(eq(session.userId, userId));
-      return deleted.rowCount;
+      return deleted.rowCount ?? 0;
     },
   };
 }

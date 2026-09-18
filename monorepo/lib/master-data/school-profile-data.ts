@@ -90,7 +90,10 @@ export const schoolProfileStore: SchoolProfileStore = {
           website: profile.website, latitude: profile.latitude?.toString(), longitude: profile.longitude?.toString(),
           description: profile.description, logoAssetId: profile.logoAssetId, version: profile.version,
           createdAt: profile.createdAt, updatedAt: profile.updatedAt,
-        }).onDuplicateKeyUpdate({ set: { id: sql`${schoolProfile.id}` } });
+        }).onConflictDoUpdate({
+          target: schoolProfile.id,
+          set: { id: sql`${schoolProfile.id}` },
+        });
         const [row] = await selectProfile(transaction, profile.tenantId);
         if (!row) throw new Error("School profile was not created");
         return mapProfile(row);
@@ -106,7 +109,7 @@ export const schoolProfileStore: SchoolProfileStore = {
           longitude: values.longitude?.toString() ?? null, description: values.description,
           version: sql`${schoolProfile.version} + 1`, updatedAt: values.updatedAt,
         }).where(and(eq(schoolProfile.tenantId, tenantId), eq(schoolProfile.version, expectedVersion)));
-        if (updated[0].affectedRows !== 1) return null;
+        if ((updated.rowCount ?? 0) !== 1) return null;
         const [row] = await selectProfile(transaction, tenantId);
         return row?.version === expectedVersion + 1 ? mapProfile(row) : null;
       },

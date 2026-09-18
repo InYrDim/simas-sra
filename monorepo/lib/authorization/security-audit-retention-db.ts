@@ -77,11 +77,14 @@ export async function saveSecurityAuditRetentionPolicy(input: Readonly<{
       retentionDays: input.retentionDays,
       version: input.version,
       updatedAt: at,
-    }).onDuplicateKeyUpdate({ set: {
-      retentionDays: input.retentionDays,
-      version: input.version,
-      updatedAt: at,
-    }});
+    }).onConflictDoUpdate({
+      target: [securityAuditRetentionPolicy.securityContextKind, securityAuditRetentionPolicy.contextId],
+      set: {
+        retentionDays: input.retentionDays,
+        version: input.version,
+        updatedAt: at,
+      },
+    });
   });
 }
 
@@ -109,7 +112,10 @@ export async function openSecurityAuditLegalHold(input: Readonly<{
       state: "active",
       createdAt: at,
       releasedAt: null,
-    }).onDuplicateKeyUpdate({ set: { state: "active", reason: input.reason.trim(), releasedAt: null } });
+    }).onConflictDoUpdate({
+      target: [securityAuditLegalHold.securityContextKind, securityAuditLegalHold.contextId, securityAuditLegalHold.caseId],
+      set: { state: "active", reason: input.reason.trim(), releasedAt: null },
+    });
   });
   return id;
 }
@@ -125,7 +131,7 @@ export async function releaseSecurityAuditLegalHold(input: Readonly<{ principal:
       eq(securityAuditLegalHold.caseId, input.caseId),
       eq(securityAuditLegalHold.state, "active"),
     ));
-    return updated[0].affectedRows === 1;
+    return (updated.rowCount ?? 0) === 1;
   });
 }
 

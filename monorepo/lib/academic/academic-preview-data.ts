@@ -42,15 +42,25 @@ export const academicPreviewStore: AcademicPreviewStore = {
     return row ? record(row) : null;
   },
   async update(id, expectedVersion, patch) {
-    const updated = await db.update(academicOperationPreview).set({
-      ...(patch.state === undefined ? {} : { state: patch.state }),
-      ...(patch.idempotencyKey === undefined ? {} : { idempotencyKey: patch.idempotencyKey }),
-      ...(patch.outcome === undefined ? {} : { outcome: patch.outcome }),
-      ...(patch.expiresAt === undefined ? {} : { expiresAt: new Date(patch.expiresAt) }),
-      ...(patch.version === undefined ? {} : { version: patch.version }),
-      ...(patch.state === "committed" ? { committedAt: new Date() } : {}),
-      ...(patch.state === "invalidated" || patch.state === "expired" ? { invalidatedAt: new Date() } : {}),
-    }).where(and(eq(academicOperationPreview.id, id), eq(academicOperationPreview.version, expectedVersion), ...(patch.idempotencyKey === undefined ? [] : [isNull(academicOperationPreview.idempotencyKey)])));
-    return updated[0].affectedRows === 1;
+    const updated = await db
+      .update(academicOperationPreview)
+      .set({
+        ...(patch.state === undefined ? {} : { state: patch.state }),
+        ...(patch.idempotencyKey === undefined ? {} : { idempotencyKey: patch.idempotencyKey }),
+        ...(patch.outcome === undefined ? {} : { outcome: patch.outcome }),
+        ...(patch.expiresAt === undefined ? {} : { expiresAt: new Date(patch.expiresAt) }),
+        ...(patch.version === undefined ? {} : { version: patch.version }),
+        ...(patch.state === "committed" ? { committedAt: new Date() } : {}),
+        ...(patch.state === "invalidated" || patch.state === "expired" ? { invalidatedAt: new Date() } : {}),
+      })
+      .where(
+        and(
+          eq(academicOperationPreview.id, id),
+          eq(academicOperationPreview.version, expectedVersion),
+          ...(patch.idempotencyKey === undefined ? [] : [isNull(academicOperationPreview.idempotencyKey)]),
+        ),
+      )
+      .returning();
+    return updated.length === 1;
   },
 };

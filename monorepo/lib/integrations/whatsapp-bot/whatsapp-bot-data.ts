@@ -111,7 +111,8 @@ export async function upsertConnection(record: WhatsAppBotConnectionRecord) {
       createdAt: new Date(),
       updatedAt: new Date(),
     })
-    .onDuplicateKeyUpdate({
+    .onConflictDoUpdate({
+      target: [whatsappBotConnection.tenantId],
       set: {
         openwaSessionId: record.openwaSessionId,
         openwaSessionName: record.openwaSessionName,
@@ -155,7 +156,10 @@ export async function recordInboundMessage(message: InboundMessageRecord) {
       sentAt: null,
       deliveryStatus: null,
     })
-    .onDuplicateKeyUpdate({ set: { id: sql`${whatsappBotMessage.id}` } });
+    .onConflictDoUpdate({
+      target: [whatsappBotMessage.tenantId, whatsappBotMessage.idempotencyKey],
+      set: { id: sql`${whatsappBotMessage.id}` },
+    });
 }
 
 export type OutboundMessageRecord = {

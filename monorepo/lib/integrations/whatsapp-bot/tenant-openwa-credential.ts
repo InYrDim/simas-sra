@@ -115,7 +115,8 @@ export async function upsertTenantOpenWaCredential(input: TenantOpenWaCredential
       createdAt: new Date(),
       updatedAt: new Date(),
     })
-    .onDuplicateKeyUpdate({
+    .onConflictDoUpdate({
+      target: tenantOpenWaCredential.tenantId,
       set: {
         apiBaseUrl,
         apiKeyCiphertext,

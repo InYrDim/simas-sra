@@ -78,11 +78,17 @@ export async function importDemoMasterData(
         version: 1,
         createdAt: now,
         updatedAt: now,
-      }).onDuplicateKeyUpdate({ set: { lifecycle: "active", archived: false, updatedAt: now } });
+      }).onConflictDoUpdate({
+        target: academicYear.id,
+        set: { lifecycle: "active", archived: false, updatedAt: now },
+      });
       await tx.insert(academicSemester).values([
         { id: id("semester:odd"), tenantId, academicYearId: yearId, kind: "odd", startDate: period.startDate, endDate: period.oddEndDate, status: "active" },
         { id: id("semester:even"), tenantId, academicYearId: yearId, kind: "even", startDate: period.evenStartDate, endDate: period.endDate, status: "pending" },
-      ]).onDuplicateKeyUpdate({ set: { academicYearId: yearId } });
+      ]).onConflictDoUpdate({
+        target: academicSemester.id,
+        set: { academicYearId: yearId },
+      });
     }
 
     await tx.insert(schoolPerson).values({
@@ -100,7 +106,10 @@ export async function importDemoMasterData(
       version: 1,
       createdAt: now,
       updatedAt: now,
-    }).onDuplicateKeyUpdate({ set: { archived: false, updatedAt: now } });
+    }).onConflictDoUpdate({
+      target: schoolPerson.id,
+      set: { archived: false, updatedAt: now },
+    });
     await tx.insert(teacherProfile).values({
       id: teacherId,
       tenantId,
@@ -114,11 +123,17 @@ export async function importDemoMasterData(
       version: 1,
       createdAt: now,
       updatedAt: now,
-    }).onDuplicateKeyUpdate({ set: { status: "active", archived: false, updatedAt: now } });
+    }).onConflictDoUpdate({
+      target: teacherProfile.id,
+      set: { status: "active", archived: false, updatedAt: now },
+    });
     await tx.insert(teacherServicePeriod).values({
       id: id("teacher-period:1"), tenantId, teacherId, status: "active", startedAt: period.startDate,
       reason: "Import data demo", corrected: false, createdByUserId: principal.userId, createdAt: now,
-    }).onDuplicateKeyUpdate({ set: { status: "active", reason: "Import data demo" } });
+    }).onConflictDoUpdate({
+      target: teacherServicePeriod.id,
+      set: { status: "active", reason: "Import data demo" },
+    });
 
     for (const student of students) {
       const personId = id(`person:${student.key}`);
@@ -128,17 +143,26 @@ export async function importDemoMasterData(
         birthPlace: "Jakarta", normalizedBirthPlace: "jakarta", birthDate: student.birthDate,
         gender: student.gender, street: "Alamat Demo", archived: false, version: 1,
         createdAt: now, updatedAt: now,
-      }).onDuplicateKeyUpdate({ set: { archived: false, updatedAt: now } });
+    }).onConflictDoUpdate({
+      target: schoolPerson.id,
+      set: { archived: false, updatedAt: now },
+    });
       await tx.insert(studentProfile).values({
         id: profileId, tenantId, personId, nis: student.nis, normalizedNis: normalize(student.nis),
         nisn: student.nisn, entryDate: period.startDate, status: "active", archived: false,
         version: 1, createdAt: now, updatedAt: now,
-      }).onDuplicateKeyUpdate({ set: { status: "active", archived: false, updatedAt: now } });
+      }).onConflictDoUpdate({
+        target: studentProfile.id,
+        set: { status: "active", archived: false, updatedAt: now },
+      });
       await tx.insert(studentLifecyclePeriod).values({
         id: id(`student-period:${student.key}`), tenantId, studentId: profileId, status: "active",
         startedAt: period.startDate, reason: "Import data demo", corrected: false,
         createdByUserId: principal.userId, createdAt: now,
-      }).onDuplicateKeyUpdate({ set: { status: "active", reason: "Import data demo" } });
+      }).onConflictDoUpdate({
+        target: studentLifecyclePeriod.id,
+        set: { status: "active", reason: "Import data demo" },
+      });
     }
 
     await tx.insert(subject).values(subjects.map((item) => ({
@@ -146,14 +170,20 @@ export async function importDemoMasterData(
       name: item.name, normalizedName: normalize(item.name), educationLevels: educationLevel,
       description: "Data demo untuk mencoba fitur akademik", archived: false, version: 1,
       createdAt: now, updatedAt: now,
-    }))).onDuplicateKeyUpdate({ set: { archived: false, updatedAt: now } });
+    }))).onConflictDoUpdate({
+      target: subject.id,
+      set: { archived: false, updatedAt: now },
+    });
 
     await tx.insert(classGroup).values({
       id: id("class-group:1"), tenantId, academicYearId: selectedYearId, educationLevel,
       grade: demoGrade(educationLevel), groupName: "A Demo", normalizedGroupName: "a demo",
       code: "DEMO-A", normalizedCode: "demo-a", capacity: 32, lifecycle: "active",
       archived: false, version: 1, createdAt: now, updatedAt: now,
-    }).onDuplicateKeyUpdate({ set: { academicYearId: selectedYearId, lifecycle: "active", archived: false, updatedAt: now } });
+    }).onConflictDoUpdate({
+      target: classGroup.id,
+      set: { academicYearId: selectedYearId, lifecycle: "active", archived: false, updatedAt: now },
+    });
   });
 
   return { imported: DEMO_MASTER_DATA_TYPES } as const;

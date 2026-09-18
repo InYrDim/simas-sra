@@ -172,13 +172,16 @@ export async function recordSecurityAuditIntegrityFindings(input: Readonly<{
       detectedAt,
       resolvedAt: null,
     };
-  })).onDuplicateKeyUpdate({ set: {
-    state: "open",
-    severity: "blocking",
-    safeDetails: { contextKind: input.context.kind, contextId: input.context.contextId } satisfies JsonValue,
-    detectedAt,
-    resolvedAt: null,
-  }});
+  })).onConflictDoUpdate({
+    target: [securityReconciliationFinding.migrationKey, securityReconciliationFinding.scopeKey, securityReconciliationFinding.findingKey],
+    set: {
+      state: "open",
+      severity: "blocking",
+      safeDetails: { contextKind: input.context.kind, contextId: input.context.contextId } satisfies JsonValue,
+      detectedAt,
+      resolvedAt: null,
+    },
+  });
 }
 
 export async function verifyAndRecordSecurityAuditChain(input: Readonly<{

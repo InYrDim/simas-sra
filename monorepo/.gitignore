@@ -44,3 +44,4 @@ next-env.d.ts
 .data/
 .operational-evidence/
 .operational-evidence/**/*.sql
+.neon

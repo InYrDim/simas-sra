@@ -55,7 +55,10 @@ export async function provisionProviderAdmin(
     await tx
       .insert(providerAdmin)
       .values({ userId: candidate.id })
-      .onDuplicateKeyUpdate({ set: { userId: candidate.id } });
+      .onConflictDoUpdate({
+        target: providerAdmin.userId,
+        set: { userId: candidate.id },
+      });
 
     return { status: "created", userId: candidate.id };
   });
