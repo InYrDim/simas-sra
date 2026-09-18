@@ -37,7 +37,7 @@ export const tenantOnboardingStore: TenantOnboardingStore = {
           ))
           .where(eq(user.id, userId))
           .limit(1)
-          .for("update");
+          .for("update", { of: [tenant] });
         if (!principal) return null;
         return {
           ...principal,
