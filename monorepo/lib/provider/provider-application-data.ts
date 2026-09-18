@@ -247,9 +247,9 @@ export function createApplicationApprovalStore(options: Readonly<{
               })
               .from(simasApplication)
               .leftJoin(tenant, eq(tenant.id, simasApplication.approvedTenantId))
-              .where(eq(simasApplication.id, applicationId))
-              .limit(1)
-              .for("update");
+               .where(eq(simasApplication.id, applicationId))
+               .limit(1)
+               .for("update", { of: [simasApplication] });
             if (!application
               || application.bindingId !== binding.id
               || application.ownerUserId !== binding.userId) return null;
