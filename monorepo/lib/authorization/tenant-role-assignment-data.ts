@@ -141,8 +141,7 @@ export function createTenantRoleAssignmentDataRepository(
           eq(tenantRole.tenantId, tenantId),
           eq(tenantRole.lifecycle, "active"),
         ))
-        .orderBy(asc(tenantRole.normalizedName), asc(tenantRolePermission.permissionKey))
-        .for("share");
+        .orderBy(asc(tenantRole.normalizedName), asc(tenantRolePermission.permissionKey));
       const roles = new Map<string, AssignmentRoleRow>();
       for (const row of rows) {
         const existing = roles.get(row.id);

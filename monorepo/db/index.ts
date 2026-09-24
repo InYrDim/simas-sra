@@ -10,9 +10,10 @@ const globalDatabase = globalThis as typeof globalThis & {
 
 const poolConnection = globalDatabase.pgPool ?? new Pool({
   connectionString,
-  max: 20,
+  max: 50,
   idleTimeoutMillis: 30_000,
-  connectionTimeoutMillis: 2_000,
+  connectionTimeoutMillis: 15_000,
+  keepAlive: true,
 });
 
 globalDatabase.pgPool = poolConnection;

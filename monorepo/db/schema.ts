@@ -2282,6 +2282,179 @@ export const whatsappBotRequest = pgTable(
   ],
 );
 
+export const peopleImportBatch = pgTable("people_import_batch", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+  sourceStorageKey: text("source_storage_key").notNull(),
+  sourceByteSize: bigint("source_byte_size", { mode: "bigint" }).notNull(),
+  createdByUserId: varchar("created_by_user_id", { length: 36 }),
+  readOnlyAt: timestamp("read_only_at", { precision: 3 }),
+  createdAt: timestamp("created_at", { precision: 3 }).notNull(),
+}, (table) => [
+  index("people_import_batch_tenant_id_idx").on(table.tenantId),
+  unique("people_import_batch_storage_key_unique").on(table.sourceStorageKey),
+  foreignKey({ columns: [table.tenantId], foreignColumns: [tenant.id], name: "people_import_batch_tenant_fkey" }),
+  foreignKey({ columns: [table.createdByUserId], foreignColumns: [user.id], name: "people_import_batch_creator_fkey" }),
+]);
+
+export const peopleImportValidationJob = pgTable("people_import_validation_job", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+  batchId: varchar("batch_id", { length: 36 }).notNull(),
+  status: varchar("status", { length: 50 }).notNull(),
+  attempts: integer("attempts").default(0).notNull(),
+  availableAt: timestamp("available_at", { precision: 3 }).defaultNow().notNull(),
+  claimedAt: timestamp("claimed_at", { precision: 3 }),
+  claimedBy: varchar("claimed_by", { length: 100 }),
+  claimToken: varchar("claim_token", { length: 36 }),
+  lastErrorCode: varchar("last_error_code", { length: 100 }),
+  completedAt: timestamp("completed_at", { precision: 3 }),
+}, (table) => [
+  index("people_import_validation_job_tenant_id_idx").on(table.tenantId),
+  index("people_import_validation_job_status_idx").on(table.status, table.availableAt),
+  unique("people_import_job_batch_unique").on(table.tenantId, table.batchId),
+  foreignKey({ columns: [table.tenantId], foreignColumns: [tenant.id], name: "people_import_validation_job_tenant_fkey" }),
+  foreignKey({ columns: [table.batchId], foreignColumns: [peopleImportBatch.id], name: "people_import_validation_job_batch_fkey" }),
+]);
+
+export const peopleImportRevision = pgTable("people_import_revision", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+  batchId: varchar("batch_id", { length: 36 }).notNull(),
+  entityKind: varchar("entity_kind", { length: 50 }).notNull(),
+  templateVersion: varchar("template_version", { length: 50 }).notNull(),
+  rowCount: integer("row_count").notNull(),
+  parentRevisionId: varchar("parent_revision_id", { length: 36 }).references((): AnyPgColumn => peopleImportRevision.id),
+  sourceStorageKey: text("source_storage_key"),
+  createdAt: timestamp("created_at", { precision: 3 }).notNull(),
+}, (table) => [
+  index("people_import_revision_tenant_id_idx").on(table.tenantId),
+  foreignKey({ columns: [table.tenantId], foreignColumns: [tenant.id], name: "people_import_revision_tenant_fkey" }),
+  foreignKey({ columns: [table.batchId], foreignColumns: [peopleImportBatch.id], name: "people_import_revision_batch_fkey" }),
+]);
+
+export const peopleImportRow = pgTable("people_import_row", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+  revisionId: varchar("revision_id", { length: 36 }).notNull(),
+  rowNumber: integer("row_number").notNull(),
+  state: varchar("state", { length: 50 }).notNull(),
+  valuesJson: jsonb("values_json").notNull(),
+  findingsJson: jsonb("findings_json").notNull(),
+  identityFingerprint: varchar("identity_fingerprint", { length: 255 }).notNull(),
+  candidatesJson: jsonb("candidates_json").notNull(),
+}, (table) => [
+  index("people_import_row_tenant_id_idx").on(table.tenantId),
+  index("people_import_row_revision_id_idx").on(table.revisionId),
+  unique("people_import_row_number_unique").on(table.tenantId, table.revisionId, table.rowNumber),
+  foreignKey({ columns: [table.tenantId], foreignColumns: [tenant.id], name: "people_import_row_tenant_fkey" }),
+  foreignKey({ columns: [table.revisionId], foreignColumns: [peopleImportRevision.id], name: "people_import_row_revision_fkey" }),
+]);
+
+export const peopleImportDecision = pgTable("people_import_decision", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+  revisionId: varchar("revision_id", { length: 36 }).notNull(),
+  rowId: varchar("row_id", { length: 36 }).notNull(),
+  action: varchar("action", { length: 50 }).notNull(),
+  targetPersonId: varchar("target_person_id", { length: 36 }),
+  actorUserId: varchar("actor_user_id", { length: 36 }).notNull(),
+  createdAt: timestamp("created_at", { precision: 3 }).notNull(),
+}, (table) => [
+  index("people_import_decision_tenant_id_idx").on(table.tenantId),
+  index("people_import_decision_revision_id_idx").on(table.revisionId),
+  unique("people_import_decision_row_unique").on(table.tenantId, table.revisionId, table.rowId),
+  foreignKey({ columns: [table.tenantId], foreignColumns: [tenant.id], name: "people_import_decision_tenant_fkey" }),
+  foreignKey({ columns: [table.revisionId], foreignColumns: [peopleImportRevision.id], name: "people_import_decision_revision_fkey" }),
+  foreignKey({ columns: [table.rowId], foreignColumns: [peopleImportRow.id], name: "people_import_decision_row_fkey" }),
+]);
+
+export const peopleImportExecution = pgTable("people_import_execution", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+  batchId: varchar("batch_id", { length: 36 }).notNull(),
+  revisionId: varchar("revision_id", { length: 36 }).notNull(),
+  rowSetHash: varchar("row_set_hash", { length: 255 }).notNull(),
+  selectedCount: integer("selected_count").notNull(),
+  actorUserId: varchar("actor_user_id", { length: 36 }).notNull(),
+  status: varchar("status", { length: 50 }).notNull(),
+  createdAt: timestamp("created_at", { precision: 3 }).notNull(),
+  completedAt: timestamp("completed_at", { precision: 3 }),
+}, (table) => [
+  index("people_import_execution_tenant_id_idx").on(table.tenantId),
+  unique("people_import_execution_idempotency").on(table.tenantId, table.batchId, table.revisionId, table.rowSetHash),
+  unique("people_import_execution_tenant_id_id").on(table.tenantId, table.id),
+  foreignKey({ columns: [table.tenantId], foreignColumns: [tenant.id], name: "people_import_execution_tenant_fkey" }),
+  foreignKey({ columns: [table.batchId], foreignColumns: [peopleImportBatch.id], name: "people_import_execution_batch_fkey" }),
+  foreignKey({ columns: [table.revisionId], foreignColumns: [peopleImportRevision.id], name: "people_import_execution_revision_fkey" }),
+]);
+
+export const peopleImportExecutionRow = pgTable("people_import_execution_row", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+  executionId: varchar("execution_id", { length: 36 }).notNull(),
+  revisionId: varchar("revision_id", { length: 36 }).notNull(),
+  rowId: varchar("row_id", { length: 36 }).notNull(),
+  plannedAction: varchar("planned_action", { length: 50 }),
+  targetPersonId: varchar("target_person_id", { length: 36 }),
+  outcome: varchar("outcome", { length: 50 }),
+  errorCode: varchar("error_code", { length: 50 }),
+  claimedBy: varchar("claimed_by", { length: 100 }),
+  claimToken: varchar("claim_token", { length: 36 }),
+  claimedAt: timestamp("claimed_at", { precision: 3 }),
+  completedAt: timestamp("completed_at", { precision: 3 }),
+  recordId: varchar("record_id", { length: 36 }),
+}, (table) => [
+  index("people_import_execution_row_tenant_id_idx").on(table.tenantId),
+  index("people_import_execution_row_execution_id_idx").on(table.executionId),
+  unique("people_import_execution_selected_row").on(table.tenantId, table.executionId, table.rowId),
+  unique("people_import_execution_row_tenant_id_id").on(table.tenantId, table.id),
+  foreignKey({ columns: [table.tenantId], foreignColumns: [tenant.id], name: "people_import_execution_row_tenant_fkey" }),
+  foreignKey({ columns: [table.executionId], foreignColumns: [peopleImportExecution.id], name: "people_import_execution_row_execution_fkey" }),
+]);
+
+export const peopleImportSuccess = pgTable("people_import_success", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+  batchId: varchar("batch_id", { length: 36 }).notNull(),
+  revisionId: varchar("revision_id", { length: 36 }).notNull(),
+  rowId: varchar("row_id", { length: 36 }).notNull(),
+  executionId: varchar("execution_id", { length: 36 }).notNull(),
+  outcome: varchar("outcome", { length: 50 }).notNull(),
+  personId: varchar("person_id", { length: 36 }),
+  profileId: varchar("profile_id", { length: 36 }),
+}, (table) => [
+  index("people_import_success_tenant_id_idx").on(table.tenantId),
+  unique("people_import_success_once").on(table.tenantId, table.batchId, table.revisionId, table.rowId),
+  foreignKey({ columns: [table.tenantId], foreignColumns: [tenant.id], name: "people_import_success_tenant_fkey" }),
+]);
+
+export const peopleImportAudit = pgTable("people_import_audit", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+  executionId: varchar("execution_id", { length: 36 }).notNull(),
+  rowId: varchar("row_id", { length: 36 }).notNull(),
+  actorUserId: varchar("actor_user_id", { length: 36 }).notNull(),
+  outcome: varchar("outcome", { length: 50 }).notNull(),
+  personId: varchar("person_id", { length: 36 }),
+  profileId: varchar("profile_id", { length: 36 }),
+  occurredAt: timestamp("occurred_at", { precision: 3 }).notNull(),
+}, (table) => [
+  index("people_import_audit_tenant_id_idx").on(table.tenantId),
+  index("people_import_audit_execution_id_idx").on(table.executionId),
+  unique("people_import_audit_row").on(table.tenantId, table.executionId, table.rowId),
+  foreignKey({ columns: [table.tenantId], foreignColumns: [tenant.id], name: "people_import_audit_tenant_fkey" }),
+  foreignKey({ columns: [table.actorUserId], foreignColumns: [user.id], name: "people_import_audit_actor_fkey" }),
+]);
+
+export const peopleImportControl = pgTable("people_import_control", {
+  tenantId: varchar("tenant_id", { length: 36 }).primaryKey(),
+  emergencyStop: boolean("emergency_stop").default(false).notNull(),
+  updatedAt: timestamp("updated_at", { precision: 3 }).notNull(),
+}, (table) => [
+  foreignKey({ columns: [table.tenantId], foreignColumns: [tenant.id], name: "people_import_control_tenant_fkey" }),
+]);
+
 export const schemaRelations = defineRelations(
   {
     tenant,
@@ -2312,6 +2485,16 @@ export const schemaRelations = defineRelations(
     temporaryCredentialActivation,
     tenantOperationalMigrationCheckpoint,
     transactionalOutbox,
+    peopleImportBatch,
+    peopleImportValidationJob,
+    peopleImportRevision,
+    peopleImportRow,
+    peopleImportDecision,
+    peopleImportExecution,
+    peopleImportExecutionRow,
+    peopleImportSuccess,
+    peopleImportAudit,
+    peopleImportControl,
     session,
     account,
   },

@@ -1,5 +1,18 @@
-import mysql from "mysql2/promise";
-import { validateEmergencyOverlay } from "@/lib/authorization/tenant-rbac-rollout";
+import { and, count, eq, sql } from "drizzle-orm";
+import { db } from "@/db";
+import {
+  applicant,
+  providerAdmin,
+  schoolAdminAuthority,
+  schoolPerson,
+  tenant,
+  tenantAccountSecurity,
+  tenantRole,
+  tenantRoleAssignment,
+  tenantRolePermission,
+  tenantRbacRollout,
+  user,
+} from "@/db/schema";
 import {
   createTenantAuthorizationEvaluator,
   type TenantAuthorizationAccount,
@@ -8,77 +21,129 @@ import {
   type TenantAuthorizationStore,
   type TenantAuthorizationTenant,
 } from "@/lib/authorization/tenant-authorization";
-
-const url = process.env.DATABASE_URL;
-let database: mysql.Pool | undefined;
-const db = () => database ??= mysql.createPool({ uri: url!, connectionLimit: 8 });
+import { validateEmergencyOverlay } from "@/lib/authorization/tenant-rbac-rollout";
 
 function date(value: unknown): Date | null {
   return value === null || value === undefined ? null : new Date(value as string | number | Date);
 }
 
-const store = (connection?: mysql.PoolConnection): TenantAuthorizationStore => ({
-  async loadAccount(userId): Promise<TenantAuthorizationAccount | null> {
-    const sql = connection ?? db();
-    const [rows] = await sql.query<mysql.RowDataPacket[]>(
-      "SELECT u.id user_id,u.tenant_id,sec.lifecycle account_lifecycle,(SELECT COUNT(*) FROM school_person p WHERE p.tenant_id=u.tenant_id AND p.account_user_id=u.id) self_person_count,(SELECT COUNT(*) FROM provider_admin pa WHERE pa.user_id=u.id) provider_admin_count,(SELECT COUNT(*) FROM applicant a WHERE a.user_id=u.id) applicant_count FROM user u LEFT JOIN tenant_account_security sec ON sec.tenant_id=u.tenant_id AND sec.user_id=u.id WHERE u.id=? LIMIT 1",
-      [userId],
-    );
-    const row = rows[0];
-    if (!row) return null;
+export const tenantAuthorizationStore: TenantAuthorizationStore = {
+  async loadAccount(userId) {
+    const [account] = await db
+      .select({
+        userId: user.id,
+        tenantId: user.tenantId,
+        lifecycle: tenantAccountSecurity.lifecycle,
+      })
+      .from(user)
+      .leftJoin(tenantAccountSecurity, and(
+        eq(tenantAccountSecurity.tenantId, user.tenantId),
+        eq(tenantAccountSecurity.userId, user.id),
+      ))
+      .where(eq(user.id, userId))
+      .limit(1);
+
+    if (!account) return null;
+
+    const tenantId = account.tenantId;
+    if (!tenantId) {
+      return {
+        userId: account.userId,
+        tenantId: null,
+        selfPersonId: null,
+        accountLifecycle: account.lifecycle ?? null,
+        providerAdmin: false,
+        applicant: false,
+        activationComplete: true,
+      };
+    }
+
+    const [selfPerson] = await db
+      .select({ count: count() })
+      .from(schoolPerson)
+      .where(and(eq(schoolPerson.tenantId, tenantId), eq(schoolPerson.accountUserId, account.userId)));
+
+    const [providerAdminRow] = await db
+      .select({ count: count() })
+      .from(providerAdmin)
+      .where(eq(providerAdmin.userId, account.userId));
+
+    const [applicantRow] = await db
+      .select({ count: count() })
+      .from(applicant)
+      .where(eq(applicant.userId, account.userId));
+
     return {
-      userId: String(row.user_id),
-      tenantId: row.tenant_id === null ? null : String(row.tenant_id),
-      selfPersonId: Number(row.self_person_count) > 0 ? "linked" : null,
-      accountLifecycle: row.account_lifecycle ?? null,
-      providerAdmin: Number(row.provider_admin_count) === 1,
-      applicant: Number(row.applicant_count) === 1,
+      userId: account.userId,
+      tenantId,
+      selfPersonId: Number(selfPerson.count) > 0 ? "linked" : null,
+      accountLifecycle: account.lifecycle ?? null,
+      providerAdmin: Number(providerAdminRow.count) === 1,
+      applicant: Number(applicantRow.count) === 1,
       activationComplete: true,
     };
   },
 
-  async loadTenantByDomain(domain): Promise<TenantAuthorizationTenant | null> {
-    const sql = connection ?? db();
-    const [rows] = await sql.query<mysql.RowDataPacket[]>(
-      "SELECT id,domain,npsn,operational_status,trial_ends_at,settings FROM tenant WHERE domain=? LIMIT 1",
-      [domain],
-    );
-    const row = rows[0];
-    return row ? {
-      id: String(row.id),
-      domain: String(row.domain),
-      npsn: String(row.npsn),
-      operationalStatus: row.operational_status,
-      trialEndsAt: date(row.trial_ends_at),
-      settings: row.settings,
-    } : null;
+  async loadTenantByDomain(domain) {
+    const [tenantRow] = await db
+      .select({
+        id: tenant.id,
+        domain: tenant.domain,
+        npsn: tenant.npsn,
+        operationalStatus: tenant.operationalStatus,
+        trialEndsAt: tenant.trialEndsAt,
+        settings: tenant.settings,
+      })
+      .from(tenant)
+      .where(eq(tenant.domain, domain))
+      .limit(1);
+
+    if (!tenantRow) return null;
+    return {
+      id: tenantRow.id,
+      domain: tenantRow.domain,
+      npsn: tenantRow.npsn,
+      operationalStatus: tenantRow.operationalStatus,
+      trialEndsAt: date(tenantRow.trialEndsAt),
+      settings: tenantRow.settings,
+    };
   },
 
-  async loadAuthority(userId, tenantId): Promise<TenantAuthorizationAuthority> {
-    const sql = connection ?? db();
-    const [authorityRows] = await sql.query<mysql.RowDataPacket[]>(
-      "SELECT authority_state FROM school_admin_authority WHERE user_id=? AND tenant_id=?",
-      [userId, tenantId],
-    );
-    const [assignmentRows] = await sql.query<mysql.RowDataPacket[]>(
-      "SELECT a.id assignment_id,a.state assignment_state,r.id role_id,r.lifecycle role_lifecycle,p.permission_key FROM tenant_role_assignment a JOIN tenant_role r ON r.tenant_id=a.tenant_id AND r.id=a.role_id LEFT JOIN tenant_role_permission p ON p.tenant_id=r.tenant_id AND p.role_id=r.id WHERE a.user_id=? AND a.tenant_id=?",
-      [userId, tenantId],
-    );
+  async loadAuthority(userId, tenantId) {
+    const authorityRows = await db
+      .select({ authorityState: schoolAdminAuthority.authorityState })
+      .from(schoolAdminAuthority)
+      .where(and(eq(schoolAdminAuthority.userId, userId), eq(schoolAdminAuthority.tenantId, tenantId)));
+
+    const assignmentRows = await db
+      .select({
+        assignmentId: tenantRoleAssignment.id,
+        assignmentState: tenantRoleAssignment.state,
+        roleId: tenantRole.id,
+        roleLifecycle: tenantRole.lifecycle,
+        permissionKey: tenantRolePermission.permissionKey,
+      })
+      .from(tenantRoleAssignment)
+      .innerJoin(tenantRole, and(eq(tenantRole.tenantId, tenantRoleAssignment.tenantId), eq(tenantRole.id, tenantRoleAssignment.roleId)))
+      .leftJoin(tenantRolePermission, and(eq(tenantRolePermission.tenantId, tenantRole.tenantId), eq(tenantRolePermission.roleId, tenantRole.id)))
+      .where(and(eq(tenantRoleAssignment.userId, userId), eq(tenantRoleAssignment.tenantId, tenantId)));
+
     const assignments = new Map<string, { assignmentId: string; assignmentState: string; roleId: string; roleLifecycle: string; permissionKeys: string[] }>();
     for (const row of assignmentRows) {
-      const assignmentId = String(row.assignment_id);
+      const assignmentId = row.assignmentId;
       const assignment = assignments.get(assignmentId) ?? {
         assignmentId,
-        assignmentState: String(row.assignment_state),
-        roleId: String(row.role_id),
-        roleLifecycle: String(row.role_lifecycle),
+        assignmentState: row.assignmentState,
+        roleId: row.roleId,
+        roleLifecycle: row.roleLifecycle,
         permissionKeys: [],
       };
-      if (row.permission_key !== null) assignment.permissionKeys.push(String(row.permission_key));
+      if (row.permissionKey !== null) assignment.permissionKeys.push(row.permissionKey);
       assignments.set(assignmentId, assignment);
     }
+
     return {
-      schoolAdminAuthorityStates: authorityRows.map((row) => String(row.authority_state)),
+      schoolAdminAuthorityStates: authorityRows.map((row) => row.authorityState),
       assignments: [...assignments.values()].map((assignment) => ({
         ...assignment,
         permissionKeys: [...new Set(assignment.permissionKeys)].sort(),
@@ -87,42 +152,59 @@ const store = (connection?: mysql.PoolConnection): TenantAuthorizationStore => (
     };
   },
 
-  async loadRollout(tenantId): Promise<TenantAuthorizationRollout | null> {
-    const sql = connection ?? db();
-    const [rows] = await sql.query<mysql.RowDataPacket[]>(
-      "SELECT http_mode,worker_mode,epoch,resolver_version,registry_version,operation_map_version,overlay_hash,overlay_policy_version,overlay_denied_operation_ids,overlay_denied_permission_keys,overlay_deny_mutations,overlay_review_at,overlay_expires_at FROM tenant_rbac_rollout WHERE tenant_id=? LIMIT 1",
-      [tenantId],
-    );
-    const row = rows[0];
+  async loadRollout(tenantId) {
+    const [row] = await db
+      .select({
+        httpMode: tenantRbacRollout.httpMode,
+        workerMode: tenantRbacRollout.workerMode,
+        epoch: tenantRbacRollout.epoch,
+        resolverVersion: tenantRbacRollout.resolverVersion,
+        registryVersion: tenantRbacRollout.registryVersion,
+        operationMapVersion: tenantRbacRollout.operationMapVersion,
+        overlayHash: tenantRbacRollout.overlayHash,
+        overlayPolicyVersion: tenantRbacRollout.overlayPolicyVersion,
+        overlayDeniedOperationIds: tenantRbacRollout.overlayDeniedOperationIds,
+        overlayDeniedPermissionKeys: tenantRbacRollout.overlayDeniedPermissionKeys,
+        overlayDenyMutations: tenantRbacRollout.overlayDenyMutations,
+        overlayReviewAt: tenantRbacRollout.overlayReviewAt,
+        overlayExpiresAt: tenantRbacRollout.overlayExpiresAt,
+      })
+      .from(tenantRbacRollout)
+      .where(eq(tenantRbacRollout.tenantId, tenantId))
+      .limit(1);
+
     if (!row) return null;
+
     const jsonArray = (value: unknown): readonly string[] => {
       const parsed = typeof value === "string" ? JSON.parse(value) as unknown : value;
       if (!Array.isArray(parsed) || !parsed.every((item) => typeof item === "string")) throw new Error("invalid-emergency-overlay");
       return parsed;
     };
-    const emergencyOverlay = row.overlay_hash === null ? null : validateEmergencyOverlay({
-      overlayHash: String(row.overlay_hash),
-      deniedOperationIds: jsonArray(row.overlay_denied_operation_ids),
-      deniedPermissionKeys: jsonArray(row.overlay_denied_permission_keys),
-      denyMutations: Boolean(row.overlay_deny_mutations),
-      policyVersion: String(row.overlay_policy_version ?? ""),
-      reviewAt: date(row.overlay_review_at) ?? new Date(Number.NaN),
-      expiresAt: date(row.overlay_expires_at) ?? new Date(Number.NaN),
+
+    const emergencyOverlay = row.overlayHash === null ? null : validateEmergencyOverlay({
+      overlayHash: row.overlayHash,
+      deniedOperationIds: jsonArray(row.overlayDeniedOperationIds),
+      deniedPermissionKeys: jsonArray(row.overlayDeniedPermissionKeys),
+      denyMutations: row.overlayDenyMutations ?? false,
+      policyVersion: row.overlayPolicyVersion ?? "",
+      reviewAt: date(row.overlayReviewAt) ?? new Date(Number.NaN),
+      expiresAt: date(row.overlayExpiresAt) ?? new Date(Number.NaN),
     });
+
     return {
-      httpMode: row.http_mode,
-      workerMode: row.worker_mode,
-      epoch: BigInt(row.epoch),
-      resolverVersion: String(row.resolver_version),
-      registryVersion: String(row.registry_version),
-      operationMapVersion: String(row.operation_map_version),
+      httpMode: row.httpMode,
+      workerMode: row.workerMode,
+      epoch: row.epoch,
+      resolverVersion: row.resolverVersion,
+      registryVersion: row.registryVersion,
+      operationMapVersion: row.operationMapVersion,
       emergencyOverlay,
     };
   },
-});
+};
 
-export function createWorkerTenantAuthorizationEvaluator(actorUserId: string, connection?: mysql.PoolConnection) {
-  const evaluator = createTenantAuthorizationEvaluator({ store: store(connection) });
+export function createWorkerTenantAuthorizationEvaluator(actorUserId: string) {
+  const evaluator = createTenantAuthorizationEvaluator({ store: tenantAuthorizationStore });
   return Object.freeze({
     evaluate(request: Omit<Parameters<typeof evaluator.evaluate>[0], "sessionUserId">) {
       return evaluator.evaluate({ ...request, sessionUserId: actorUserId, surface: "worker" });
@@ -131,8 +213,5 @@ export function createWorkerTenantAuthorizationEvaluator(actorUserId: string, co
 }
 
 export async function closeWorkerTenantAuthorizationPool() {
-  if (database) {
-    await database.end();
-    database = undefined;
-  }
+  // Pool is now managed globally via db/index.ts
 }

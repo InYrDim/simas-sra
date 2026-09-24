@@ -38,13 +38,15 @@ function publicRequestUrl(req: NextRequest, pathname: string) {
   return destination;
 }
 
-async function hasSession(req: NextRequest) {
+async function hasSession(req: NextRequest): Promise<boolean> {
   try {
-    return (await auth.api.getSession({ headers: req.headers })) !== null;
+    const sessionPromise = auth.api.getSession({ headers: req.headers });
+    const timeoutPromise = new Promise<boolean>((_, reject) =>
+      setTimeout(() => reject(new Error("Session check timeout")), 5000),
+    );
+    return (await Promise.race([sessionPromise, timeoutPromise])) !== null;
   } catch {
-    // Cannot verify the session; skip the login redirect and let the layout's
-    // fail-closed authorization keep enforcing (401/403) instead of guessing.
-    return true;
+    return false;
   }
 }
 
