@@ -70,7 +70,7 @@ export const applicationDecisionStore: ApplicationDecisionStore = {
                 eq(simasApplication.id, decision.applicationId),
                 eq(simasApplication.status, "pending"),
               ));
-            return result[0].affectedRows === 1;
+            return result.rowCount === 1;
           },
         }));
       } catch (error) {

@@ -170,7 +170,8 @@ export async function projectSchoolAdminCompatibility(input: Readonly<{
           safeDetails: { userId: input.userId },
           detectedAt: new Date(),
           resolvedAt: null,
-        }).onDuplicateKeyUpdate({
+        }).onConflictDoUpdate({
+          target: [securityReconciliationFinding.migrationKey, securityReconciliationFinding.scopeKey, securityReconciliationFinding.findingKey],
           set: {
             reasonCode: plan.code,
             severity: "blocking",
@@ -283,7 +284,7 @@ export async function disableSchoolAdminAuthority(input: Readonly<{
         eq(schoolAdminAuthority.version, input.expectedVersion),
         eq(schoolAdminAuthority.authorityState, "active"),
       ));
-      if (updated[0].affectedRows !== 1) throw new SecurityCommandError("stale-version");
+      if ((updated.rowCount ?? 0) !== 1) throw new SecurityCommandError("stale-version");
       await transaction.database.update(user).set({ tenantRole: null }).where(and(
         eq(user.id, input.userId),
         eq(user.tenantId, input.tenantId),
@@ -346,7 +347,10 @@ export async function recordGlobalSchoolAdminProjectionFinding(input: Readonly<{
         safeDetails: { userId: input.userId },
         detectedAt: new Date(),
         resolvedAt: null,
-      }).onDuplicateKeyUpdate({ set: { detectedAt: new Date(), state: "open", resolvedAt: null } });
+      }).onConflictDoUpdate({
+        target: [securityReconciliationFinding.migrationKey, securityReconciliationFinding.scopeKey, securityReconciliationFinding.findingKey],
+        set: { detectedAt: new Date(), state: "open", resolvedAt: null },
+      });
       return {
         result: { status: "finding" },
         auditEvents: [{

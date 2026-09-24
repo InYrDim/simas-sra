@@ -31,10 +31,10 @@ export const academicYearStore: AcademicYearStore = {
             return;
           }
           const result = await transaction.update(academicYear).set({ lifecycle: year.lifecycle, archived: year.archived, version: year.version, updatedAt: year.updatedAt }).where(and(eq(academicYear.tenantId, tenantId), eq(academicYear.id, year.id)));
-          if (result[0].affectedRows !== 1) throw new Error("Academic year not found");
+          if (result.rowCount !== 1) throw new Error("Academic year not found");
           for (const semester of year.semesters) {
             const updated = await transaction.update(academicSemester).set({ status: semester.status }).where(and(eq(academicSemester.tenantId, tenantId), eq(academicSemester.id, semester.id), eq(academicSemester.academicYearId, year.id)));
-            if (updated[0].affectedRows !== 1) throw new Error("Academic semester not found");
+            if (updated.rowCount !== 1) throw new Error("Academic semester not found");
           }
         },
         async appendHistory(event) {

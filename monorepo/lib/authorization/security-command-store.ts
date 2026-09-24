@@ -294,7 +294,7 @@ export function createMySqlSecurityCommandStore(options: Readonly<{
                 eq(tenantRbacRollout.tenantId, input.id),
                 eq(tenantRbacRollout.version, input.expectedVersion),
               ));
-              return updated[0].affectedRows === 1;
+              return (updated.rowCount ?? 0) === 1;
             },
             async resolveActor(principal) {
               if (principal.kind === "system") return { kind: "system", service: principal.service };
@@ -383,7 +383,10 @@ export function createMySqlSecurityCommandStore(options: Readonly<{
                 headHash: "0".repeat(64),
                 version: 1,
                 updatedAt: now,
-              }).onDuplicateKeyUpdate({ set: { contextId: sql`${securityAuditHead.contextId}` } });
+              }).onConflictDoUpdate({
+                target: [securityAuditHead.securityContextKind, securityAuditHead.contextId],
+                set: { contextId: sql`${securityAuditHead.contextId}` },
+              });
               const [head] = await database
                 .select({
                   nextSequence: securityAuditHead.nextSequence,
@@ -439,7 +442,7 @@ export function createMySqlSecurityCommandStore(options: Readonly<{
                 eq(securityAuditHead.nextSequence, previous.nextSequence),
                 eq(securityAuditHead.headHash, previous.headHash),
               ));
-              return updated[0].affectedRows === 1;
+              return (updated.rowCount ?? 0) === 1;
             },
             async insertOutbox(events) {
               if (!events.length) return;
@@ -464,7 +467,7 @@ export function createMySqlSecurityCommandStore(options: Readonly<{
                 eq(securityCommand.id, commandId),
                 eq(securityCommand.status, "pending"),
               ));
-              if (completed[0].affectedRows !== 1) throw new SecurityCommandError("integrity-failure");
+              if ((completed.rowCount ?? 0) !== 1) throw new SecurityCommandError("integrity-failure");
             },
             checkpoint: options.afterStep,
           }));

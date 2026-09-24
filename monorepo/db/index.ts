@@ -1,32 +1,28 @@
 import "dotenv/config";
-import { drizzle } from "drizzle-orm/mysql2";
+import { drizzle } from "drizzle-orm/node-postgres";
 
-import mysql from "mysql2/promise";
+import { Pool } from "pg";
 
-const connectionString = process.env.DATABASE_URL || "mysql://dummy:dummy@localhost:3306/dummy";
+const connectionString = process.env.DATABASE_URL || "postgresql://dummy:dummy@localhost:5432/dummy";
 const globalDatabase = globalThis as typeof globalThis & {
-  mysqlPool?: mysql.Pool;
+  pgPool?: Pool;
 };
-const poolConnection = globalDatabase.mysqlPool ?? mysql.createPool({
-  uri: connectionString,
-  connectionLimit: 5,
-  maxIdle: 5,
-  idleTimeout: 60_000,
-  enableKeepAlive: true,
-  timezone: "Z",
-});
-globalDatabase.mysqlPool = poolConnection;
 
-type PoolWithConfig = mysql.Pool & { config?: Record<string, unknown> };
-if (!(poolConnection as PoolWithConfig).config) {
-  (poolConnection as PoolWithConfig).config = {};
-}
+const poolConnection = globalDatabase.pgPool ?? new Pool({
+  connectionString,
+  max: 50,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 15_000,
+  keepAlive: true,
+});
+
+globalDatabase.pgPool = poolConnection;
 
 export const db = drizzle({ client: poolConnection });
 
 export async function closeDatabasePool() {
   await poolConnection.end();
-  if (globalDatabase.mysqlPool === poolConnection) {
-    delete globalDatabase.mysqlPool;
+  if (globalDatabase.pgPool === poolConnection) {
+    delete globalDatabase.pgPool;
   }
 }

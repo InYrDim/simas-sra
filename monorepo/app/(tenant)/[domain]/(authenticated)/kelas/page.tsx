@@ -49,7 +49,13 @@ export default async function KelasPage({
             .from(classMembership)
             .innerJoin(studentProfile, eq(studentProfile.id, classMembership.studentId))
             .innerJoin(schoolPerson, eq(schoolPerson.id, studentProfile.personId))
-            .where(and(eq(classMembership.tenantId, tenant.id), eq(classMembership.classGroupId, selectedRombel), sql`${classMembership.endedAt} IS NULL`))
+            .where(and(
+                eq(classMembership.tenantId, tenant.id),
+                eq(classMembership.classGroupId, selectedRombel),
+                sql`${classMembership.endedAt} IS NULL`,
+                eq(studentProfile.status, "active"),
+                eq(studentProfile.archived, false),
+            ))
             .orderBy(schoolPerson.fullName)
         : [];
 

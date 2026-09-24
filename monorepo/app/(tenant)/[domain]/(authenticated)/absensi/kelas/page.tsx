@@ -100,6 +100,8 @@ export default async function AbsensiKelasPage({
                 eq(classMembership.studentId, studentProfile.id),
                 sql`${classMembership.endedAt} IS NULL`,
             ))
+            .where(and(eq(studentProfile.tenantId, tenant.id), eq(studentProfile.status, "active"), eq(studentProfile.archived, false)))
+            .orderBy(schoolPerson.fullName)
     const today = await listKelasRecordsForDayWithStudents(tenant.id, new Date(), timezone, selectedRombel || undefined);
     const recordedStudentIds = today.filter((r) => r.status === "hadir").map((r) => r.studentId);
 

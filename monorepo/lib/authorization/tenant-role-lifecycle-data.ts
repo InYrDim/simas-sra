@@ -203,7 +203,7 @@ export function createTenantRoleLifecycleDataRepository(
         eq(tenantRole.tenantId, input.tenantId),
         eq(tenantRole.version, input.expectedVersion),
       ));
-      return updated[0].affectedRows === 1;
+      return (updated.rowCount ?? 0) === 1;
     },
 
     async insertPermissions(tenantId, roleId, permissions, createdAt) {
@@ -241,9 +241,10 @@ export function createTenantRoleLifecycleDataRepository(
         visible: menuVisibility[key] !== false,
         createdAt,
         updatedAt: createdAt,
-      }))).onDuplicateKeyUpdate({
+      }))).onConflictDoUpdate({
+        target: [tenantRoleMenuVisibility.tenantId, tenantRoleMenuVisibility.roleId, tenantRoleMenuVisibility.menuKey],
         set: {
-          visible: sql`values(${tenantRoleMenuVisibility.visible})`,
+          visible: sql`EXCLUDED.${tenantRoleMenuVisibility.visible}`,
           updatedAt: createdAt,
         },
       });

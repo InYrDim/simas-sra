@@ -18,7 +18,7 @@ export const schoolPersonMasterDataStore: SchoolPersonMasterDataStore = {
   get: (tenantId, personId) => getWith(db, tenantId, personId),
   transaction(tenantId, work) { return db.transaction(async (tx) => { await tx.execute(sql`SELECT ${tenant.id} FROM ${tenant} WHERE ${tenant.id} = ${tenantId} FOR UPDATE`); return work({
     get: (personId) => getWith(tx, tenantId, personId),
-    async savePerson(value: SchoolPersonSummary, expectedVersion: number) { if (value.tenantId !== tenantId) throw new Error("Cross-Tenant Warga Sekolah write denied"); const result = await tx.update(schoolPerson).set({ archived: value.archived, version: value.version, updatedAt: value.updatedAt }).where(and(eq(schoolPerson.tenantId, tenantId), eq(schoolPerson.id, value.id), eq(schoolPerson.version, expectedVersion))); return result[0].affectedRows === 1; },
+    async savePerson(value: SchoolPersonSummary, expectedVersion: number) { if (value.tenantId !== tenantId) throw new Error("Cross-Tenant Warga Sekolah write denied"); const result = await tx.update(schoolPerson).set({ archived: value.archived, version: value.version, updatedAt: value.updatedAt }).where(and(eq(schoolPerson.tenantId, tenantId), eq(schoolPerson.id, value.id), eq(schoolPerson.version, expectedVersion))); return result.rowCount === 1; },
     async appendAudit(value) { if (value.tenantId !== tenantId) throw new Error("Cross-Tenant Warga Sekolah audit denied"); const [actor] = await tx.select({ id: user.id }).from(user).where(and(eq(user.tenantId, tenantId), eq(user.id, value.actorUserId))).limit(1); if (!actor) throw new Error("Warga Sekolah audit actor is not a Tenant member"); await tx.insert(schoolPersonAudit).values({ ...value, affectedProfiles: [...value.affectedProfiles] }); },
   }); }); },
 };

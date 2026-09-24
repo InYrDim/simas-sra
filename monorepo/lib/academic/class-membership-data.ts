@@ -19,9 +19,9 @@ export const classMembershipStore: ClassMembershipStore = {
   transaction(tenantId, work) { return db.transaction(async (tx) => { await tx.execute(sql`SELECT ${tenant.id} FROM ${tenant} WHERE ${tenant.id} = ${tenantId} FOR UPDATE`); return work({
     listMemberships: () => membershipsWith(tx, tenantId), listHomerooms: () => homeroomsWith(tx, tenantId), references: () => referencesWith(tx, tenantId),
     async appendMembership(value) { if (value.tenantId !== tenantId) throw new Error("Cross-Tenant membership write denied"); await tx.insert(classMembership).values(value); },
-    async closeMembership(id, endedAt) { const result = await tx.update(classMembership).set({ endedAt }).where(and(eq(classMembership.tenantId, tenantId), eq(classMembership.id, id), isNull(classMembership.endedAt))); return result[0].affectedRows === 1; },
+    async closeMembership(id, endedAt) { const result = await tx.update(classMembership).set({ endedAt }).where(and(eq(classMembership.tenantId, tenantId), eq(classMembership.id, id), isNull(classMembership.endedAt))); return result.rowCount === 1; },
     async appendHomeroom(value) { if (value.tenantId !== tenantId) throw new Error("Cross-Tenant homeroom write denied"); await tx.insert(homeroomAssignment).values(value); },
-    async closeHomeroom(id, endedAt) { const result = await tx.update(homeroomAssignment).set({ endedAt }).where(and(eq(homeroomAssignment.tenantId, tenantId), eq(homeroomAssignment.id, id), isNull(homeroomAssignment.endedAt))); return result[0].affectedRows === 1; },
+    async closeHomeroom(id, endedAt) { const result = await tx.update(homeroomAssignment).set({ endedAt }).where(and(eq(homeroomAssignment.tenantId, tenantId), eq(homeroomAssignment.id, id), isNull(homeroomAssignment.endedAt))); return result.rowCount === 1; },
     async appendEvent(value) { if (value.tenantId !== tenantId) throw new Error("Cross-Tenant relationship event denied"); await tx.insert(classRelationshipEvent).values(value); },
   }); }); },
 };

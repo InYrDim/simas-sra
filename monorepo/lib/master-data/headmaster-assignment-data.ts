@@ -18,7 +18,7 @@ export const headmasterAssignmentStore: HeadmasterAssignmentStore = {
     return work({
       listAssignments: () => listWith(tx, tenantId),
       async findTeacher(id) { const [teacher] = (await teachersWith(tx, tenantId)).filter((item) => item.id === id); return teacher ?? null; },
-      async closeAssignment(id, endedAt) { const result = await tx.update(headmasterAssignment).set({ endedAt }).where(and(eq(headmasterAssignment.tenantId, tenantId), eq(headmasterAssignment.id, id), isNull(headmasterAssignment.endedAt))); return result[0].affectedRows === 1; },
+      async closeAssignment(id, endedAt) { const result = await tx.update(headmasterAssignment).set({ endedAt }).where(and(eq(headmasterAssignment.tenantId, tenantId), eq(headmasterAssignment.id, id), isNull(headmasterAssignment.endedAt))); return result.rowCount === 1; },
       async appendAssignment(value) { if (value.tenantId !== tenantId) throw new Error("Cross-Tenant headmaster assignment denied"); await tx.insert(headmasterAssignment).values(value); },
       async appendAudit(value) { if (value.tenantId !== tenantId) throw new Error("Cross-Tenant headmaster audit denied"); const [actor] = await tx.select({ id: user.id }).from(user).where(and(eq(user.tenantId, tenantId), eq(user.id, value.actorUserId))).limit(1); if (!actor) throw new Error("Headmaster audit actor is not a Tenant member"); await tx.insert(headmasterAssignmentAudit).values(value); },
     });

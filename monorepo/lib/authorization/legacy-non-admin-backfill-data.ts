@@ -218,7 +218,8 @@ async function upsertFinding(
       detectedAt: now,
       resolvedAt: null,
     })
-    .onDuplicateKeyUpdate({
+    .onConflictDoUpdate({
+      target: [securityReconciliationFinding.migrationKey, securityReconciliationFinding.scopeKey, securityReconciliationFinding.findingKey],
       set: {
         state: "open",
         reasonCode: plan.code,
@@ -535,7 +536,8 @@ export async function startLegacyBackfillCheckpoint(): Promise<void> {
       completedAt: null,
       updatedAt: now,
     })
-    .onDuplicateKeyUpdate({
+    .onConflictDoUpdate({
+      target: [securityMigrationCheckpoint.migrationKey, securityMigrationCheckpoint.shardKey],
       set: {
         state: "running",
         cursor: null,
@@ -567,7 +569,8 @@ export async function resetLegacyBackfillCheckpoint(): Promise<void> {
       completedAt: null,
       updatedAt: now,
     })
-    .onDuplicateKeyUpdate({
+    .onConflictDoUpdate({
+      target: [securityMigrationCheckpoint.migrationKey, securityMigrationCheckpoint.shardKey],
       set: {
         state: "pending",
         cursor: null,
@@ -859,7 +862,8 @@ export async function verifyLegacyNonAdminBackfill(): Promise<PersistedLegacyBac
       detectedAt: now,
       resolvedAt: equivalent ? now : null,
     })
-    .onDuplicateKeyUpdate({
+    .onConflictDoUpdate({
+      target: [securityReconciliationFinding.migrationKey, securityReconciliationFinding.scopeKey, securityReconciliationFinding.findingKey],
       set: {
         state: equivalent ? "resolved" : "open",
         safeDetails: {
