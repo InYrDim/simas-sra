@@ -43,17 +43,28 @@ di menu Penjadwalan, dengan kendali Provider per Tenant.
 - [Tetapkan sumber Penugasan Mengajar](./issues/.wayfinder/05-sumber-penugasan-mengajar.md) — Dikelola di Master Data (submenu baru, tanpa feature gate, RBAC School Admin) dengan full lifecycle (planned→activate→end/cancel/replace); form slot memilih penugasan aktif + tautan ke Master Data; impor massal ditunda.
 - [Tetapkan relokasi pengaturan Jadwal Sekolah](./issues/.wayfinder/06-relokasi-jadwal-sekolah.md) — Pindah ke menu Penjadwalan sebagai submenu Jadwal Sekolah; rute lama dihapus tanpa redirect; tetap digate `absensiGerbang`; operasi + permission baru `jadwal.sekolah.*` dengan grant otomatis ke role terkait; istilah kanonik dicatat di `CONTEXT.md`.
 
+## Slice plan
+
+Tiket implementasi ada di `issues/` (01–07), siap dikerjakan dengan `/implement`:
+
+| Urut | Tiket | Slice | Bergantung pada |
+|---|---|---|---|
+| 1 | [01](./issues/01-lindungi-area-penjadwalan.md) | Lindungi area Penjadwalan (feature key + RBAC) | — |
+| 2 | [02](./issues/02-penugasan-mengajar-master-data.md) | Penugasan Mengajar di Master Data (paralel dengan 03) | — |
+| 3 | [03](./issues/03-skema-slot-jadwal.md) | Skema Slot Jadwal + preset periode + validator konflik (paralel dengan 02) | — |
+| 4 | [04](./issues/04-crud-jadwal-mengajar.md) | CRUD Jadwal Mengajar (membuat `penjadwalanWrite`) | 01, 02, 03 |
+| 5 | [05](./issues/05-sesi-per-pelajaran-backend.md) | Sesi per pelajaran — backend (migrasi destruktif + worker) | 04 |
+| 6 | [06](./issues/06-sesi-per-pelajaran-ui.md) | Sesi per pelajaran — UI per Guru + permission Guru | 05 |
+| 7 | [07](./issues/07-relokasi-jadwal-sekolah.md) | Relokasi Jadwal Sekolah (independen; disarankan setelah 04) | — |
+
 ## Not yet specified
 
-- Semua tiket keputusan (01–06) sudah selesai. Yang tersisa: **urutan slice
-  implementasi** — skema slot + migration, Penugasan Mengajar di Master Data, CRUD
-  Jadwal Mengajar, sesi per pelajaran + worker, relokasi UI Jadwal Sekolah, RBAC/
-  feature key (tiket 01), UI + loader, dan test — lalu tiap slice dikerjakan dengan
-  `/implement`.
 - Detail slice Penugasan Mengajar di Master Data (layout halaman, kolom list, UX riwayat
   event) — keputusan besar sudah terkunci di tiket 05; sisanya dikerjakan saat implementasi.
 - Dampak ke Riwayat Absensi, rekap, dan notifikasi WhatsApp per pelajaran.
 - Cakupan submenu Events (`/jadwal/events`).
+- Backlog (belum diticketkan, dari keputusan "tunda"): impor massal Penugasan Mengajar,
+  guru pengganti per tanggal, kolom ruang pada slot, rombel gabung pada cek konflik.
 
 ## Out of scope
 
