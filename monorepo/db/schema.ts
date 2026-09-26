@@ -141,6 +141,21 @@ export const AttendanceRecordStatusEnum = pgEnum("attendanceRecord_status", [
   "alpa",
 ]);
 
+export const SchoolScheduleDayOfWeekEnum = pgEnum("schoolSchedule_day_of_week", [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+]);
+
+export const AttendanceSessionSourceEnum = pgEnum("attendanceSession_source", [
+  "manual",
+  "schedule",
+]);
+
 export const StudentAuditOperationEnum = pgEnum("studentAudit_operation", [
   "created-person",
   "created-student",
@@ -903,8 +918,11 @@ export const attendanceSession = pgTable(
     plannedEnd: time("planned_end", { precision: 0 }).notNull(),
     openedAt: timestamp("opened_at", { precision: 3 }).notNull(),
     closedAt: timestamp("closed_at", { precision: 3 }),
-    openedByUserId: varchar("opened_by_user_id", { length: 36 }).notNull(),
+    /** Actor who opened the session; NULL when opened automatically by the schedule worker. */
+    openedByUserId: varchar("opened_by_user_id", { length: 36 }),
     status: AttendanceSessionStatusEnum().notNull(),
+    /** How the session was created: by the school schedule (worker) or manually by an operator. */
+    source: AttendanceSessionSourceEnum().notNull().default("manual"),
     notes: varchar("notes", { length: 500 }),
     version: integer("version").default(1).notNull(),
     createdAt: timestamp("created_at", { precision: 3 }).notNull(),
@@ -916,6 +934,55 @@ export const attendanceSession = pgTable(
     foreignKey({ columns: [table.tenantId, table.openedByUserId], foreignColumns: [user.tenantId, user.id], name: "attendance_session_tenant_actor_fkey" }),
     check("attendance_session_version_check", sql`${table.version} > 0`),
     check("attendance_session_window_check", sql`${table.plannedEnd} > ${table.plannedStart}`),
+  ],
+);
+
+/**
+ * School-level daily schedule (Gerbang layer): the effective civil days with
+ * their planned arrival and departure times. One row per weekday; the worker
+ * uses it to auto-open/close the daily Gerbang session.
+ */
+export const schoolScheduleDay = pgTable(
+  "school_schedule_day",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    dayOfWeek: SchoolScheduleDayOfWeekEnum().notNull(),
+    /** "HH:MM" planned arrival (masuk) time in the tenant timezone. */
+    startTime: varchar("start_time", { length: 5 }).notNull(),
+    /** "HH:MM" planned departure (pulang) time in the tenant timezone. */
+    endTime: varchar("end_time", { length: 5 }).notNull(),
+    /** When false, the day is non-effective (no Gerbang session that weekday). */
+    effective: boolean("effective").default(true).notNull(),
+    version: integer("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { precision: 3 }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("school_schedule_day_tenant_dow_unique").on(table.tenantId, table.dayOfWeek),
+    check("school_schedule_day_window_check", sql`${table.endTime} > ${table.startTime}`),
+  ],
+);
+
+/**
+ * Non-effective (holiday) dates for the Gerbang schedule: no auto session is
+ * opened on these civil dates even when the weekday is otherwise effective.
+ */
+export const schoolHoliday = pgTable(
+  "school_holiday",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    name: varchar("name", { length: 255 }).notNull(),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date").notNull(),
+    version: integer("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { precision: 3 }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("school_holiday_tenant_id_id_unique").on(table.tenantId, table.id),
+    check("school_holiday_range_check", sql`${table.endDate} >= ${table.startDate}`),
   ],
 );
 
@@ -2474,7 +2541,10 @@ export const schemaRelations = defineRelations(
     classGroupHistory,
     classGroupRelationship,
     studentProfile,
+    attendanceSession,
     attendanceRecord,
+    schoolScheduleDay,
+    schoolHoliday,
     subject,
     subjectHistory,
     user,

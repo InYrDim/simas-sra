@@ -51,6 +51,7 @@
     "provider-admin:bootstrap": "tsx scripts/bootstrap-provider-admin.ts",
     "worker:people-import-validation": "tsx scripts/run-people-import-validation.ts",
     "worker:people-import-execution": "tsx scripts/run-people-import-execution.ts",
+    "worker:attendance-schedule": "tsx scripts/run-attendance-schedule-worker.ts",
     "worker:tenant-account-lifecycle-delivery": "tsx scripts/run-tenant-account-lifecycle-delivery.ts"
   },
   "dependencies": {
