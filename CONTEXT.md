@@ -104,6 +104,18 @@ _Avoid_: Guru pengampu, role akun, penjadwalan
 Hubungan efektif-dated yang menetapkan satu Guru mengajar satu Mata Pelajaran kepada satu Rombongan Belajar dalam satu Tahun Ajaran tanpa mendefinisikan jadwal atau beban mengajar.
 _Avoid_: Wali Kelas, role akun, jadwal pelajaran, katalog Mata Pelajaran
 
+**Jadwal Mengajar**:
+Kumpulan Slot Jadwal milik satu Rombongan Belajar untuk satu Tahun Ajaran dan Semester tertentu yang menjadi acuan pelaksanaan pelajaran mingguan.
+_Avoid_: jadwal pelajaran, jam pelajaran, kurikulum
+
+**Jadwal Sekolah**:
+Jadwal harian sekolah milik satu Tenant berupa jam masuk dan pulang per hari efektif beserta hari liburnya, yang menjadi acuan lapisan Gerbang.
+_Avoid_: jadwal pelajaran, kalender akademik, pengaturan absensi
+
+**Slot Jadwal**:
+Satu pertemuan mingguan pada Jadwal Mengajar yang merujuk satu Penugasan Mengajar aktif dengan jam mulai dan selesai eksplisit, tanpa menyimpan Guru, Mata Pelajaran, atau Rombongan Belajar miliknya sendiri.
+_Avoid_: jadwal pelajaran, sesi absensi, jam pelajaran
+
 **Organisasi Siswa**:
 Kelompok siswa formal dengan struktur kepengurusan dan periode jabatan, seperti OSIS.
 _Avoid_: struktur organisasi sekolah, Ekstrakurikuler
@@ -128,7 +140,7 @@ _Avoid_: Tahun Ajaran, Keanggotaan Organisasi, Organisasi Siswa
 Riwayat keterlibatan seorang Siswa sebagai anggota Organisasi Siswa, terpisah dari jabatan kepengurusannya.
 _Avoid_: jabatan pengurus, Keikutsertaan Ekstrakurikuler, role Tenant
 
-oke**Kelompok Kegiatan**:
+**Kelompok Kegiatan**:
 Pelaksanaan suatu Ekstrakurikuler dalam satu Tahun Ajaran yang menaungi pembina, peserta, lokasi, jadwal, dan kapasitasnya.
 _Avoid_: Ekstrakurikuler, Rombongan Belajar, Organisasi Siswa
 
