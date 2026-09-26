@@ -11,7 +11,7 @@ const base = {
   epoch: BigInt(7),
   resolverVersion: "tenant-authorization@2",
   registryVersion: "tenant-permissions@2",
-  operationMapVersion: "tenant-operations@4",
+  operationMapVersion: "tenant-operations@5",
   overlayHash: null,
   multiRoleAcceptedAt: null,
   rolloutVersion: 3,

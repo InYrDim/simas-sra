@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 export const PERMISSION_REGISTRY_VERSION = "tenant-permissions@2";
-export const OPERATION_MAP_VERSION = "tenant-operations@4";
+export const OPERATION_MAP_VERSION = "tenant-operations@5";
 
 export const LEGACY_NON_ADMIN_ROLES = ["pimpinan", "staff", "guru", "siswa", "guest"] as const;
 
@@ -223,6 +223,8 @@ const activeSeeds: readonly CatalogSeed[] = [
   ["absensi.qr.record", [], "medium"],
   ["absensi.history.delete", [], "medium"],
   ["absensi.self.view"],
+  ["jadwal.mengajar.view"],
+  ["jadwal.events.view"],
   ["tenant.permissions.view", [], "sensitive", "school-admin-only"],
 ];
 
@@ -251,6 +253,7 @@ const moduleMetadata: Record<string, { label: string; group: string }> = {
   ppdb: { label: "PPDB", group: "PPDB" },
   quizzes: { label: "Ulangan", group: "Ulangan" },
   absensi: { label: "Absensi", group: "Absensi" },
+  jadwal: { label: "Penjadwalan", group: "Penjadwalan" },
 };
 
 const resourceLabels: Record<string, string> = {
@@ -353,10 +356,10 @@ const seeds: OperationSeed[] = [
   { id: "tenant.authorization-audit.load", entryPoints: [p("security-history")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", risk: "sensitive", legacy: ["legacy-school-admin"] },
   { id: "tenant.authorization-audit.self", entryPoints: [p("security-history")], permissions: ["tenant.users.view"], context: "self", risk: "sensitive", legacy: ["tenantRole"] },
   { id: "tenant.authorization-audit.export", entryPoints: [r("security-history/export", "GET")], permissions: ["tenant.authorization-audit.export"], gate: "read", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
-  { id: "tenant.roles.list", entryPoints: [p("settings/roles"), a("settings/roles/actions.ts", "getRoles")], permissions: ["tenant.roles.list"], context: "school-admin-only", legacy: ["legacy-school-admin"] },
+  { id: "tenant.roles.list", entryPoints: [p("settings/roles"), p("settings/roles/templates"), a("settings/roles/actions.ts", "getRoles")], permissions: ["tenant.roles.list"], context: "school-admin-only", legacy: ["legacy-school-admin"] },
   { id: "tenant.roles.view", entryPoints: [a("settings/roles/actions.ts", "getRole")], permissions: ["tenant.roles.view"], context: "school-admin-only", legacy: ["legacy-school-admin"] },
   { id: "tenant.roles.create", entryPoints: [a("settings/roles/actions.ts", "createRole")], permissions: ["tenant.roles.create"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
-  { id: "tenant.roles.update", entryPoints: [a("settings/roles/actions.ts", "updateRole")], permissions: ["tenant.roles.rename", "tenant.roles.change-permissions"], mode: "conditional", gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
+  { id: "tenant.roles.update", entryPoints: [a("settings/roles/actions.ts", "updateRole"), a("settings/roles/actions.ts", "createRoleFromTemplate"), a("settings/roles/actions.ts", "updateRoleFromTemplate")], permissions: ["tenant.roles.rename", "tenant.roles.change-permissions"], mode: "conditional", gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
   { id: "tenant.roles.lifecycle", entryPoints: [a("settings/roles/actions.ts", "changeRoleStatus")], permissions: ["tenant.roles.activate", "tenant.roles.draft", "tenant.roles.archive", "tenant.roles.restore", "tenant.roles.delete"], mode: "conditional", gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
   { id: "tenant.assignments.view", entryPoints: [p("settings/assignments"), a("settings/assignments/actions.ts", "getAssignmentRolesAction"), a("settings/assignments/actions.ts", "searchEligibleAccountsAction")], permissions: ["tenant.assignments.view"], context: "school-admin-only", legacy: ["legacy-school-admin"] },
   { id: "tenant.assignments.replace", entryPoints: [a("settings/assignments/actions.ts", "replaceRoleSetAction")], permissions: ["tenant.assignments.replace"], gate: "write", context: "school-admin-only", risk: "critical", legacy: ["legacy-school-admin"] },
@@ -383,7 +386,7 @@ const seeds: OperationSeed[] = [
   { id: "subjects.update", entryPoints: [a("master/mapel/actions.ts", "editSubjectAction")], permissions: ["subjects.subjects.update"], gate: "write", entitlement: "MD", legacy: ["broad-master-data"] },
   { id: "subjects.archive-or-restore", entryPoints: [a("master/mapel/actions.ts", "archiveSubjectAction")], permissions: ["subjects.subjects.archive", "subjects.subjects.restore"], mode: "conditional", gate: "write", entitlement: "MD", legacy: ["broad-master-data"] },
 
-  { id: "class-groups.load", entryPoints: [p("master/rombel")], permissions: ["class-groups.groups.view", "people.people.view", "students.students.view", "teachers.teachers.view"], entitlement: "MD", legacy: ["broad-master-data", "capability-aggregate"] },
+  { id: "class-groups.load", entryPoints: [p("master/rombel"), p("kelas")], permissions: ["class-groups.groups.view", "people.people.view", "students.students.view", "teachers.teachers.view"], entitlement: "MD", legacy: ["broad-master-data", "capability-aggregate"] },
   { id: "class-groups.create", entryPoints: [a("master/rombel/actions.ts", "createClassGroupAction")], permissions: ["class-groups.groups.create"], gate: "write", entitlement: "MD", legacy: ["broad-master-data"] },
   { id: "class-groups.update", entryPoints: [a("master/rombel/actions.ts", "editClassGroupAction")], permissions: ["class-groups.groups.update"], gate: "write", entitlement: "MD", legacy: ["broad-master-data"] },
   { id: "class-groups.lifecycle", entryPoints: [a("master/rombel/actions.ts", "manageClassGroupAction")], permissions: ["class-groups.groups.manage-lifecycle", "class-groups.groups.archive", "class-groups.groups.restore"], mode: "conditional", gate: "write", entitlement: "MD", legacy: ["broad-master-data"] },
@@ -392,7 +395,7 @@ const seeds: OperationSeed[] = [
 
   { id: "students.load", entryPoints: [studentPage], permissions: ["people.people.view", "people.people.view-contact", "people.people.view-sensitive", "students.students.view", "students.students.view-sensitive"], context: "assigned-or-self", supplemental: ["people.people.view-contact", "people.people.view-sensitive", "students.students.view-sensitive"], entitlement: "MD", legacy: ["broad-master-data", "capability-aggregate"] },
   { id: "students.create", entryPoints: [a("master/siswa/actions.ts", "createStudentAction")], permissions: ["students.students.create", "people.people.create"], mode: "conditional", gate: "write", entitlement: "MD", legacy: ["broad-master-data"] },
-  { id: "students.update", entryPoints: [a("master/siswa/actions.ts", "editStudentAction")], permissions: ["students.students.update", "people.people.update"], mode: "conditional", gate: "write", entitlement: "MD", legacy: ["broad-master-data"] },
+  { id: "students.update", entryPoints: [a("master/siswa/actions.ts", "editStudentAction"), a("master/siswa/actions.ts", "saveStudentGuardianAction"), a("master/siswa/actions.ts", "deleteStudentGuardianAction")], permissions: ["students.students.update", "people.people.update"], mode: "conditional", gate: "write", entitlement: "MD", legacy: ["broad-master-data"] },
   { id: "students.lifecycle", entryPoints: [a("master/siswa/actions.ts", "manageStudentLifecycleAction")], permissions: ["students.students.manage-lifecycle", "students.students.archive", "students.students.restore"], mode: "conditional", gate: "write", entitlement: "MD", legacy: ["broad-master-data"] },
   { id: "people.archive", entryPoints: [a("master/warga-sekolah/actions.ts", "archiveSchoolPersonAction")], permissions: ["people.people.archive"], gate: "write", entitlement: "MD", legacy: ["broad-master-data"] },
 
@@ -410,7 +413,7 @@ const seeds: OperationSeed[] = [
   { id: "people-imports.template.download", entryPoints: [r("master/import/template/[kind]", "GET")], permissions: ["people-imports.templates.download"], entitlement: "MD", legacy: ["broad-master-data"] },
   { id: "people-imports.upload", entryPoints: [r("master/import/upload", "POST"), r("master/import/[revisionId]/revision", "POST"), w("scripts/run-people-import-validation.ts")], permissions: ["people-imports.revisions.import"], gate: "write", entitlement: "MD", risk: "sensitive", legacy: ["broad-master-data"] },
   { id: "people-imports.decision.update", entryPoints: [a("master/import/[revisionId]/actions.ts", "saveDecisionAction")], permissions: ["people-imports.revisions.update"], gate: "write", entitlement: "MD", legacy: ["broad-master-data"] },
-  { id: "people-imports.execute", entryPoints: [a("master/import/[revisionId]/actions.ts", "executeImportAction"), a("master/import/actions.ts", "importDemoMasterDataAction"), w("scripts/run-people-import-execution.ts")], permissions: ["people-imports.revisions.execute", "people.people.create", "people.people.update", "students.students.create", "students.students.update", "teachers.teachers.create", "teachers.teachers.update", "staff.staff.create", "staff.staff.update"], mode: "conditional", gate: "write", entitlement: "MD", risk: "critical", legacy: ["broad-master-data"] },
+  { id: "people-imports.execute", entryPoints: [a("master/import/[revisionId]/actions.ts", "executeImportAction"), a("master/import/actions.ts", "importDemoMasterDataAction"), a("master/import/actions.ts", "cleanDemoMasterDataAction"), w("scripts/run-people-import-execution.ts")], permissions: ["people-imports.revisions.execute", "people.people.create", "people.people.update", "students.students.create", "students.students.update", "teachers.teachers.create", "teachers.teachers.update", "staff.staff.create", "staff.staff.update"], mode: "conditional", gate: "write", entitlement: "MD", risk: "critical", legacy: ["broad-master-data"] },
   { id: "people-imports.export", entryPoints: [r("master/import/[revisionId]/correction", "GET"), r("master/import/[revisionId]/execution/[executionId]/result", "GET")], permissions: ["people-imports.revisions.export", "people-imports.revisions.view-sensitive"], mode: "conditional", supplemental: ["people-imports.revisions.view-sensitive"], entitlement: "MD", risk: "critical", legacy: ["entitlement"] },
 
   { id: "facilities.load", entryPoints: [p("master/sarpras")], permissions: ["facilities.locations.view"], entitlement: "MD", legacy: ["broad-master-data", "capability-aggregate"] },
@@ -475,9 +478,9 @@ const seeds: OperationSeed[] = [
   { id: "authenticated.layout", entryPoints: ["layout:app/(tenant)/[domain]/(authenticated)/layout.tsx"], classification: "system-policy", context: "none", legacy: ["tenantRole"] },
   { id: "dashboard.demo-action", entryPoints: [a("dashboard/actions.ts", "dummyUpdateSettings")], classification: "placeholder", gate: "none", context: "none", legacy: ["legacy-school-admin"] },
   { id: "absensi.attendance.load", entryPoints: [p("absensi"), p("absensi/gerbang"), p("absensi/kelas")], permissions: ["absensi.attendance.view"], legacy: ["entitlement"] },
-  { id: "absensi.settings.save", entryPoints: [a("absensi/actions.ts", "saveAbsensiConfigAction"), p("absensi/settings")], permissions: ["absensi.settings.update"], gate: "write", legacy: [] },
+  { id: "absensi.settings.save", entryPoints: [a("absensi/actions.ts", "saveAbsensiConfigAction"), a("absensi/actions.ts", "saveModeSettingsAction"), p("absensi/settings"), p("absensi/settings/layers"), p("absensi/settings/modes"), p("absensi/settings/modes/[mode]"), p("absensi/settings/schedule"), a("absensi/settings/schedule/actions.ts", "saveGerbangScheduleAction"), a("absensi/settings/schedule/actions.ts", "loadGerbangScheduleAction"), a("absensi/settings/schedule/actions.ts", "importGerbangScheduleAction")], permissions: ["absensi.settings.update"], gate: "write", legacy: [] },
   { id: "absensi.gerbang.record", entryPoints: [a("absensi/actions.ts", "recordGerbangAction")], permissions: ["absensi.gerbang.record"], gate: "write", legacy: ["entitlement"] },
-  { id: "absensi.qr.record", entryPoints: [p("scan/absensi/[sessionId]"), a("absensi/actions.ts", "recordQrAction")], permissions: ["absensi.qr.record"], gate: "write", legacy: [] },
+  { id: "absensi.qr.record", entryPoints: [p("scan/absensi/[sessionId]"), a("absensi/actions.ts", "recordQrAction")], permissions: ["absensi.qr.record"], gate: "write", legacy: ["entitlement"] },
   { id: "absensi.gerbang.manage", entryPoints: [a("absensi/actions.ts", "openGerbangSessionAction"), a("absensi/actions.ts", "closeGerbangSessionAction"), a("absensi/actions.ts", "deleteGerbangSessionAction")], permissions: ["absensi.gerbang.manage"], gate: "write", legacy: [] },
   { id: "absensi.kelas.record", entryPoints: [a("absensi/actions.ts", "recordKelasAction")], permissions: ["absensi.kelas.record"], gate: "write", legacy: ["entitlement"] },
   { id: "absensi.kelas.manage", entryPoints: [a("absensi/actions.ts", "openKelasSessionAction"), a("absensi/actions.ts", "closeKelasSessionAction"), a("absensi/actions.ts", "deleteKelasSessionAction")], permissions: ["absensi.kelas.manage"], gate: "write", legacy: [] },
@@ -485,13 +488,13 @@ const seeds: OperationSeed[] = [
   { id: "absensi.history.delete", entryPoints: [a("absensi/actions.ts", "deleteHistorySessionAction"), a("absensi/actions.ts", "deleteHistoryRecordAction")], permissions: ["absensi.history.delete"], gate: "write", legacy: [] },
   { id: "absensi.self.load", entryPoints: [p("absensi/saya")], permissions: ["absensi.self.view"], context: "self", legacy: [] },
   { id: "e-library.load", entryPoints: [p("e-library")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },
-  { id: "jadwal.mengajar.load", entryPoints: [p("jadwal/mengajar")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },
-  { id: "jadwal.events.load", entryPoints: [p("jadwal/events")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },
+  { id: "jadwal.mengajar.load", entryPoints: [p("jadwal/mengajar")], permissions: ["jadwal.mengajar.view"], context: "school-admin-only", legacy: [] },
+  { id: "jadwal.events.load", entryPoints: [p("jadwal/events")], permissions: ["jadwal.events.view"], context: "school-admin-only", legacy: [] },
   { id: "persuratan.load", entryPoints: [p("persuratan")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },
   { id: "settings.backup-restore.load", entryPoints: [p("settings/backup-restore")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: ["broad-master-data"] },
   { id: "integrasi.load", entryPoints: [p("integrasi"), p("integrasi/whatsapp")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },
-  { id: "integrasi.whatsapp-bot.load", entryPoints: [p("integrasi/whatsapp"), p("integrasi"), p("integrasi/whatsapp/akun"), a("integrasi/whatsapp/akun/actions.ts", "listWhatsAppBotChatsAction")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: ["broad-master-data"] },
-  { id: "integrasi.whatsapp-bot.update", entryPoints: [a("integrasi/whatsapp/actions.ts", "connectWhatsAppBotAction"), a("integrasi/whatsapp/actions.ts", "disconnectWhatsAppBotAction")], permissions: ["tenant.authorization-audit.view"], gate: "write", context: "school-admin-only", legacy: ["broad-master-data"] },
+  { id: "integrasi.whatsapp-bot.load", entryPoints: [p("integrasi/whatsapp"), p("integrasi"), p("integrasi/whatsapp/akun"), a("integrasi/whatsapp/akun/actions.ts", "listWhatsAppBotChatsAction"), a("integrasi/whatsapp/actions.ts", "refreshWhatsAppBotSelfServiceQrAction"), a("integrasi/whatsapp/actions.ts", "readWhatsAppBotSelfServiceStatusAction"), a("integrasi/whatsapp/actions.ts", "readWhatsAppBotSessionStatusAction")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: ["broad-master-data"] },
+  { id: "integrasi.whatsapp-bot.update", entryPoints: [a("integrasi/whatsapp/actions.ts", "connectWhatsAppBotAction"), a("integrasi/whatsapp/actions.ts", "disconnectWhatsAppBotAction"), a("integrasi/whatsapp/actions.ts", "submitWhatsAppBotRequestAction"), a("integrasi/whatsapp/actions.ts", "startWhatsAppBotSelfServiceAction"), a("integrasi/whatsapp/actions.ts", "completeWhatsAppBotSelfServiceAction")], permissions: ["tenant.authorization-audit.view"], gate: "write", context: "school-admin-only", legacy: ["broad-master-data"] },
   { id: "integrasi.whatsapp-bot.send", entryPoints: [a("integrasi/whatsapp/actions.ts", "sendWhatsAppMessageAction")], permissions: ["tenant.authorization-audit.view"], gate: "write", context: "school-admin-only", legacy: ["broad-master-data"] },
   { id: "integrasi.whatsapp-bot.history.load", entryPoints: [p("integrasi/whatsapp")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: ["broad-master-data"] },
 ];

@@ -236,8 +236,6 @@ test("absensi page load requires absensi.attendance.view", async () => {
 test("admin-only placeholder pages require tenant.authorization-audit.view", async () => {
   const adminOnlyOperationIds = [
     "e-library.load",
-    "jadwal.mengajar.load",
-    "jadwal.events.load",
     "persuratan.load",
     "settings.backup-restore.load",
     "integrasi.load",

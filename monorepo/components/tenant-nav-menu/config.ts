@@ -72,9 +72,12 @@ export const tenantMenuItems: TenantNavItem[] = [
     key: "penjadwalan",
     title: "Penjadwalan",
     icon: Calendar,
+    feature: "penjadwalanRead",
+    requiredPermissions: ["jadwal.mengajar.view", "jadwal.events.view"],
+    permissionMode: "any",
     items: [
-      { key: "jadwal-mengajar", title: "Jadwal Mengajar", url: "/jadwal/mengajar", requiredPermissions: ["tenant.authorization-audit.view"] },
-      { key: "jadwal-events", title: "Events", url: "/jadwal/events", requiredPermissions: ["tenant.authorization-audit.view"] }
+      { key: "jadwal-mengajar", title: "Jadwal Mengajar", url: "/jadwal/mengajar", requiredPermissions: ["jadwal.mengajar.view"] },
+      { key: "jadwal-events", title: "Events", url: "/jadwal/events", requiredPermissions: ["jadwal.events.view"] }
     ]
   },
   {

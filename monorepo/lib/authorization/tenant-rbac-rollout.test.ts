@@ -20,7 +20,7 @@ const base: RolloutState = {
   version: 1,
   resolverVersion: "tenant-authorization@1",
   registryVersion: "tenant-permissions@2",
-  operationMapVersion: "tenant-operations@4",
+  operationMapVersion: "tenant-operations@5",
   emergencyOverlay: null,
   multiRoleAcceptedAt: null,
   legacyAuthorityDisabledAt: null,

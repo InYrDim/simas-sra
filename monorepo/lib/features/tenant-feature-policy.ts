@@ -51,6 +51,11 @@ export function readTenantFeatureSelection(settings: unknown): TenantFeatureSele
   // placeholder page access (parent `absensi`) for tenants that have not saved
   // an absensi flag yet, while keeping the new mode/layer capabilities opt-in.
   if (!Object.prototype.hasOwnProperty.call(features, "absensi")) selection.absensi = true;
+
+  // Penjadwalan ships as an existing placeholder menu, so tenants without a saved
+  // penjadwalan flag keep their current access; providers can still turn it off.
+  if (!Object.prototype.hasOwnProperty.call(features, "penjadwalan")) selection.penjadwalan = true;
+  if (!Object.prototype.hasOwnProperty.call(features, "penjadwalanRead")) selection.penjadwalanRead = true;
   for (const key of [
     "absensiManual",
     "absensiQr",

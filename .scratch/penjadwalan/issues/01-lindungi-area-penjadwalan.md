@@ -6,7 +6,7 @@ audit yang sekarang dipakai menu dan operasi `jadwal.*`.
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 ## Catatan seam yang sudah ada
 
@@ -21,12 +21,39 @@ audit yang sekarang dipakai menu dan operasi `jadwal.*`.
 
 ## Acceptance criteria
 
-- [ ] Feature key baru di registry: `penjadwalan` (parent) dan `penjadwalanRead`, dengan label/deskripsi Indonesia, functional domain, route `/jadwal/**`, dan `requires` sesuai hierarki.
-- [ ] `penjadwalanWrite` **belum** dibuat di tiket ini — tambahkan bersamaan dengan operasi tulis Jadwal Mengajar pertama agar tidak ada key tanpa fungsi produk.
-- [ ] Provider dapat mematikan Penjadwalan per Tenant; parent yang mati menang atas child yang tersimpan aktif.
-- [ ] Item menu Penjadwalan terkunci + tooltip saat Provider mematikan; submenu tidak bisa dibuka dari UI.
-- [ ] Halaman `/jadwal/mengajar` dan `/jadwal/events` memblokir akses langsung (URL) ketika fitur mati atau role tidak berhak, dengan perilaku non-disclosure.
-- [ ] Permission placeholder `tenant.authorization-audit.view` pada menu dan operasi `jadwal.*` diganti `jadwal.mengajar.load` / `jadwal.events.load`; akses tetap School Admin sampai tiket perilaku sesi menentukan akses Guru.
-- [ ] Default legacy ditetapkan eksplisit dan diuji. Rekomendasi: `penjadwalan` dan `penjadwalanRead` aktif untuk Tenant tanpa setelan (menu sudah tampil hari ini dan halaman masih placeholder, jadi jangan hilangkan akses secara diam-diam); Provider tetap bisa mematikan kapan saja.
-- [ ] Tes: child aktif + lifecycle writable; child aktif + read-only; child mati; parent mati saat child tersimpan aktif; alasan `provider-disabled` menang; permintaan server langsung tetap ditolak.
-- [ ] `pnpm typecheck`, tes fokus, dan `pnpm rbac:coverage` hijau.
+- [x] Feature key baru di registry: `penjadwalan` (parent) dan `penjadwalanRead`, dengan label/deskripsi Indonesia, functional domain `scheduling`, route `/jadwal/**`, dan `requires` sesuai hierarki.
+- [x] `penjadwalanWrite` **belum** dibuat di tiket ini — ditambahkan bersamaan dengan operasi tulis Jadwal Mengajar pertama (slice 04).
+- [x] Provider dapat mematikan Penjadwalan per Tenant; parent yang mati menang atas child yang tersimpan aktif (teruji).
+- [x] Item menu Penjadwalan terkunci + tooltip saat Provider mematikan; submenu tidak bisa dibuka dari UI (seam existing `feature` di sidebar).
+- [x] Halaman `/jadwal/mengajar` dan `/jadwal/events` memblokir akses langsung (URL) ketika fitur mati atau role tidak berhak, dengan perilaku non-disclosure (RBAC existing + `enforceTenantFeatureEnabled`).
+- [x] Permission placeholder `tenant.authorization-audit.view` pada menu dan operasi `jadwal.*` diganti seed baru `jadwal.mengajar.view` / `jadwal.events.view` (permission assignable, jadi role non-admin bisa diberi akses kelak); akses tetap School Admin via `context: "school-admin-only"`.
+- [x] Default legacy ditetapkan eksplisit dan diuji: `penjadwalan` dan `penjadwalanRead` aktif untuk Tenant tanpa setelan; Provider tetap bisa mematikan kapan saja.
+- [x] Tes: parent mati + child tersimpan aktif; child aktif + read; child mati; provider-disabled; permintaan server langsung ditolak (RBAC + feature, teruji di 3 file test).
+- [x] `pnpm typecheck` (tanpa error baru), tes fokus (57 pass), dan `pnpm rbac:coverage` — temuan tetap 21, identik dengan baseline (lihat catatan).
+
+## Comments
+
+### 2026-09-27 — implementasi
+
+- `config/tenant-features.ts`: domain `scheduling` + key `penjadwalan` (parent, tanpa
+  `requires`) dan `penjadwalanRead` (`requires: ["penjadwalan"]`), routes `/jadwal/**`.
+- `lib/features/tenant-feature-policy.ts`: legacy default eksplisit — keduanya aktif
+  bila tenant belum pernah menyimpan flag (menu sudah tampil hari ini; akses tidak
+  dicabut diam-diam), Provider tetap bisa mematikan.
+- `lib/authorization/tenant-rbac-contract.ts`: seed `jadwal.mengajar.view` +
+  `jadwal.events.view` (registry 166 → 168), operasi `jadwal.*.load` pindah ke
+  permission baru, metadata modul `jadwal` ("Penjadwalan").
+- `components/tenant-nav-menu/config.ts`: parent memakai `feature: "penjadwalanRead"`
+  + permission `jadwal.*.view` mode any; submenu memakai permission masing-masing.
+- Halaman `/jadwal/mengajar` & `/jadwal/events`: `enforceTenantFeatureEnabled(domain,
+  "penjadwalanRead")` sebelum evaluasi RBAC.
+- Test: policy Penjadwalan (legacy aktif, child mati, parent mati menang), menu
+  (permission baru + feature), authorization (daftar admin-only tanpa jadwal),
+  rbac-contract (jumlah registry 168 + pemisahan assertion), provider fixture.
+- **Catatan jujur `pnpm rbac:coverage`**: skrip keluar exit 1 dengan 21 temuan
+  `unmapped-entry-point` (settings/roles/actions dll.) — diverifikasi via `git stash`
+  bahwa jumlahnya identik dengan baseline sebelum perubahan ini; tidak ada temuan
+  terkait `jadwal/**`. Temuan pra-eksisting ini di luar lingkup tiket 01 dan layak
+  jadi tiket tersendiri.
+- Dua error `tsc --noEmit` di `*.mysql.test.ts` juga pra-eksisting (migrasi Neon),
+  tidak disentuh tiket ini.

@@ -1,5 +1,6 @@
 import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
 import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
+import { enforceTenantFeatureEnabled } from "@/lib/features/tenant-feature-route-access";
 
 export default async function EventsPage({
   params,
@@ -7,6 +8,7 @@ export default async function EventsPage({
   params: Promise<{ domain: string }>;
 }) {
   const { domain } = await params;
+  await enforceTenantFeatureEnabled(domain, "penjadwalanRead");
   const evaluator = await createHttpTenantAuthorizationEvaluator();
   const operationId = "jadwal.events.load";
   const result = await evaluator.evaluate({ surface: "page", domain, operationId });

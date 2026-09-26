@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { enforceTenantOperation } from "@/lib/features/tenant-feature-route-access";
+import { enforceAbsensiQrFeature } from "@/lib/attendance/absensi-qr-feature";
 import { OpenWaClient } from "@/lib/integrations/whatsapp-bot/openwa-client";
 import { resolveTenantOpenWaCredential } from "@/lib/integrations/whatsapp-bot/tenant-openwa-credential";
 import { readConnectionByTenantId, recordOutboundMessage } from "@/lib/integrations/whatsapp-bot/whatsapp-bot-data";
@@ -501,6 +502,9 @@ export async function recordQrAction(
     sessionId: string,
     token: string,
 ): Promise<RecordQrResult> {
+    // The scan page checks the `absensiQr` feature flag; the server action must
+    // recheck it so the entitlement decision is not page-only.
+    await enforceAbsensiQrFeature(domain);
     const principal = await enforceTenantOperation(domain, "absensi.qr.record");
 
     const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);

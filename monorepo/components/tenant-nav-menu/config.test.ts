@@ -54,10 +54,12 @@ test("admin-only placeholder navigation requires tenant.authorization-audit.view
   const penjadwalan = tenantMenuItems.find((item) => item.title === "Penjadwalan");
   const jadwalMengajar = penjadwalan?.items?.find((item) => item.title === "Jadwal Mengajar");
   const jadwalEvents = penjadwalan?.items?.find((item) => item.title === "Events");
-  assert.deepEqual(jadwalMengajar?.requiredPermissions, adminOnlyKey);
-  assert.deepEqual(jadwalEvents?.requiredPermissions, adminOnlyKey);
+  assert.deepEqual(jadwalMengajar?.requiredPermissions, ["jadwal.mengajar.view"]);
+  assert.deepEqual(jadwalEvents?.requiredPermissions, ["jadwal.events.view"]);
   assert.equal(isNavigationItemAuthorized(jadwalMengajar!, new Set()), false);
-  assert.equal(isNavigationItemAuthorized(jadwalEvents!, new Set(["tenant.authorization-audit.view"])), true);
+  assert.equal(isNavigationItemAuthorized(jadwalMengajar!, new Set(["jadwal.mengajar.view"])), true);
+  assert.equal(isNavigationItemAuthorized(jadwalEvents!, new Set(["jadwal.events.view"])), true);
+  assert.equal(penjadwalan?.feature, "penjadwalanRead");
 
   const backupRestore = tenantMenuItems.find((item) => item.title === "Backup & Restore");
   assert.deepEqual(backupRestore?.requiredPermissions, adminOnlyKey);

@@ -4,6 +4,7 @@ export const TENANT_FEATURE_DOMAINS = [
   { key: "academic-assessment", label: "Akademik · Penilaian" },
   { key: "admissions", label: "Pendaftaran · PPDB" },
   { key: "attendance", label: "Absensi" },
+  { key: "scheduling", label: "Penjadwalan" },
   { key: "analytics", label: "Analitik" },
   { key: "integrations", label: "Integrasi" },
 ] as const;
@@ -183,6 +184,21 @@ export const TENANT_FEATURES = [
     functionalDomain: "attendance",
     routes: ["/absensi/**"],
     requires: ["absensi", "absensiWhatsapp"],
+  },
+  {
+    key: "penjadwalan",
+    label: "Penjadwalan",
+    description: "Fitur induk untuk seluruh akses dan operasi Penjadwalan.",
+    functionalDomain: "scheduling",
+    routes: ["/jadwal/**"],
+  },
+  {
+    key: "penjadwalanRead",
+    label: "Baca Penjadwalan",
+    description: "Mengizinkan Tenant membuka dan melihat halaman Penjadwalan.",
+    functionalDomain: "scheduling",
+    routes: ["/jadwal/**"],
+    requires: ["penjadwalan"],
   },
   {
     key: "integrasi",

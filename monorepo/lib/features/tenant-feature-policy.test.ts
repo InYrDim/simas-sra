@@ -160,3 +160,26 @@ test("Absensi WA notification descendants require their parents and fail closed 
   assert.equal(isTenantFeatureEnabled(absensiOff, "absensiWhatsapp"), false);
   assert.equal(isTenantFeatureEnabled(absensiOff, "absensiWhatsappNotify"), false);
 });
+
+test("Penjadwalan stays enabled for legacy tenants that never saved a flag", () => {
+  assert.equal(isTenantFeatureEnabled(fullyEnabledMasterData, "penjadwalan"), true);
+  assert.equal(isTenantFeatureEnabled(fullyEnabledMasterData, "penjadwalanRead"), true);
+  assert.equal(isTenantFeatureEnabled({}, "penjadwalanRead"), true);
+});
+
+test("Penjadwalan child can be disabled while the parent stays enabled", () => {
+  const settings = {
+    features: { ...fullyEnabledMasterData.features, penjadwalan: true, penjadwalanRead: false },
+  };
+  assert.equal(isTenantFeatureEnabled(settings, "penjadwalan"), true);
+  assert.equal(isTenantFeatureEnabled(settings, "penjadwalanRead"), false);
+});
+
+test("a disabled Penjadwalan parent overrides an enabled stored child", () => {
+  const settings = {
+    features: { ...fullyEnabledMasterData.features, penjadwalan: false, penjadwalanRead: true },
+  };
+  const effective = resolveTenantFeatures(settings);
+  assert.equal(effective.penjadwalan, false);
+  assert.equal(effective.penjadwalanRead, false);
+});

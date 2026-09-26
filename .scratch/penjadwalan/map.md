@@ -49,7 +49,7 @@ Tiket implementasi ada di `issues/` (01–07), siap dikerjakan dengan `/implemen
 
 | Urut | Tiket | Slice | Bergantung pada |
 |---|---|---|---|
-| 1 | [01](./issues/01-lindungi-area-penjadwalan.md) | Lindungi area Penjadwalan (feature key + RBAC) | — |
+| 1 | [01](./issues/01-lindungi-area-penjadwalan.md) ✅ selesai | Lindungi area Penjadwalan (feature key + RBAC) | — |
 | 2 | [02](./issues/02-penugasan-mengajar-master-data.md) | Penugasan Mengajar di Master Data (paralel dengan 03) | — |
 | 3 | [03](./issues/03-skema-slot-jadwal.md) | Skema Slot Jadwal + preset periode + validator konflik (paralel dengan 02) | — |
 | 4 | [04](./issues/04-crud-jadwal-mengajar.md) | CRUD Jadwal Mengajar (membuat `penjadwalanWrite`) | 01, 02, 03 |
