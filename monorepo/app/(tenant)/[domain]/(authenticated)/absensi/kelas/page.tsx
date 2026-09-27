@@ -105,6 +105,10 @@ export default async function AbsensiKelasPage({
     const activeSession =
         selectable.find((s) => s.id === selectedSessionId) ?? selectable.find((s) => s.status === "open") ?? null;
 
+    // Mode gating: the manual record form only renders when "manual" is bound
+    // to the Kelas layer in Pengaturan Absensi (activeLayers.kelas).
+    const manualRecordEnabled = modes.includes("manual");
+
     // Write rights: School Admin (all) or the pengampu of that specific session.
     // Homeroom teachers are read-only (wayfinder 04).
     const canWrite = (session: KelasSessionSlotView | null): boolean => {
@@ -197,13 +201,22 @@ export default async function AbsensiKelasPage({
                     ) : null}
 
                     {writable ? (
-                        <KelasRecordForm
-                            domain={domain}
-                            sessionId={activeSession.id}
-                            students={studentRows}
-                            recordedStudentIds={recordedStudentIds}
-                            disabled={activeSession.status === "closed"}
-                        />
+                        manualRecordEnabled ? (
+                            <KelasRecordForm
+                                domain={domain}
+                                sessionId={activeSession.id}
+                                students={studentRows}
+                                recordedStudentIds={recordedStudentIds}
+                                disabled={activeSession.status === "closed"}
+                            />
+                        ) : activeSession.status === "open" ? (
+                            <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
+                                <p className="text-sm text-muted-foreground">
+                                    Mode manual tidak aktif untuk lapisan Kelas. Aktifkan lewat Pengaturan Absensi
+                                    untuk mencatat kehadiran lewat form.
+                                </p>
+                            </div>
+                        ) : null
                     ) : (
                         <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
                             <p className="text-sm text-muted-foreground">
