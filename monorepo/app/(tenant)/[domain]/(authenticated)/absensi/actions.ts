@@ -10,6 +10,7 @@ import { resolveTenantOpenWaCredential } from "@/lib/integrations/whatsapp-bot/t
 import { readConnectionByTenantId, recordOutboundMessage } from "@/lib/integrations/whatsapp-bot/whatsapp-bot-data";
 import type { WhatsAppBotSendDependencies } from "@/lib/integrations/whatsapp-bot/whatsapp-bot-send";
 import { openKelasSlotSessionManually, closeKelasSessionById } from "@/lib/attendance/attendance-kelas-data";
+import { assertKelasSessionWriteAccess, buildKelasPrincipal } from "@/lib/attendance/attendance-kelas-access";
 import { resolveKelasSlotDecision } from "@/lib/attendance/attendance-kelas-schedule";
 import { civilDateInTimeZone } from "@/lib/attendance/attendance-schedule";
 import { readKelasCloseToleranceMinutes } from "@/lib/attendance/attendance-config";
@@ -345,6 +346,15 @@ export async function recordKelasAction(
     const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
     if (!tenant) return { ok: false, code: "not-found" };
 
+    // Row-level guard (ticket 06): a non-admin may only write into their own
+    // lesson's session (pengampu check); School Admin passes for corrections.
+    if (sessionId !== "") {
+        const kelasPrincipal = await buildKelasPrincipal(tenant.id, principal.userId, principal.schoolAdmin);
+        if (!(await assertKelasSessionWriteAccess(kelasPrincipal, sessionId))) {
+            return { ok: false, code: "not-found" };
+        }
+    }
+
     // Kelas attendance requires an active rombel membership (endedAt IS NULL).
     const membership = await db
         .select({ id: classMembership.id })
@@ -437,6 +447,27 @@ export async function openKelasSessionAction(
         .limit(1);
     if (!slotRow) return { ok: false, code: "not-found" };
 
+    // Row-level guard (ticket 06): non-admin may only open their own lesson's
+    // slot (the slot's assignment must be theirs); School Admin may open any.
+    if (!principal.schoolAdmin) {
+        const kelasPrincipal = await buildKelasPrincipal(tenant.id, principal.userId, principal.schoolAdmin);
+        const [ownerRow] = await db
+            .select({ teacherProfileId: teachingAssignment.teacherProfileId })
+            .from(teachingSlot)
+            .innerJoin(
+                teachingAssignment,
+                and(
+                    eq(teachingAssignment.tenantId, teachingSlot.tenantId),
+                    eq(teachingAssignment.id, teachingSlot.teachingAssignmentId),
+                ),
+            )
+            .where(and(eq(teachingSlot.tenantId, tenant.id), eq(teachingSlot.id, slotId)))
+            .limit(1);
+        if (!ownerRow || !kelasPrincipal.teacherProfileId || ownerRow.teacherProfileId !== kelasPrincipal.teacherProfileId) {
+            return { ok: false, code: "not-found" };
+        }
+    }
+
     const decision = resolveKelasSlotDecision({
         slot: slotRow,
         civilDate,
@@ -475,10 +506,15 @@ export async function closeKelasSessionAction(
     domain: string,
     sessionId: string,
 ): Promise<CloseKelasSessionResult> {
-    await enforceTenantOperation(domain, "absensi.kelas.manage");
+    const principal = await enforceTenantOperation(domain, "absensi.kelas.manage");
 
     const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
     if (!tenant) return { ok: false, code: "not-found" };
+
+    const kelasPrincipal = await buildKelasPrincipal(tenant.id, principal.userId, principal.schoolAdmin);
+    if (!(await assertKelasSessionWriteAccess(kelasPrincipal, sessionId))) {
+        return { ok: false, code: "not-found" };
+    }
 
     const result = await closeKelasSessionById(tenant.id, sessionId, new Date());
     if (!result.ok) return { ok: false, code: result.code };
@@ -497,10 +533,15 @@ export async function deleteKelasSessionAction(
     domain: string,
     sessionId: string,
 ): Promise<DeleteKelasSessionResult> {
-    await enforceTenantOperation(domain, "absensi.kelas.manage");
+    const principal = await enforceTenantOperation(domain, "absensi.kelas.manage");
 
     const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
     if (!tenant) return { ok: false, code: "not-found" };
+
+    const kelasPrincipal = await buildKelasPrincipal(tenant.id, principal.userId, principal.schoolAdmin);
+    if (!(await assertKelasSessionWriteAccess(kelasPrincipal, sessionId))) {
+        return { ok: false, code: "not-found" };
+    }
 
     const result = await deleteSession(tenant.id, sessionId, { deleteRecords: true });
     if (!result.ok) return { ok: false, code: result.code };

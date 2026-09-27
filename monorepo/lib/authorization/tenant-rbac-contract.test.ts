@@ -242,7 +242,8 @@ test("Penjadwalan Jadwal Mengajar operations enforce write gating and School Adm
   assert.ok(load, "jadwal.mengajar.load");
   assert.deepEqual(load.requiredPermissions, ["jadwal.mengajar.view"]);
   assert.equal(load.operationalGate, "read");
-  assert.equal(load.contextualPolicy, "school-admin-only");
+  // Ticket 06: teachers read their own schedule; admins keep full access.
+  assert.equal(load.contextualPolicy, "assigned-or-self");
 
   const write = tenantOperationMap.find((candidate) => candidate.id === "jadwal.mengajar.write");
   assert.ok(write, "jadwal.mengajar.write");

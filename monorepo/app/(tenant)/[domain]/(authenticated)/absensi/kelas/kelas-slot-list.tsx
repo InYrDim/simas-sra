@@ -11,22 +11,27 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { CheckCircle2, CircleSlash, Clock, GraduationCap, User } from "lucide-react";
+import { CheckCircle2, CircleSlash, Clock, Eye, GraduationCap, User } from "lucide-react";
 import type { KelasSessionSlotView } from "@/lib/attendance/attendance-kelas-data";
 
 /**
  * Per-slot session list for the Absensi Kelas page (wayfinder 04: sessions are
  * per Teaching Slot). Selecting a card navigates back to the page with
- * ?sessionId=… so the server renders that slot's roster and records.
+ * ?sessionId=… so the server renders that slot's roster and records. Manage
+ * buttons render only when the caller may write that session (pengampu or
+ * School Admin) — the server re-checks every action.
  */
 export function KelasSlotList({
     domain,
     sessions,
     activeSessionId,
+    canWrite,
 }: {
     domain: string;
     sessions: KelasSessionSlotView[];
     activeSessionId: string;
+    /** Row-level write rights per session (server-derived, re-checked server-side). */
+    canWrite: (session: KelasSessionSlotView) => boolean;
 }) {
     const [closeState, closeAction, closePending] = useActionState<CloseKelasSessionResult, FormData>(
         () => closeKelasSessionAction(domain, activeSessionId),
@@ -38,12 +43,14 @@ export function KelasSlotList({
     );
     const [, startTransition] = useTransition();
     const active = sessions.find((s) => s.id === activeSessionId) ?? null;
+    const activeWritable = active ? canWrite(active) : false;
 
     return (
         <div className="space-y-3">
             <ul className="grid gap-2 md:grid-cols-2">
                 {sessions.map((session) => {
                     const isActive = session.id === activeSessionId;
+                    const writable = canWrite(session);
                     return (
                         <li key={session.id}>
                             <a
@@ -77,6 +84,12 @@ export function KelasSlotList({
                                         <User aria-hidden className="h-3.5 w-3.5" />
                                         {session.teacherName}
                                     </span>
+                                    {!writable ? (
+                                        <span className="inline-flex items-center gap-1">
+                                            <Eye aria-hidden className="h-3.5 w-3.5" />
+                                            Lihat
+                                        </span>
+                                    ) : null}
                                 </p>
                             </a>
                         </li>
@@ -84,7 +97,7 @@ export function KelasSlotList({
                 })}
             </ul>
 
-            {active && active.status === "open" ? (
+            {active && activeWritable && active.status === "open" ? (
                 <div className="flex flex-wrap items-center gap-2">
                     <form
                         action={(formData: FormData) => {

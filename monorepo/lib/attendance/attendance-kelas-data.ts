@@ -1,6 +1,6 @@
 import "server-only";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { db } from "@/db";
 import {
@@ -8,6 +8,7 @@ import {
     attendanceSession,
     classGroup,
     classMembership,
+    homeroomAssignment,
     schoolHoliday,
     schoolPerson,
     subject,
@@ -384,6 +385,7 @@ export type KelasSessionSlotView = {
     openedAt: Date;
     closedAt: Date | null;
     slotId: string;
+    teacherProfileId: string;
     classGroupId: string;
     className: string;
     subjectName: string;
@@ -413,6 +415,7 @@ export async function listKelasSessionsForDayWithSlotInfo(
             openedAt: attendanceSession.openedAt,
             closedAt: attendanceSession.closedAt,
             slotId: attendanceSession.slotId,
+            teacherProfileId: teachingAssignment.teacherProfileId,
             classGroupId: teachingAssignment.classGroupId,
             className: classGroup.groupName,
             subjectName: subject.name,
@@ -461,4 +464,54 @@ export async function listKelasSessionsForDayWithSlotInfo(
         .orderBy(attendanceSession.plannedStart);
 
     return rows.map((row) => ({ ...row, slotId: row.slotId ?? "" }));
+}
+
+/**
+ * Teacher identity of a session's slot, for row-level write guards: the
+ * pengampu's teacher_profile.id for the given session id (tenant-scoped).
+ */
+export async function getKelasSessionTeacherProfileId(
+    tenantId: string,
+    sessionId: string,
+): Promise<string | null> {
+    const [row] = await db
+        .select({ teacherProfileId: teachingAssignment.teacherProfileId })
+        .from(attendanceSession)
+        .innerJoin(
+            teachingSlot,
+            and(eq(teachingSlot.tenantId, attendanceSession.tenantId), eq(teachingSlot.id, attendanceSession.slotId)),
+        )
+        .innerJoin(
+            teachingAssignment,
+            and(
+                eq(teachingAssignment.tenantId, teachingSlot.tenantId),
+                eq(teachingAssignment.id, teachingSlot.teachingAssignmentId),
+            ),
+        )
+        .where(and(eq(attendanceSession.tenantId, tenantId), eq(attendanceSession.id, sessionId)))
+        .limit(1);
+    return row?.teacherProfileId ?? null;
+}
+
+/** Rombel ids where the account is the current homeroom teacher (Wali Kelas). */
+export async function listHomeroomClassGroupIdsForUser(tenantId: string, userId: string): Promise<Set<string>> {
+    const rows = await db
+        .select({ classGroupId: homeroomAssignment.classGroupId })
+        .from(homeroomAssignment)
+        .innerJoin(
+            teacherProfile,
+            and(eq(teacherProfile.tenantId, homeroomAssignment.tenantId), eq(teacherProfile.id, homeroomAssignment.teacherId)),
+        )
+        .innerJoin(
+            schoolPerson,
+            and(eq(schoolPerson.tenantId, teacherProfile.tenantId), eq(schoolPerson.id, teacherProfile.personId)),
+        )
+        .where(
+            and(
+                eq(homeroomAssignment.tenantId, tenantId),
+                eq(schoolPerson.accountUserId, userId),
+                sql`${homeroomAssignment.endedAt} IS NULL`,
+            ),
+        );
+    return new Set(rows.map((row) => row.classGroupId));
 }

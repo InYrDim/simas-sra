@@ -6,7 +6,7 @@ Belajar** untuk School Admin; perkenalkan permission Guru untuk mencatat kehadir
 
 **Blocked by:** 05
 
-**Status:** ready-for-agent
+**Status:** resolved
 
 ## Keputusan yang mengikat (dari tiket 04)
 
@@ -22,15 +22,37 @@ Belajar** untuk School Admin; perkenalkan permission Guru untuk mencatat kehadir
 
 ## Acceptance criteria
 
-- [ ] Halaman Absensi Kelas: tampilan per Guru (default untuk Guru) + toggle per Rombel
-      (School Admin).
-- [ ] Guru hanya melihat/mencatat pelajarannya sendiri; penolakan server-side teruji
-      (Guru lain tidak bisa menulis record sesi yang bukan miliknya).
-- [ ] Aksi buka/tutup manual (koreksi) dengan loader; auto-alpa terlihat saat tutup.
-- [ ] Permission + operasi baru Guru masuk rbac contract + coverage; Template Role
-      Tenant diperbarui.
-- [ ] Loader pada semua aksi yang menunggu proses.
-- [ ] `pnpm typecheck`, tes fokus, `pnpm rbac:coverage` hijau.
+- [x] Halaman Absensi Kelas: tampilan per Guru (default untuk Guru) + toggle Per Guru /
+      Per Rombel untuk School Admin (`?view=guru|rombel`; Admin default Per Rombel).
+- [x] Guru hanya melihat/mencatat pelajarannya sendiri: penolakan server-side via
+      contextual policy `assigned-or-self` (operasi baru `absensi.kelas.load`) + guard
+      baris `assertKelasSessionWriteAccess` (pengampu atau School Admin) di SEMUA action
+      tulis — record/close/delete/open. Catatan: penolakan baru terverifikasi lewat
+      kontrak + tsc (belum test mysql end-to-end, sejalan celah slice 05).
+- [x] Aksi buka/tutup manual (koreksi) dengan loader (Spinner); auto-alpa tereksekusi
+      server saat tutup; form record dinonaktifkan pada sesi closed.
+- [x] Operasi `absensi.kelas.load` (assigned-or-self) + `jadwal.mengajar.load` dibuka ke
+      guru (assigned-or-self) di rbac contract (tetap `tenant-operations@6`, digest baru
+      teradopsi ke DB dev via adopt script); coverage 209/209. Template "guru" dan
+      "wali-kelas" sudah memuat `absensi.attendance.view` (kunci operasi baru); menu
+      sidebar "Absensi → Kelas" ditambahkan.
+- [x] Loader pada semua aksi yang menunggu proses (useActionState + Spinner, pola existing).
+- [x] `pnpm typecheck` bersih (non-baseline); tes fokus hijau (contract 12/12, backfill
+      10/10, kelas-schedule 6/6); `pnpm rbac:coverage` 209/209 tanpa issues; set kegagalan
+      `pnpm test:unit` identik baseline (13 fail pra-eksisting).
+
+## Catatan implementasi
+
+- `lib/attendance/attendance-kelas-access.ts` (baru): `enforceKelasAttendancePageAccess`
+  (policy assigned-or-self dengan fallback homeroom baca-only) +
+  `assertKelasSessionWriteAccess` (guard baris pengampu/admin, fail closed) +
+  `buildKelasPrincipal`.
+- Data layer: view sesi kini membawa `teacherProfileId`; helper homeroom
+  `listHomeroomClassGroupIdsForUser` untuk sudut pandang Wali Kelas (read-only).
+- Wali Kelas (bukan pengampu, bukan admin): melihat sesi rombelnya tanpa aksi tulis
+  (keputusan user: baca-only rombelnya); halaman menandai "Lihat".
+- Keputusan desain dikonfirmasi user: contextual policy assigned-or-self (pola
+  `students.load`/quiz), bukan guard manual; wali kelas baca-only di slice ini.
 
 ## Catatan keamanan
 

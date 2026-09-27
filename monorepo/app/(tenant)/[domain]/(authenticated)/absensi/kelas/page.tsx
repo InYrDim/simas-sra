@@ -1,7 +1,7 @@
 import { and, eq, sql } from "drizzle-orm";
 
-import { createHttpTenantAuthorizationEvaluator } from "@/lib/authorization/tenant-authorization-data";
 import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
+import { createHttpTenantAuthorizationEvaluator, tenantAuthorizationStore } from "@/lib/authorization/tenant-authorization-data";
 import { enforceTenantFeatureEnabled } from "@/lib/features/tenant-feature-route-access";
 import { getAbsensiConfig } from "@/lib/attendance/attendance-config-data";
 import {
@@ -9,9 +9,17 @@ import {
     ATTENDANCE_STATUS_LABELS,
     readTenantTimezone,
 } from "@/lib/attendance/attendance-config";
-import { listKelasRecordsForDayWithStudents } from "@/lib/attendance/attendance-record-data";
-import { tenantAuthorizationStore } from "@/lib/authorization/tenant-authorization-data";
-import { listKelasSessionsForDayWithSlotInfo } from "@/lib/attendance/attendance-kelas-data";
+import {
+    listKelasRecordsForDayWithStudents,
+} from "@/lib/attendance/attendance-record-data";
+import {
+    listKelasSessionsForDayWithSlotInfo,
+    listHomeroomClassGroupIdsForUser,
+    type KelasSessionSlotView,
+} from "@/lib/attendance/attendance-kelas-data";
+import {
+    enforceKelasAttendancePageAccess,
+} from "@/lib/attendance/attendance-kelas-access";
 import { isTenantFeatureEnabled } from "@/lib/features/tenant-feature-policy";
 import { db } from "@/db";
 import { classMembership, schoolPerson, studentProfile } from "@/db/schema";
@@ -21,13 +29,15 @@ import { ScanAbsensiModal } from "../scan-absensi-modal";
 
 type KelasSearchParams = {
     sessionId?: string;
+    view?: string;
 };
 
 /**
- * Absensi Kelas after wayfinder 04: a session belongs to one Teaching Slot
- * (identity = tenant + slotId + date), so the page shows one card per slot
- * session of the day instead of the single daily session. Sessions are born
- * from the schedule worker (or opened manually for corrections).
+ * Absensi Kelas in the per-Guru viewpoint (wayfinder 04, ticket 06): a Guru
+ * lands on their own lessons of the day; the School Admin can toggle to the
+ * per-Rombel viewpoint and sees every session. Wali Kelas (homeroom) get a
+ * read-only view of their rombel's sessions. Sessions themselves come from
+ * the slice-05 worker (or manual correction opens).
  */
 export default async function AbsensiKelasPage({
     params,
@@ -40,9 +50,11 @@ export default async function AbsensiKelasPage({
     await enforceTenantFeatureEnabled(domain, "absensiKelas");
 
     const evaluator = await createHttpTenantAuthorizationEvaluator();
-    const result = await evaluator.evaluate({ surface: "page", domain, operationId: "absensi.attendance.load" });
-    enforceAuthorizedTenantOperation(result, { domain, operationId: "absensi.attendance.load" });
+    const operationId = "absensi.kelas.load";
+    const result = await evaluator.evaluate({ surface: "page", domain, operationId });
+    enforceAuthorizedTenantOperation(result, { domain, operationId });
 
+    const principal = await enforceKelasAttendancePageAccess(domain, operationId);
     const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
     const config = tenant ? await getAbsensiConfig(tenant.id) : null;
     const modes = config?.activeLayers.kelas;
@@ -61,16 +73,47 @@ export default async function AbsensiKelasPage({
     }
 
     const sp = await searchParams;
-    const selectedSessionId = sp.sessionId || "";
-
     const timezone = readTenantTimezone(tenant.settings);
+    const schoolAdmin = principal.schoolAdmin;
+    const requestedView = sp.view === "rombel" ? "rombel" : sp.view === "guru" ? "guru" : null;
+    // Admin defaults to the per-rombel supervisory view; teachers always per-guru.
+    const view: "guru" | "rombel" = schoolAdmin
+        ? (requestedView ?? "rombel")
+        : "guru";
 
-    // Every Kelas session of the day with slot context (subject/teacher/class).
-    const sessions = await listKelasSessionsForDayWithSlotInfo(tenant.id, timezone);
+    // All sessions of the day with slot context, then scoped by viewpoint.
+    let sessions = await listKelasSessionsForDayWithSlotInfo(tenant.id, timezone);
+    if (view === "guru") {
+        sessions = principal.teacherProfileId
+            ? sessions.filter((s) => s.teacherProfileId === principal.teacherProfileId)
+            : [];
+    }
+
+    // Homeroom-only users (no teaching assignments) see their rombel read-only.
+    let homeroomClassGroupIds = new Set<string>();
+    if (!schoolAdmin && !principal.teacherProfileId) {
+        homeroomClassGroupIds = await listHomeroomClassGroupIdsForUser(tenant.id, principal.userId);
+    }
+
+    const selectedSessionId = sp.sessionId || "";
+    const selectable: KelasSessionSlotView[] =
+        view === "guru"
+            ? sessions
+            : homeroomClassGroupIds.size > 0 && !schoolAdmin
+                ? sessions.filter((s) => homeroomClassGroupIds.has(s.classGroupId))
+                : sessions;
     const activeSession =
-        sessions.find((s) => s.id === selectedSessionId) ?? sessions.find((s) => s.status === "open") ?? null;
+        selectable.find((s) => s.id === selectedSessionId) ?? selectable.find((s) => s.status === "open") ?? null;
 
-    // Roster of the active session's rombel (empty without an active session).
+    // Write rights: School Admin (all) or the pengampu of that specific session.
+    // Homeroom teachers are read-only (wayfinder 04).
+    const canWrite = (session: KelasSessionSlotView | null): boolean => {
+        if (!session) return false;
+        if (schoolAdmin) return true;
+        return Boolean(principal.teacherProfileId && session.teacherProfileId === principal.teacherProfileId);
+    };
+
+    // Roster of the active session's rombel.
     const rombelId = activeSession?.classGroupId ?? null;
     const studentRows = rombelId
         ? await db
@@ -93,6 +136,7 @@ export default async function AbsensiKelasPage({
         )
         : [];
     const recordedStudentIds = today.filter((r) => r.status === "hadir").map((r) => r.studentId);
+    const writable = canWrite(activeSession);
 
     return (
         <div className="flex flex-col gap-4 p-4">
@@ -103,20 +147,48 @@ export default async function AbsensiKelasPage({
                 </span>
             </div>
 
-            {sessions.length === 0 ? (
+            {schoolAdmin ? (
+                <form action={`/${domain}/absensi/kelas`} className="flex items-center gap-2 text-sm">
+                    <input type="hidden" name="sessionId" value={activeSession?.id ?? ""} />
+                    <button
+                        type="submit"
+                        name="view"
+                        value="guru"
+                        className={`rounded-md border px-3 py-1.5 font-medium ${view === "guru" ? "border-primary bg-primary/10" : "hover:bg-muted"}`}
+                    >
+                        Per Guru
+                    </button>
+                    <button
+                        type="submit"
+                        name="view"
+                        value="rombel"
+                        className={`rounded-md border px-3 py-1.5 font-medium ${view === "rombel" ? "border-primary bg-primary/10" : "hover:bg-muted"}`}
+                    >
+                        Per Rombel
+                    </button>
+                </form>
+            ) : null}
+
+            {selectable.length === 0 ? (
                 <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
                     <p className="text-muted-foreground">
-                        Belum ada sesi hari ini. Sesi dibuka otomatis dari Jadwal Mengajar saat jendela
-                        pelajaran dimulai; Admin/Guru dapat membuka manual untuk koreksi.
+                        {view === "guru"
+                            ? "Belum ada jadwal pelajaran Anda hari ini."
+                            : "Belum ada sesi hari ini. Sesi dibuka otomatis dari Jadwal Mengajar saat jendela pelajaran dimulai."}
                     </p>
                 </div>
             ) : (
-                <KelasSlotList domain={domain} sessions={sessions} activeSessionId={activeSession?.id ?? ""} />
+                <KelasSlotList
+                    domain={domain}
+                    sessions={selectable}
+                    activeSessionId={activeSession?.id ?? ""}
+                    canWrite={canWrite}
+                />
             )}
 
             {activeSession ? (
                 <>
-                    {activeSession.status === "open" &&
+                    {writable && activeSession.status === "open" &&
                     isTenantFeatureEnabled(tenant.settings, "absensiQr") &&
                     modes.includes("qr") ? (
                         <div className="flex flex-wrap items-center gap-2">
@@ -124,7 +196,21 @@ export default async function AbsensiKelasPage({
                         </div>
                     ) : null}
 
-                    <KelasRecordForm domain={domain} sessionId={activeSession.id} students={studentRows} recordedStudentIds={recordedStudentIds} />
+                    {writable ? (
+                        <KelasRecordForm
+                            domain={domain}
+                            sessionId={activeSession.id}
+                            students={studentRows}
+                            recordedStudentIds={recordedStudentIds}
+                            disabled={activeSession.status === "closed"}
+                        />
+                    ) : (
+                        <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
+                            <p className="text-sm text-muted-foreground">
+                                Anda melihat sesi ini sebagai Wali Kelas — hanya dapat melihat rekaman.
+                            </p>
+                        </div>
+                    )}
 
                     <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
                         <h2 className="text-lg font-semibold mb-3">

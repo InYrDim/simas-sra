@@ -31,6 +31,7 @@ export function KelasRecordForm({
     sessionId,
     students,
     recordedStudentIds = [],
+    disabled = false,
 }: {
     domain: string;
     /** The per-slot session the record belongs to (wayfinder 04 identity). */
@@ -38,6 +39,8 @@ export function KelasRecordForm({
     students: StudentOption[];
     /** Students already marked present (hadir) in this session — cannot be marked again. */
     recordedStudentIds?: string[];
+    /** Closed sessions accept no new records (auto-alpa already filled them). */
+    disabled?: boolean;
 }) {
     const [state, formAction, pending] = useActionState<RecordKelasResult, FormData>(
         (_prev, formData) => recordKelasAction(domain, formData),
@@ -64,7 +67,7 @@ export function KelasRecordForm({
     }
 
     return (
-        <form onSubmit={handleSubmit} className="rounded-lg border bg-card text-card-foreground shadow-sm p-6 space-y-4">
+        <form onSubmit={disabled ? undefined : handleSubmit} className="rounded-lg border bg-card text-card-foreground shadow-sm p-6 space-y-4">
             <div className="space-y-2">
                 <Label htmlFor="studentId">Siswa</Label>
                 <Combobox
@@ -120,19 +123,19 @@ export function KelasRecordForm({
             )}
 
             <div className="flex flex-wrap gap-3">
-                <Button type="submit" name="status" value="hadir" disabled={pending || isResetting || studentId === "" || (selectedStudent ? recorded.has(selectedStudent.id) : false)}>
+                <Button type="submit" name="status" value="hadir" disabled={disabled || pending || isResetting || studentId === "" || (selectedStudent ? recorded.has(selectedStudent.id) : false)}>
                     {pending ? <Spinner /> : <CheckCircle2 aria-hidden />}
                     Hadir
                 </Button>
-                <Button type="submit" name="status" value="izin" disabled={pending || isResetting || studentId === ""} variant="outline">
+                <Button type="submit" name="status" value="izin" disabled={disabled || pending || isResetting || studentId === ""} variant="outline">
                     {pending ? <Spinner /> : <FileClock aria-hidden />}
                     Izin
                 </Button>
-                <Button type="submit" name="status" value="sakit" disabled={pending || isResetting || studentId === ""} variant="outline">
+                <Button type="submit" name="status" value="sakit" disabled={disabled || pending || isResetting || studentId === ""} variant="outline">
                     {pending ? <Spinner /> : <Stethoscope aria-hidden />}
                     Sakit
                 </Button>
-                <Button type="submit" name="status" value="alpa" disabled={pending || isResetting || studentId === ""} variant="secondary">
+                <Button type="submit" name="status" value="alpa" disabled={disabled || pending || isResetting || studentId === ""} variant="secondary">
                     {pending ? <Spinner /> : <XCircle aria-hidden />}
                     Alpa
                 </Button>
