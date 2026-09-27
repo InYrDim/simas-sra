@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 export const PERMISSION_REGISTRY_VERSION = "tenant-permissions@2";
-export const OPERATION_MAP_VERSION = "tenant-operations@5";
+export const OPERATION_MAP_VERSION = "tenant-operations@6";
 
 export const LEGACY_NON_ADMIN_ROLES = ["pimpinan", "staff", "guru", "siswa", "guest"] as const;
 
@@ -483,7 +483,7 @@ const seeds: OperationSeed[] = [
   { id: "authenticated.layout", entryPoints: ["layout:app/(tenant)/[domain]/(authenticated)/layout.tsx"], classification: "system-policy", context: "none", legacy: ["tenantRole"] },
   { id: "dashboard.demo-action", entryPoints: [a("dashboard/actions.ts", "dummyUpdateSettings")], classification: "placeholder", gate: "none", context: "none", legacy: ["legacy-school-admin"] },
   { id: "absensi.attendance.load", entryPoints: [p("absensi"), p("absensi/gerbang"), p("absensi/kelas")], permissions: ["absensi.attendance.view"], legacy: ["entitlement"] },
-  { id: "absensi.settings.save", entryPoints: [a("absensi/actions.ts", "saveAbsensiConfigAction"), a("absensi/actions.ts", "saveModeSettingsAction"), p("absensi/settings"), p("absensi/settings/layers"), p("absensi/settings/modes"), p("absensi/settings/modes/[mode]"), p("absensi/settings/schedule"), a("absensi/settings/schedule/actions.ts", "saveGerbangScheduleAction"), a("absensi/settings/schedule/actions.ts", "loadGerbangScheduleAction"), a("absensi/settings/schedule/actions.ts", "importGerbangScheduleAction")], permissions: ["absensi.settings.update"], gate: "write", legacy: [] },
+  { id: "absensi.settings.save", entryPoints: [a("absensi/actions.ts", "saveAbsensiConfigAction"), a("absensi/actions.ts", "saveModeSettingsAction"), a("absensi/actions.ts", "saveKelasCloseToleranceAction"), p("absensi/settings"), p("absensi/settings/layers"), p("absensi/settings/modes"), p("absensi/settings/modes/[mode]"), p("absensi/settings/schedule"), p("absensi/settings/kelas"), a("absensi/settings/schedule/actions.ts", "saveGerbangScheduleAction"), a("absensi/settings/schedule/actions.ts", "loadGerbangScheduleAction"), a("absensi/settings/schedule/actions.ts", "importGerbangScheduleAction")], permissions: ["absensi.settings.update"], gate: "write", legacy: [] },
   { id: "absensi.gerbang.record", entryPoints: [a("absensi/actions.ts", "recordGerbangAction")], permissions: ["absensi.gerbang.record"], gate: "write", legacy: ["entitlement"] },
   { id: "absensi.qr.record", entryPoints: [p("scan/absensi/[sessionId]"), a("absensi/actions.ts", "recordQrAction")], permissions: ["absensi.qr.record"], gate: "write", legacy: ["entitlement"] },
   { id: "absensi.gerbang.manage", entryPoints: [a("absensi/actions.ts", "openGerbangSessionAction"), a("absensi/actions.ts", "closeGerbangSessionAction"), a("absensi/actions.ts", "deleteGerbangSessionAction")], permissions: ["absensi.gerbang.manage"], gate: "write", legacy: [] },

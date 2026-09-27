@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
 
 import { db } from "@/db";
-import { academicSemester, teachingAssignment, teachingPeriod, teachingSlot } from "@/db/schema";
+import { academicSemester, attendanceSession, teachingAssignment, teachingPeriod, teachingSlot } from "@/db/schema";
 import type {
   TeachingSlotAssignmentFacts,
   TeachingPeriodRecord,
@@ -55,11 +55,19 @@ export const teachingSlotStore: TeachingSlotServiceStore = {
       .where(and(eq(teachingSlot.tenantId, tenantId), eq(teachingAssignment.academicYearId, academicYearId)));
   },
 
-  async sessionCountsBySlotId(_tenantId, _slotIds) {
-    // Per-slot attendance sessions arrive with slice 05 (session rows gain a
-    // slot_id column there). Until that migration exists no slot can be
-    // in-use, so the delete guard truthfully reports zero for every slot.
-    return new Map<string, number>();
+  async sessionCountsBySlotId(tenantId, slotIds) {
+    // Delete guard (wayfinder 04): a slot that already owns attendance sessions
+    // cannot be deleted. Tenant-scoped count over attendance_session.slot_id.
+    if (slotIds.length === 0) return new Map();
+    const rows = await db
+      .select({ slotId: attendanceSession.slotId })
+      .from(attendanceSession)
+      .where(and(eq(attendanceSession.tenantId, tenantId), inArray(attendanceSession.slotId, [...slotIds])));
+    const counts = new Map<string, number>();
+    for (const row of rows) {
+      if (row.slotId) counts.set(row.slotId, (counts.get(row.slotId) ?? 0) + 1);
+    }
+    return counts;
   },
 
   async activeSemester(tenantId, academicYearId) {

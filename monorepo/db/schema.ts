@@ -16,6 +16,7 @@ import {
   time,
   timestamp,
   unique,
+  uniqueIndex,
   varchar,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
@@ -914,6 +915,11 @@ export const attendanceSession = pgTable(
     tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
     layer: AttendanceSessionLayerEnum().notNull(),
     sessionDate: date("session_date").notNull(),
+    /**
+     * Owning Teaching Slot for Kelas-layer sessions (NULL for Gerbang).
+     * Identity for Kelas: unique per (tenant, slotId, sessionDate).
+     */
+    slotId: varchar("slot_id", { length: 36 }),
     plannedStart: time("planned_start", { precision: 0 }).notNull(),
     plannedEnd: time("planned_end", { precision: 0 }).notNull(),
     openedAt: timestamp("opened_at", { precision: 3 }).notNull(),
@@ -929,11 +935,21 @@ export const attendanceSession = pgTable(
     updatedAt: timestamp("updated_at", { precision: 3 }).notNull(),
   },
   (table) => [
-    unique("attendance_session_tenant_layer_date_unique").on(table.tenantId, table.layer, table.sessionDate),
+    // Kelas sessions are per-slot: one session per (tenant, slot, date).
+    // Gerbang stays one session per day — enforced by the partial unique below
+    // (uniqueIndex(...).where) since the multi-column unique cannot filter rows.
+    unique("attendance_session_tenant_slot_date_unique").on(table.tenantId, table.slotId, table.sessionDate),
+    uniqueIndex("attendance_session_tenant_gerbang_date_unique").on(table.tenantId, table.sessionDate).where(sql`${table.layer} = 'gerbang'`),
     unique("attendance_session_tenant_id_id_unique").on(table.tenantId, table.id),
+    foreignKey({ columns: [table.tenantId, table.slotId], foreignColumns: [teachingSlot.tenantId, teachingSlot.id], name: "attendance_session_tenant_slot_fkey" }),
     foreignKey({ columns: [table.tenantId, table.openedByUserId], foreignColumns: [user.tenantId, user.id], name: "attendance_session_tenant_actor_fkey" }),
     check("attendance_session_version_check", sql`${table.version} > 0`),
     check("attendance_session_window_check", sql`${table.plannedEnd} > ${table.plannedStart}`),
+    check(
+      "attendance_session_slot_layer_check",
+      sql`(${table.layer} = 'kelas' AND ${table.slotId} IS NOT NULL) OR (${table.layer} = 'gerbang' AND ${table.slotId} IS NULL)`,
+    ),
+    index("attendance_session_tenant_date_layer_idx").on(table.tenantId, table.sessionDate, table.layer),
   ],
 );
 
@@ -997,7 +1013,12 @@ export const attendanceRecord = pgTable(
     mode: AttendanceRecordModeEnum().notNull(),
     recordedAt: timestamp("recorded_at", { precision: 3 }).notNull(),
     status: AttendanceRecordStatusEnum().notNull(),
-    recordedByUserId: varchar("recorded_by_user_id", { length: 36 }).notNull(),
+    /**
+     * Actor who wrote the record; NULL when written automatically by the system
+     * (auto-alpa fill at Kelas session close, wayfinder 04) — mirrors the
+     * `openedByUserId NULL` pattern on attendance_session.
+     */
+    recordedByUserId: varchar("recorded_by_user_id", { length: 36 }),
     outOfSession: boolean("out_of_session").default(false).notNull(),
     notes: varchar("notes", { length: 500 }),
     version: integer("version").default(1).notNull(),

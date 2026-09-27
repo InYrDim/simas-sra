@@ -1,0 +1,1 @@
+ALTER TABLE "attendance_record" ALTER COLUMN "recorded_by_user_id" DROP NOT NULL;

@@ -53,7 +53,7 @@ Tiket implementasi ada di `issues/` (01–07), siap dikerjakan dengan `/implemen
 | 2 | [02](./issues/02-penugasan-mengajar-master-data.md) ✅ selesai | Penugasan Mengajar di Master Data (paralel dengan 03) | — |
 | 3 | [03](./issues/03-skema-slot-jadwal.md) ✅ selesai | Skema Slot Jadwal + preset periode + validator konflik (paralel dengan 02) | — |
 | 4 | [04](./issues/04-crud-jadwal-mengajar.md) ✅ selesai | CRUD Jadwal Mengajar (membuat `penjadwalanWrite`) | 01, 02, 03 |
-| 5 | [05](./issues/05-sesi-per-pelajaran-backend.md) | Sesi per pelajaran — backend (migrasi destruktif + worker) | 04 |
+| 5 | [05](./issues/05-sesi-per-pelajaran-backend.md) ✅ selesai | Sesi per pelajaran — backend (migrasi destruktif + worker) | 04 |
 | 6 | [06](./issues/06-sesi-per-pelajaran-ui.md) | Sesi per pelajaran — UI per Guru + permission Guru | 05 |
 | 7 | [07](./issues/07-relokasi-jadwal-sekolah.md) | Relokasi Jadwal Sekolah (independen; disarankan setelah 04) | — |
 

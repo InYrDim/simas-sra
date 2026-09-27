@@ -230,11 +230,10 @@ export function createTeachingSlotService(dependencies: { store: TeachingSlotSer
     },
 
     /**
-     * Wayfinder ticket 04: a slot that already has attendance sessions is
-     * blocked from deletion. The store counts bound sessions; slice 05 wires
-     * the real per-slot session table (session rows carry a slot_id column
-     * from that slice onward), so until then no slot can report an in-use
-     * count and every delete passes the guard.
+     * Wayfinder tickets 04 + 05: a slot that already has attendance sessions is
+     * blocked from deletion — the store counts real per-slot session rows
+     * (attendance_session.slot_id), so admin edits the slot times or deletes
+     * the sessions through the separate history flow first.
      */
     async deleteSlot(raw: { tenantId: string; actorUserId: string; slotId: string }): Promise<TeachingSlotWriteResult> {
       if (!raw.slotId) return failure("invalid-input");

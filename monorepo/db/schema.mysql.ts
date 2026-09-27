@@ -432,6 +432,30 @@ export const studentProfile = mysqlTable(
   ],
 );
 
+/** MySQL mirror of teaching_slot (see schema.ts for the canonical notes). */
+export const teachingSlot = mysqlTable(
+  "teaching_slot",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    teachingAssignmentId: varchar("teaching_assignment_id", { length: 36 }).notNull(),
+    dayOfWeek: mysqlEnum("dayOfWeek", ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]).notNull(),
+    startTime: varchar("start_time", { length: 5 }).notNull(),
+    endTime: varchar("end_time", { length: 5 }).notNull(),
+    semester: mysqlEnum("semester", ["odd", "even"]).notNull(),
+    version: int("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { fsp: 3 }).notNull(),
+    updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
+  },
+  (table) => [
+    unique("teaching_slot_tenant_id_unique").on(table.tenantId, table.id),
+    foreignKey({ columns: [table.tenantId, table.teachingAssignmentId], foreignColumns: [teachingAssignment.tenantId, teachingAssignment.id], name: "teaching_slot_assignment_fkey" }),
+    index("teaching_slot_scope_idx").on(table.tenantId, table.dayOfWeek, table.semester, table.startTime),
+    check("teaching_slot_window_check", sql`${table.endTime} > ${table.startTime}`),
+    check("teaching_slot_version_check", sql`${table.version} > 0`),
+  ],
+);
+
 export const attendanceSession = mysqlTable(
   "attendance_session",
   {
@@ -439,6 +463,8 @@ export const attendanceSession = mysqlTable(
     tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
     layer: mysqlEnum("layer", ["gerbang", "kelas"]).notNull(),
     sessionDate: date("session_date", { mode: "string" }).notNull(),
+    /** Owning Teaching Slot for Kelas sessions (NULL for Gerbang); see schema.ts. */
+    slotId: varchar("slot_id", { length: 36 }),
     plannedStart: time("planned_start", { fsp: 0 }).notNull(),
     plannedEnd: time("planned_end", { fsp: 0 }).notNull(),
     openedAt: timestamp("opened_at", { fsp: 3 }).notNull(),
@@ -451,11 +477,16 @@ export const attendanceSession = mysqlTable(
     updatedAt: timestamp("updated_at", { fsp: 3 }).notNull(),
   },
   (table) => [
-    unique("attendance_session_tenant_layer_date_unique").on(table.tenantId, table.layer, table.sessionDate),
+    unique("attendance_session_tenant_slot_date_unique").on(table.tenantId, table.slotId, table.sessionDate),
     unique("attendance_session_tenant_id_id_unique").on(table.tenantId, table.id),
+    foreignKey({ columns: [table.tenantId, table.slotId], foreignColumns: [teachingSlot.tenantId, teachingSlot.id], name: "attendance_session_tenant_slot_fkey" }),
     foreignKey({ columns: [table.tenantId, table.openedByUserId], foreignColumns: [user.tenantId, user.id], name: "attendance_session_tenant_actor_fkey" }),
     check("attendance_session_version_check", sql`${table.version} > 0`),
     check("attendance_session_window_check", sql`${table.plannedEnd} > ${table.plannedStart}`),
+    check("attendance_session_slot_layer_check", sql`(
+      (${table.layer} = 'kelas' AND ${table.slotId} IS NOT NULL)
+      OR (${table.layer} = 'gerbang' AND ${table.slotId} IS NULL)
+    )`),
   ],
 );
 
@@ -470,7 +501,8 @@ export const attendanceRecord = mysqlTable(
     mode: mysqlEnum("mode", ["manual", "qr", "kartu"]).notNull(),
     recordedAt: timestamp("recorded_at", { fsp: 3 }).notNull(),
     status: mysqlEnum("status", ["masuk", "keluar", "hadir", "izin", "sakit", "alpa"]).notNull(),
-    recordedByUserId: varchar("recorded_by_user_id", { length: 36 }).notNull(),
+    /** Actor who wrote the record; NULL for system writes (auto-alpa at Kelas session close). */
+    recordedByUserId: varchar("recorded_by_user_id", { length: 36 }),
     outOfSession: boolean("out_of_session").default(false).notNull(),
     notes: varchar("notes", { length: 500 }),
     version: int("version").default(1).notNull(),

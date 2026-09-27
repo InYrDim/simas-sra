@@ -28,12 +28,15 @@ function studentLabel(student: StudentOption) {
 
 export function KelasRecordForm({
     domain,
+    sessionId,
     students,
     recordedStudentIds = [],
 }: {
     domain: string;
+    /** The per-slot session the record belongs to (wayfinder 04 identity). */
+    sessionId: string;
     students: StudentOption[];
-    /** Students already marked present (hadir) today — cannot be marked again. */
+    /** Students already marked present (hadir) in this session — cannot be marked again. */
     recordedStudentIds?: string[];
 }) {
     const [state, formAction, pending] = useActionState<RecordKelasResult, FormData>(
@@ -89,6 +92,7 @@ export function KelasRecordForm({
                     </ComboboxContent>
                 </Combobox>
                 <input type="hidden" name="studentId" value={studentId} />
+            <input type="hidden" name="sessionId" value={sessionId} />
             </div>
 
             <div className="space-y-2">
