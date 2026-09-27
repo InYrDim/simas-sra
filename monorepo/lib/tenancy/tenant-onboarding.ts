@@ -116,7 +116,11 @@ export function createCompleteTenantOnboardingCommand(dependencies: {
       const settings = validateSettings(payload);
       const completedAt = now();
       const trialDays = payload.defaultTrialDays ?? 31;
-      const trialEndsAt = new Date(completedAt.getTime() + trialDays * 24 * 60 * 60 * 1000);
+      // Roadmap: the standard trial lasts one UTC calendar month (Jan 31 ends
+      // Feb 28, not Mar 3). Custom Provider durations use exact day arithmetic.
+      const trialEndsAt = trialDays === 31
+        ? addOneUtcCalendarMonth(completedAt)
+        : new Date(completedAt.getTime() + trialDays * 24 * 60 * 60 * 1000);
       const lifecycle = {
         onboardingCompletedAt: completedAt,
         trialStartedAt: completedAt,

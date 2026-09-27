@@ -141,7 +141,7 @@ export const TENANT_ROLE_TEMPLATES: readonly TenantRoleTemplate[] = Object.freez
     "ppdb.results.view",
     "extracurriculars.extracurriculars.view",
     "student-organizations.organizations.view",
-  ], ["master-overview", "master-data", "master-import", "e-library", "persuratan", "ppdb", "ulangan", "penjadwalan", "pengguna", "security-history", "settings-system", "backup-restore"]),
+  ], ["master-overview", "master-data", "master-import", "e-library", "persuratan", "ppdb", "ulangan", "penjadwalan", "kelas", "pengguna", "security-history", "settings-system", "backup-restore"]),
   template("pimpinan", "Pimpinan", "Akses luas untuk kepala sekolah dan manajemen: kelola warga, akademik, dan kegiatan.", [
     "people.people.view",
     "people.people.view-contact",

@@ -62,7 +62,12 @@ function applyCorsHeaders(req: NextRequest, response: NextResponse) {
   return response;
 }
 
-export async function proxy(req: NextRequest) {
+type ProxyDeps = {
+  /** Injectable for tests; defaults to the real better-auth session probe. */
+  sessionCheck?: (req: NextRequest) => Promise<boolean>;
+};
+
+export async function proxy(req: NextRequest, { sessionCheck = hasSession }: ProxyDeps = {}) {
   if (req.method === "OPTIONS") {
     return applyCorsHeaders(req, new NextResponse(null, { status: 204 }));
   }
@@ -88,8 +93,16 @@ export async function proxy(req: NextRequest) {
   }
 
   if (route.kind === "rewrite") {
-    const tenantDomain = getTenantSubdomain(req.headers.get("host") ?? "", process.env.APP_DOMAIN);
-    if (req.method !== "OPTIONS" && tenantDomain && isProtectedTenantPage(route.pathname, tenantDomain) && !(await hasSession(req))) {
+    const tenantDomain = getTenantSubdomain(
+      // Trust the forwarded host first: behind a reverse proxy, `host` may be
+      // the internal upstream (e.g. "app:3000"), which would make every tenant
+      // request look like it belongs to a tenant named "app".
+      req.headers.get("x-forwarded-host")?.split(",", 1)[0] ??
+        req.headers.get("host") ??
+        "",
+      process.env.APP_DOMAIN,
+    );
+    if (req.method !== "OPTIONS" && tenantDomain && isProtectedTenantPage(route.pathname, tenantDomain) && !(await sessionCheck(req))) {
       const destination = publicRequestUrl(req, "/login");
       destination.searchParams.set("continuation", route.pathname);
       return applyCorsHeaders(req, NextResponse.redirect(destination));

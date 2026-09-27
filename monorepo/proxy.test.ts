@@ -5,6 +5,12 @@ import { NextRequest } from "next/server";
 
 import { proxy } from "@/proxy";
 
+// Run via `pnpm test:proxy`: the middleware bundle imports `server-only`, which
+// needs the react-server resolution condition (`tsx --conditions=react-server`).
+
+/** Session stub: acts like an authenticated visitor so protected rewrites proceed. */
+const sessionOk = async () => true;
+
 function request(host: string, pathname: string) {
   return new NextRequest(`http://${host}${pathname}`, {
     headers: { host },
@@ -67,7 +73,9 @@ test("redirects internal session-scoped PPDB paths to the public route", async (
 });
 
 test("keeps PPDB administration separate from the public PPDB page", async () => {
-  const response = await proxy(request("sekolah.localhost:3000", "/ppdb/settings"));
+  const response = await proxy(request("sekolah.localhost:3000", "/ppdb/settings"), {
+    sessionCheck: sessionOk,
+  });
 
   assert.equal(response.status, 200);
   assert.equal(
@@ -92,7 +100,9 @@ test("rewrites the Tenant host root to the public landing page route", async () 
 });
 
 test("rewrites ordinary Tenant routes and forwards the canonical path to guards", async () => {
-  const response = await proxy(request("sekolah.localhost:3000", "/dashboard"));
+  const response = await proxy(request("sekolah.localhost:3000", "/dashboard"), {
+    sessionCheck: sessionOk,
+  });
 
   assert.equal(response.status, 200);
   assert.equal(
@@ -104,7 +114,7 @@ test("rewrites ordinary Tenant routes and forwards the canonical path to guards"
 
 test("keeps rewrites internal while forwarding the canonical public origin", async () => {
   const host = "uptd-sdn-191-inpres-batunapara.simas.biz.id";
-  const response = await proxy(forwardedRequest(host, "/dashboard"));
+  const response = await proxy(forwardedRequest(host, "/dashboard"), { sessionCheck: sessionOk });
 
   assert.equal(
     response.headers.get("x-middleware-rewrite"),
@@ -119,4 +129,26 @@ test("keeps rewrites internal while forwarding the canonical public origin", asy
 test("rewrites Tenant login without treating the requested domain as membership", async () => {
   const response = await proxy(request("sekolah.localhost:3000", "/login"));
   assert.equal(response.headers.get("x-middleware-rewrite"), "http://sekolah.localhost:3000/sekolah/login");
+});
+
+test("redirects anonymous visitors on protected Tenant pages to the Tenant login", async () => {
+  const response = await proxy(request("sekolah.localhost:3000", "/dashboard"), {
+    sessionCheck: async () => false,
+  });
+
+  assert.equal(response.status, 307);
+  assert.equal(
+    response.headers.get("location"),
+    "http://sekolah.localhost:3000/login?continuation=%2Fsekolah%2Fdashboard",
+  );
+});
+
+test("keeps public Tenant pages reachable without a session", async () => {
+  const response = await proxy(request("sekolah.localhost:3000", "/"), {
+    sessionCheck: async () => false,
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("x-middleware-rewrite"), "http://sekolah.localhost:3000/sekolah");
+  assert.equal(response.headers.get("location"), null);
 });
