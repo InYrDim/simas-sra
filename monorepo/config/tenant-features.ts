@@ -201,6 +201,14 @@ export const TENANT_FEATURES = [
     requires: ["penjadwalan"],
   },
   {
+    key: "penjadwalanWrite",
+    label: "Kelola Penjadwalan",
+    description: "Mengizinkan Tenant menyusun Jadwal Mengajar (Slot Jadwal) per Rombongan Belajar.",
+    functionalDomain: "scheduling",
+    routes: ["/jadwal/mengajar"],
+    requires: ["penjadwalan", "penjadwalanRead"],
+  },
+  {
     key: "integrasi",
     label: "Integrasi",
     description: "Fitur induk untuk seluruh akses dan operasi Integrasi.",

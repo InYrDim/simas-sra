@@ -56,6 +56,9 @@ export function readTenantFeatureSelection(settings: unknown): TenantFeatureSele
   // penjadwalan flag keep their current access; providers can still turn it off.
   if (!Object.prototype.hasOwnProperty.call(features, "penjadwalan")) selection.penjadwalan = true;
   if (!Object.prototype.hasOwnProperty.call(features, "penjadwalanRead")) selection.penjadwalanRead = true;
+  // Composing the weekly schedule is new; keep it opt-in like the other
+  // scheduling modes (parent/Read stay on for legacy tenants above).
+  if (!Object.prototype.hasOwnProperty.call(features, "penjadwalanWrite")) selection.penjadwalanWrite = false;
   for (const key of [
     "absensiManual",
     "absensiQr",

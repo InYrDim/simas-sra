@@ -27,7 +27,7 @@ const legacyMinimum = [
 test("the approved registry and operation map form a valid executable contract", () => {
   assert.equal(PERMISSION_REGISTRY_VERSION, "tenant-permissions@2");
   assert.equal(OPERATION_MAP_VERSION, "tenant-operations@5");
-  assert.equal(permissionRegistry.length, 170);
+  assert.equal(permissionRegistry.length, 171);
 
   // Entry points uncovered before the rbac:coverage sweep must stay mapped.
   const mappedEntryPoints = new Set(
@@ -235,6 +235,22 @@ test("academic operations use exact operation permissions and independent write 
       assert.equal(operation.operationalGate, "write", id);
     }
   }
+});
+
+test("Penjadwalan Jadwal Mengajar operations enforce write gating and School Admin context", () => {
+  const load = tenantOperationMap.find((candidate) => candidate.id === "jadwal.mengajar.load");
+  assert.ok(load, "jadwal.mengajar.load");
+  assert.deepEqual(load.requiredPermissions, ["jadwal.mengajar.view"]);
+  assert.equal(load.operationalGate, "read");
+  assert.equal(load.contextualPolicy, "school-admin-only");
+
+  const write = tenantOperationMap.find((candidate) => candidate.id === "jadwal.mengajar.write");
+  assert.ok(write, "jadwal.mengajar.write");
+  assert.deepEqual(write.requiredPermissions, ["jadwal.mengajar.update"]);
+  assert.equal(write.operationalGate, "write");
+  assert.equal(write.contextualPolicy, "school-admin-only");
+  // Every slot/period mutation entry point is registered on the write operation.
+  assert.ok(write.entryPoints.length >= 5, "write entry points");
 });
 
 test("custom roles reject privileged keys and incomplete dependency selections", () => {

@@ -31,6 +31,7 @@ const selection = {
   absensiWhatsappNotify: false,
   penjadwalan: true,
   penjadwalanRead: true,
+  penjadwalanWrite: false,
   integrasi: false,
   integrasiRead: false,
 };
@@ -76,6 +77,7 @@ test("feature settings preserve legacy Ulangan and PPDB access until explicitly 
     absensiWhatsappNotify: false,
     penjadwalan: true,
     penjadwalanRead: true,
+    penjadwalanWrite: false,
     integrasi: false,
     integrasiRead: false,
   });

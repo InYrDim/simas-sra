@@ -167,6 +167,23 @@ test("Penjadwalan stays enabled for legacy tenants that never saved a flag", () 
   assert.equal(isTenantFeatureEnabled({}, "penjadwalanRead"), true);
 });
 
+test("penjadwalanWrite is opt-in and gated by the Penjadwalan parent", () => {
+  // New capability, not grandfathered in for legacy tenants.
+  assert.equal(isTenantFeatureEnabled({}, "penjadwalanWrite"), false);
+  const on = {
+    features: { ...fullyEnabledMasterData.features, penjadwalan: true, penjadwalanRead: true, penjadwalanWrite: true },
+  };
+  assert.equal(isTenantFeatureEnabled(on, "penjadwalanWrite"), true);
+  const writeOnParentOff = {
+    features: { ...fullyEnabledMasterData.features, penjadwalan: false, penjadwalanRead: true, penjadwalanWrite: true },
+  };
+  assert.equal(isTenantFeatureEnabled(writeOnParentOff, "penjadwalanWrite"), false);
+  const writeOnReadOff = {
+    features: { ...fullyEnabledMasterData.features, penjadwalan: true, penjadwalanRead: false, penjadwalanWrite: true },
+  };
+  assert.equal(isTenantFeatureEnabled(writeOnReadOff, "penjadwalanWrite"), false);
+});
+
 test("Penjadwalan child can be disabled while the parent stays enabled", () => {
   const settings = {
     features: { ...fullyEnabledMasterData.features, penjadwalan: true, penjadwalanRead: false },
