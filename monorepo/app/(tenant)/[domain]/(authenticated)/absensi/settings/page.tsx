@@ -95,25 +95,6 @@ export default async function AbsensiSettingsPage({
                         </div>
                     </section>
 
-                    {activeLayers.includes("gerbang") ? (
-                        <section className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
-                            <div className="flex items-center gap-2">
-                                <CalendarClock className="size-5" aria-hidden />
-                                <h2 className="text-lg font-semibold">Jadwal Sekolah (Gerbang)</h2>
-                            </div>
-                            <p className="mt-2 text-sm text-muted-foreground">
-                                Atur jam masuk/pulang per hari dan tanggal libur. Sesi Gerbang dibuka dan ditutup
-                                otomatis mengikuti jadwal; sesi manual tetap bisa dibuat kapan saja.
-                            </p>
-                            <Link
-                                href={`/${domain}/absensi/settings/schedule`}
-                                className="mt-4 inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted"
-                            >
-                                Atur jadwal
-                            </Link>
-                        </section>
-                    ) : null}
-
                     {activeLayers.includes("kelas") ? (
                         <section className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
                             <div className="flex items-center gap-2">

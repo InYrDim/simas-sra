@@ -7,7 +7,12 @@ import { enforceTenantFeatureEnabled } from "@/lib/features/tenant-feature-route
 import { listSchoolHolidays, listSchoolScheduleDays } from "@/lib/attendance/attendance-schedule-data";
 import { GerbangScheduleForm } from "./gerbang-schedule-form";
 
-export default async function AbsensiScheduleSettingsPage({
+/**
+ * Jadwal Sekolah (relocated from /absensi/settings/schedule, ticket 07).
+ * The gate intentionally stays on `absensiGerbang` — the gate follows the
+ * data owner, so disabling Penjadwalan never locks Gerbang configuration.
+ */
+export default async function JadwalSekolahPage({
     params,
 }: {
     params: Promise<{ domain: string }>;
@@ -16,7 +21,7 @@ export default async function AbsensiScheduleSettingsPage({
     await enforceTenantFeatureEnabled(domain, "absensiGerbang");
 
     const evaluator = await createHttpTenantAuthorizationEvaluator();
-    const operationId = "absensi.settings.save";
+    const operationId = "jadwal.sekolah.load";
     const result = await evaluator.evaluate({ surface: "page", domain, operationId });
     enforceAuthorizedTenantOperation(result, { domain, operationId });
 
@@ -27,14 +32,19 @@ export default async function AbsensiScheduleSettingsPage({
     return (
         <div className="flex flex-col gap-4 p-4">
             <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-bold">Jadwal Absensi Gerbang</h1>
+                <h1 className="text-2xl font-bold">Jadwal Sekolah</h1>
                 <Link
-                    href={`/${domain}/absensi/settings`}
+                    href={`/${domain}/jadwal/mengajar`}
                     className="rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted"
                 >
                     Kembali
                 </Link>
             </div>
+
+            <p className="text-sm text-muted-foreground">
+                Jadwal ini dipakai absensi Gerbang: sesi Gerbang dibuka otomatis pada jam masuk
+                dan ditutup pada jam pulang untuk hari yang efektif.
+            </p>
 
             <GerbangScheduleForm domain={domain} days={days} holidays={holidays} />
         </div>

@@ -26,8 +26,8 @@ const legacyMinimum = [
 
 test("the approved registry and operation map form a valid executable contract", () => {
   assert.equal(PERMISSION_REGISTRY_VERSION, "tenant-permissions@2");
-  assert.equal(OPERATION_MAP_VERSION, "tenant-operations@6");
-  assert.equal(permissionRegistry.length, 171);
+  assert.equal(OPERATION_MAP_VERSION, "tenant-operations@7");
+  assert.equal(permissionRegistry.length, 173);
 
   // Entry points uncovered before the rbac:coverage sweep must stay mapped.
   const mappedEntryPoints = new Set(
@@ -35,9 +35,9 @@ test("the approved registry and operation map form a valid executable contract",
   );
   for (const entryPoint of [
       "action:app/(tenant)/[domain]/(authenticated)/absensi/actions.ts#saveModeSettingsAction",
-      "action:app/(tenant)/[domain]/(authenticated)/absensi/settings/schedule/actions.ts#saveGerbangScheduleAction",
-      "action:app/(tenant)/[domain]/(authenticated)/absensi/settings/schedule/actions.ts#loadGerbangScheduleAction",
-      "action:app/(tenant)/[domain]/(authenticated)/absensi/settings/schedule/actions.ts#importGerbangScheduleAction",
+      "action:app/(tenant)/[domain]/(authenticated)/jadwal/sekolah/actions.ts#saveGerbangScheduleAction",
+      "action:app/(tenant)/[domain]/(authenticated)/jadwal/sekolah/actions.ts#loadGerbangScheduleAction",
+      "action:app/(tenant)/[domain]/(authenticated)/jadwal/sekolah/actions.ts#importGerbangScheduleAction",
       "action:app/(tenant)/[domain]/(authenticated)/integrasi/whatsapp/actions.ts#submitWhatsAppBotRequestAction",
       "action:app/(tenant)/[domain]/(authenticated)/integrasi/whatsapp/actions.ts#startWhatsAppBotSelfServiceAction",
       "action:app/(tenant)/[domain]/(authenticated)/integrasi/whatsapp/actions.ts#refreshWhatsAppBotSelfServiceQrAction",
@@ -52,7 +52,7 @@ test("the approved registry and operation map form a valid executable contract",
       "page:app/(tenant)/[domain]/(authenticated)/absensi/settings/layers/page.tsx",
       "page:app/(tenant)/[domain]/(authenticated)/absensi/settings/modes/[mode]/page.tsx",
       "page:app/(tenant)/[domain]/(authenticated)/absensi/settings/modes/page.tsx",
-      "page:app/(tenant)/[domain]/(authenticated)/absensi/settings/schedule/page.tsx",
+      "page:app/(tenant)/[domain]/(authenticated)/jadwal/sekolah/page.tsx",
       "page:app/(tenant)/[domain]/(authenticated)/kelas/page.tsx",
       "page:app/(tenant)/[domain]/(authenticated)/scan/absensi/[sessionId]/page.tsx",
       "page:app/(tenant)/[domain]/(authenticated)/settings/roles/templates/page.tsx",

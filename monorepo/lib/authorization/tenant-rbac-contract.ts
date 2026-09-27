@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 export const PERMISSION_REGISTRY_VERSION = "tenant-permissions@2";
-export const OPERATION_MAP_VERSION = "tenant-operations@6";
+export const OPERATION_MAP_VERSION = "tenant-operations@7";
 
 export const LEGACY_NON_ADMIN_ROLES = ["pimpinan", "staff", "guru", "siswa", "guest"] as const;
 
@@ -226,6 +226,8 @@ const activeSeeds: readonly CatalogSeed[] = [
   ["jadwal.mengajar.view"],
   ["jadwal.mengajar.update", [], "medium"],
   ["jadwal.events.view"],
+  ["jadwal.sekolah.view"],
+  ["jadwal.sekolah.update", [], "medium"],
   ["teaching-assignments.teaching.view"],
   ["teaching-assignments.teaching.update", [], "medium"],
   ["tenant.permissions.view", [], "sensitive", "school-admin-only"],
@@ -271,6 +273,7 @@ const resourceLabels: Record<string, string> = {
   questions: "Pertanyaan", attendance: "Kehadiran", grades: "Nilai", roles: "Role Tenant", assignments: "Assignment role", self: "Diri Sendiri",
   "effective-access": "Akses efektif", "authorization-audit": "Audit otorisasi", accounts: "Akun non-admin", permissions: "Permission",
   teaching: "Penugasan Mengajar",
+  sekolah: "Jadwal Sekolah",
 };
 
 const actionLabels: Record<string, string> = {
@@ -484,7 +487,7 @@ const seeds: OperationSeed[] = [
   { id: "dashboard.demo-action", entryPoints: [a("dashboard/actions.ts", "dummyUpdateSettings")], classification: "placeholder", gate: "none", context: "none", legacy: ["legacy-school-admin"] },
   { id: "absensi.attendance.load", entryPoints: [p("absensi"), p("absensi/gerbang")], permissions: ["absensi.attendance.view"], legacy: ["entitlement"] },
   { id: "absensi.kelas.load", entryPoints: [p("absensi/kelas")], permissions: ["absensi.attendance.view"], context: "assigned-or-self", legacy: ["entitlement"] },
-  { id: "absensi.settings.save", entryPoints: [a("absensi/actions.ts", "saveAbsensiConfigAction"), a("absensi/actions.ts", "saveModeSettingsAction"), a("absensi/actions.ts", "saveKelasCloseToleranceAction"), p("absensi/settings"), p("absensi/settings/layers"), p("absensi/settings/modes"), p("absensi/settings/modes/[mode]"), p("absensi/settings/schedule"), p("absensi/settings/kelas"), a("absensi/settings/schedule/actions.ts", "saveGerbangScheduleAction"), a("absensi/settings/schedule/actions.ts", "loadGerbangScheduleAction"), a("absensi/settings/schedule/actions.ts", "importGerbangScheduleAction")], permissions: ["absensi.settings.update"], gate: "write", legacy: [] },
+  { id: "absensi.settings.save", entryPoints: [a("absensi/actions.ts", "saveAbsensiConfigAction"), a("absensi/actions.ts", "saveModeSettingsAction"), a("absensi/actions.ts", "saveKelasCloseToleranceAction"), p("absensi/settings"), p("absensi/settings/layers"), p("absensi/settings/modes"), p("absensi/settings/modes/[mode]"), p("absensi/settings/kelas")], permissions: ["absensi.settings.update"], gate: "write", legacy: [] },
   { id: "absensi.gerbang.record", entryPoints: [a("absensi/actions.ts", "recordGerbangAction")], permissions: ["absensi.gerbang.record"], gate: "write", legacy: ["entitlement"] },
   { id: "absensi.qr.record", entryPoints: [p("scan/absensi/[sessionId]"), a("absensi/actions.ts", "recordQrAction")], permissions: ["absensi.qr.record"], gate: "write", legacy: ["entitlement"] },
   { id: "absensi.gerbang.manage", entryPoints: [a("absensi/actions.ts", "openGerbangSessionAction"), a("absensi/actions.ts", "closeGerbangSessionAction"), a("absensi/actions.ts", "deleteGerbangSessionAction")], permissions: ["absensi.gerbang.manage"], gate: "write", legacy: [] },
@@ -497,6 +500,8 @@ const seeds: OperationSeed[] = [
   { id: "jadwal.mengajar.load", entryPoints: [p("jadwal/mengajar")], permissions: ["jadwal.mengajar.view"], context: "assigned-or-self", legacy: [] },
   { id: "jadwal.mengajar.write", entryPoints: [a("jadwal/actions.ts", "createTeachingSlotAction"), a("jadwal/actions.ts", "updateTeachingSlotAction"), a("jadwal/actions.ts", "deleteTeachingSlotAction"), a("jadwal/actions.ts", "createTeachingPeriodAction"), a("jadwal/actions.ts", "deleteTeachingPeriodAction")], permissions: ["jadwal.mengajar.update"], gate: "write", context: "school-admin-only", legacy: [] },
   { id: "jadwal.events.load", entryPoints: [p("jadwal/events")], permissions: ["jadwal.events.view"], context: "school-admin-only", legacy: [] },
+  { id: "jadwal.sekolah.load", entryPoints: [p("jadwal/sekolah")], permissions: ["jadwal.sekolah.view"], context: "school-admin-only", legacy: [] },
+  { id: "jadwal.sekolah.save", entryPoints: [a("jadwal/sekolah/actions.ts", "saveGerbangScheduleAction"), a("jadwal/sekolah/actions.ts", "loadGerbangScheduleAction"), a("jadwal/sekolah/actions.ts", "importGerbangScheduleAction")], permissions: ["jadwal.sekolah.update"], gate: "write", context: "school-admin-only", legacy: [] },
   { id: "teaching-assignments.load", entryPoints: [p("master/penugasan")], permissions: ["teaching-assignments.teaching.view"], context: "school-admin-only", legacy: [] },
   { id: "teaching-assignments.write", entryPoints: [a("master/penugasan/actions.ts", "createTeachingAssignmentAction"), a("master/penugasan/actions.ts", "updatePlannedTeachingAssignmentAction"), a("master/penugasan/actions.ts", "activateTeachingAssignmentAction"), a("master/penugasan/actions.ts", "endTeachingAssignmentAction"), a("master/penugasan/actions.ts", "cancelTeachingAssignmentAction"), a("master/penugasan/actions.ts", "replaceTeachingAssignmentAction")], permissions: ["teaching-assignments.teaching.update"], gate: "write", context: "school-admin-only", legacy: [] },
   { id: "persuratan.load", entryPoints: [p("persuratan")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },

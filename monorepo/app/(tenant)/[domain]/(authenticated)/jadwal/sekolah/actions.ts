@@ -20,13 +20,13 @@ export type SaveScheduleResult = {
 
 /**
  * Persists the Gerbang schedule: one row per weekday plus the holiday list.
- * Requires the same authority as other absensi settings (`absensi.settings.save`).
+ * Requires `jadwal.sekolah.save` (relocated from absensi.settings.save, ticket 07).
  */
 export async function saveGerbangScheduleAction(
     domain: string,
     formData: FormData,
 ): Promise<SaveScheduleResult> {
-    await enforceTenantOperation(domain, "absensi.settings.save");
+    await enforceTenantOperation(domain, "jadwal.sekolah.save");
 
     const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
     if (!tenant) return { ok: false, code: "not-found" };
@@ -69,7 +69,7 @@ export async function saveGerbangScheduleAction(
     }
 
     revalidatePath(`/${domain}/absensi/gerbang`);
-    revalidatePath(`/${domain}/absensi/settings/schedule`);
+    revalidatePath(`/${domain}/jadwal/sekolah`);
     return { ok: true };
 }
 
@@ -89,7 +89,7 @@ export async function importGerbangScheduleAction(
     domain: string,
     formData: FormData,
 ): Promise<ImportScheduleResult> {
-    await enforceTenantOperation(domain, "absensi.settings.save");
+    await enforceTenantOperation(domain, "jadwal.sekolah.save");
 
     const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
     if (!tenant) return { ok: false, code: "not-found" };
@@ -116,7 +116,7 @@ export async function importGerbangScheduleAction(
     }
 
     revalidatePath(`/${domain}/absensi/gerbang`);
-    revalidatePath(`/${domain}/absensi/settings/schedule`);
+    revalidatePath(`/${domain}/jadwal/sekolah`);
     return { ok: true, imported: { days: parsed.days.length, holidays: parsed.holidays.length } };
 }
 
@@ -128,7 +128,7 @@ export async function loadGerbangScheduleAction(
     days: Array<{ dayOfWeek: SchoolScheduleDayOfWeek; startTime: string; endTime: string; effective: boolean }>;
     holidays: Array<{ name: string; startDate: string; endDate: string }>;
 }> {
-    await enforceTenantOperation(domain, "absensi.settings.save");
+    await enforceTenantOperation(domain, "jadwal.sekolah.save");
     const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
     if (!tenant) return { ok: false, days: [], holidays: [] };
     const [days, holidays] = await Promise.all([

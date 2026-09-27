@@ -194,6 +194,8 @@ export const TENANT_ROLE_TEMPLATES: readonly TenantRoleTemplate[] = Object.freez
     "quizzes.attendance.adjust",
     "absensi.attendance.view",
     "absensi.settings.update",
+    "jadwal.sekolah.view",
+    "jadwal.sekolah.update",
     "absensi.gerbang.record",
     "absensi.gerbang.manage",
     "absensi.kelas.record",

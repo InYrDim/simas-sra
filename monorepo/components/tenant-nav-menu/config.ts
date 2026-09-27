@@ -78,6 +78,7 @@ export const tenantMenuItems: TenantNavItem[] = [
     permissionMode: "any",
     items: [
       { key: "jadwal-mengajar", title: "Jadwal Mengajar", url: "/jadwal/mengajar", requiredPermissions: ["jadwal.mengajar.view"] },
+      { key: "jadwal-sekolah", title: "Jadwal Sekolah", url: "/jadwal/sekolah", requiredPermissions: ["jadwal.sekolah.view"], feature: "absensiGerbang" },
       { key: "jadwal-events", title: "Events", url: "/jadwal/events", requiredPermissions: ["jadwal.events.view"] }
     ]
   },

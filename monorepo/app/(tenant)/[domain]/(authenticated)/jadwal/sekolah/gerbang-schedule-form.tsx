@@ -55,7 +55,7 @@ export function GerbangScheduleForm({
             <form action={saveAction} className="rounded-lg border bg-card text-card-foreground shadow-sm p-6 space-y-4">
                 <div className="flex items-center gap-2">
                     <CalendarClock className="size-5" aria-hidden />
-                    <h2 className="text-lg font-semibold">Jadwal Sekolah (Gerbang)</h2>
+                    <h2 className="text-lg font-semibold">Jadwal Sekolah</h2>
                 </div>
                 <p className="text-sm text-muted-foreground">
                     Sesi Gerbang dibuka otomatis pada jam masuk dan ditutup pada jam pulang untuk hari yang efektif.
