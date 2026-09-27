@@ -113,6 +113,7 @@ export const tenantMenuItems: TenantNavItem[] = [
       { key: "master-staf", title: "Staf", url: "/master/staf", requiredPermissions: ["staff.staff.view"] },
       { key: "master-mapel", title: "Mata Pelajaran", url: "/master/mapel", requiredPermissions: ["subjects.subjects.view"] },
       { key: "master-rombel", title: "Rombongan Belajar", url: "/master/rombel", requiredPermissions: ["class-groups.groups.view"] },
+      { key: "master-penugasan", title: "Penugasan Mengajar", url: "/master/penugasan", requiredPermissions: ["teaching-assignments.teaching.view"] },
       { key: "master-sarpras", title: "Sarana & Prasarana", url: "/master/sarpras", requiredPermissions: ["facilities.locations.view"] },
       { key: "master-aset", title: "Aset/Barang", url: "/master/sarpras/aset", requiredPermissions: ["assets.assets.view"] },
       { key: "master-organisasi", title: "Organisasi", url: "/master/organisasi", requiredPermissions: ["student-organizations.organizations.view"] },

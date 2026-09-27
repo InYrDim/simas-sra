@@ -27,7 +27,7 @@ const legacyMinimum = [
 test("the approved registry and operation map form a valid executable contract", () => {
   assert.equal(PERMISSION_REGISTRY_VERSION, "tenant-permissions@2");
   assert.equal(OPERATION_MAP_VERSION, "tenant-operations@5");
-  assert.equal(permissionRegistry.length, 168);
+  assert.equal(permissionRegistry.length, 170);
 
   // Entry points uncovered before the rbac:coverage sweep must stay mapped.
   const mappedEntryPoints = new Set(

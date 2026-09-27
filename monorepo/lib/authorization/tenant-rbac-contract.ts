@@ -225,6 +225,8 @@ const activeSeeds: readonly CatalogSeed[] = [
   ["absensi.self.view"],
   ["jadwal.mengajar.view"],
   ["jadwal.events.view"],
+  ["teaching-assignments.teaching.view"],
+  ["teaching-assignments.teaching.update", [], "medium"],
   ["tenant.permissions.view", [], "sensitive", "school-admin-only"],
 ];
 
@@ -254,6 +256,7 @@ const moduleMetadata: Record<string, { label: string; group: string }> = {
   quizzes: { label: "Ulangan", group: "Ulangan" },
   absensi: { label: "Absensi", group: "Absensi" },
   jadwal: { label: "Penjadwalan", group: "Penjadwalan" },
+  "teaching-assignments": { label: "Penugasan Mengajar", group: "Akademik" },
 };
 
 const resourceLabels: Record<string, string> = {
@@ -266,6 +269,7 @@ const resourceLabels: Record<string, string> = {
   participants: "Peserta", sessions: "Sesi", submissions: "Pengajuan", documents: "Dokumen", results: "Hasil",
   questions: "Pertanyaan", attendance: "Kehadiran", grades: "Nilai", roles: "Role Tenant", assignments: "Assignment role", self: "Diri Sendiri",
   "effective-access": "Akses efektif", "authorization-audit": "Audit otorisasi", accounts: "Akun non-admin", permissions: "Permission",
+  teaching: "Penugasan Mengajar",
 };
 
 const actionLabels: Record<string, string> = {
@@ -490,6 +494,8 @@ const seeds: OperationSeed[] = [
   { id: "e-library.load", entryPoints: [p("e-library")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },
   { id: "jadwal.mengajar.load", entryPoints: [p("jadwal/mengajar")], permissions: ["jadwal.mengajar.view"], context: "school-admin-only", legacy: [] },
   { id: "jadwal.events.load", entryPoints: [p("jadwal/events")], permissions: ["jadwal.events.view"], context: "school-admin-only", legacy: [] },
+  { id: "teaching-assignments.load", entryPoints: [p("master/penugasan")], permissions: ["teaching-assignments.teaching.view"], context: "school-admin-only", legacy: [] },
+  { id: "teaching-assignments.write", entryPoints: [a("master/penugasan/actions.ts", "createTeachingAssignmentAction"), a("master/penugasan/actions.ts", "updatePlannedTeachingAssignmentAction"), a("master/penugasan/actions.ts", "activateTeachingAssignmentAction"), a("master/penugasan/actions.ts", "endTeachingAssignmentAction"), a("master/penugasan/actions.ts", "cancelTeachingAssignmentAction"), a("master/penugasan/actions.ts", "replaceTeachingAssignmentAction")], permissions: ["teaching-assignments.teaching.update"], gate: "write", context: "school-admin-only", legacy: [] },
   { id: "persuratan.load", entryPoints: [p("persuratan")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },
   { id: "settings.backup-restore.load", entryPoints: [p("settings/backup-restore")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: ["broad-master-data"] },
   { id: "integrasi.load", entryPoints: [p("integrasi"), p("integrasi/whatsapp")], permissions: ["tenant.authorization-audit.view"], context: "school-admin-only", legacy: [] },

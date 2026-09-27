@@ -50,8 +50,8 @@ Tiket implementasi ada di `issues/` (01–07), siap dikerjakan dengan `/implemen
 | Urut | Tiket | Slice | Bergantung pada |
 |---|---|---|---|
 | 1 | [01](./issues/01-lindungi-area-penjadwalan.md) ✅ selesai | Lindungi area Penjadwalan (feature key + RBAC) | — |
-| 2 | [02](./issues/02-penugasan-mengajar-master-data.md) | Penugasan Mengajar di Master Data (paralel dengan 03) | — |
-| 3 | [03](./issues/03-skema-slot-jadwal.md) | Skema Slot Jadwal + preset periode + validator konflik (paralel dengan 02) | — |
+| 2 | [02](./issues/02-penugasan-mengajar-master-data.md) ✅ selesai | Penugasan Mengajar di Master Data (paralel dengan 03) | — |
+| 3 | [03](./issues/03-skema-slot-jadwal.md) ✅ selesai | Skema Slot Jadwal + preset periode + validator konflik (paralel dengan 02) | — |
 | 4 | [04](./issues/04-crud-jadwal-mengajar.md) | CRUD Jadwal Mengajar (membuat `penjadwalanWrite`) | 01, 02, 03 |
 | 5 | [05](./issues/05-sesi-per-pelajaran-backend.md) | Sesi per pelajaran — backend (migrasi destruktif + worker) | 04 |
 | 6 | [06](./issues/06-sesi-per-pelajaran-ui.md) | Sesi per pelajaran — UI per Guru + permission Guru | 05 |

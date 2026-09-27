@@ -1096,6 +1096,66 @@ export const teachingAssignmentEvent = pgTable("teaching_assignment_event", {
   id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), teachingAssignmentId: varchar("teaching_assignment_id", { length: 36 }).notNull(), replacementAssignmentId: varchar("replacement_assignment_id", { length: 36 }), actorUserId: varchar("actor_user_id", { length: 36 }).notNull(), operation: TeachingAssignmentEventOperationEnum().notNull(), fromVersion: integer("from_version").notNull(), toVersion: integer("to_version").notNull(), effectiveOn: date("effective_on").notNull(), reason: varchar("reason", { length: 1000 }).notNull(), occurredAt: timestamp("occurred_at", { precision: 3 }).notNull(),
 }, (table) => [foreignKey({ columns: [table.tenantId, table.teachingAssignmentId], foreignColumns: [teachingAssignment.tenantId, teachingAssignment.id], name: "teaching_assignment_event_assignment_fkey" }), foreignKey({ columns: [table.tenantId, table.replacementAssignmentId], foreignColumns: [teachingAssignment.tenantId, teachingAssignment.id], name: "teaching_assignment_event_replacement_fkey" }), foreignKey({ columns: [table.tenantId, table.actorUserId], foreignColumns: [user.tenantId, user.id], name: "teaching_assignment_event_actor_fkey" }), index("teaching_assignment_event_scope_idx").on(table.tenantId, table.teachingAssignmentId, table.occurredAt), check("teaching_assignment_event_version_check", sql`${table.fromVersion} >= 0 AND ${table.toVersion} = ${table.fromVersion} + 1`)]);
 
+/**
+ * Weekly lesson slot (Jadwal Mengajar layer): one recurring meeting per class
+ * group, bound to an active Teaching Assignment. Explicit "HH:MM" times like
+ * school_schedule_day. Applies on date d only while the assignment is active
+ * and covers d. No room column (deferred); no draft/published lifecycle —
+ * slots take effect immediately.
+ */
+export const teachingSlot = pgTable(
+  "teaching_slot",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    teachingAssignmentId: varchar("teaching_assignment_id", { length: 36 }).notNull(),
+    dayOfWeek: SchoolScheduleDayOfWeekEnum().notNull(),
+    /** "HH:MM" lesson start time in the tenant timezone. */
+    startTime: varchar("start_time", { length: 5 }).notNull(),
+    /** "HH:MM" lesson end time in the tenant timezone. */
+    endTime: varchar("end_time", { length: 5 }).notNull(),
+    /** odd = ganjil, even = genap — aligned with academic_semester.kind. */
+    semester: AcademicSemesterKindEnum().notNull(),
+    version: integer("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { precision: 3 }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("teaching_slot_tenant_id_unique").on(table.tenantId, table.id),
+    foreignKey({ columns: [table.tenantId, table.teachingAssignmentId], foreignColumns: [teachingAssignment.tenantId, teachingAssignment.id], name: "teaching_slot_assignment_fkey" }),
+    index("teaching_slot_scope_idx").on(table.tenantId, table.dayOfWeek, table.semester, table.startTime),
+    check("teaching_slot_window_check", sql`${table.endTime} > ${table.startTime}`),
+    check("teaching_slot_version_check", sql`${table.version} > 0`),
+  ],
+);
+
+/**
+ * Lesson-period presets per tenant: labels with default "HH:MM" windows used
+ * as form-filler helpers when composing slots. Not a runtime dependency —
+ * teaching_slot stores explicit times and holds no FK to this table.
+ */
+export const teachingPeriod = pgTable(
+  "teaching_period",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    label: varchar("label", { length: 100 }).notNull(),
+    startTime: varchar("start_time", { length: 5 }).notNull(),
+    endTime: varchar("end_time", { length: 5 }).notNull(),
+    sortOrder: integer("sort_order").notNull(),
+    version: integer("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { precision: 3 }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("teaching_period_tenant_id_unique").on(table.tenantId, table.id),
+    unique("teaching_period_tenant_label_unique").on(table.tenantId, table.label),
+    unique("teaching_period_tenant_order_unique").on(table.tenantId, table.sortOrder),
+    check("teaching_period_window_check", sql`${table.endTime} > ${table.startTime}`),
+    check("teaching_period_order_check", sql`${table.sortOrder} > 0`),
+  ],
+);
+
 export const classRelationshipEvent = pgTable("class_relationship_event", { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), kind: ClassRelationshipEventKindEnum().notNull(), relationshipId: varchar("relationship_id", { length: 36 }).notNull(), actorUserId: varchar("actor_user_id", { length: 36 }).notNull(), operation: ClassRelationshipEventOperationEnum().notNull(), effectiveDate: date("effective_date").notNull(), reason: varchar("reason", { length: 1000 }).notNull(), occurredAt: timestamp("occurred_at", { precision: 3 }).notNull() }, (table) => [foreignKey({ columns: [table.tenantId, table.actorUserId], foreignColumns: [user.tenantId, user.id], name: "class_relationship_event_tenant_actor_fkey" }), index("class_relationship_event_tenant_relationship_idx").on(table.tenantId, table.kind, table.relationshipId, table.occurredAt)]);
 
 export const studentOrganization = pgTable("student_organization", { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), name: varchar("name", { length: 150 }).notNull(), normalizedName: varchar("normalized_name", { length: 150 }).notNull(), abbreviation: varchar("abbreviation", { length: 30 }), code: varchar("code", { length: 30 }).notNull(), normalizedCode: varchar("normalized_code", { length: 30 }).notNull(), description: text("description"), foundingDate: date("founding_date"), secretariatLocationId: varchar("secretariat_location_id", { length: 36 }), archived: boolean("archived").default(false).notNull(), archivedAt: timestamp("archived_at", { precision: 3 }), archiveReason: varchar("archive_reason", { length: 1000 }), version: integer("version").default(1).notNull(), createdAt: timestamp("created_at", { precision: 3 }).notNull(), updatedAt: timestamp("updated_at", { precision: 3 }).notNull() }, (table) => [unique("student_organization_tenant_id_unique").on(table.tenantId, table.id), unique("student_organization_tenant_code_unique").on(table.tenantId, table.normalizedCode), foreignKey({ columns: [table.tenantId], foreignColumns: [tenant.id], name: "student_organization_tenant_fkey" }), foreignKey({ columns: [table.tenantId, table.secretariatLocationId], foreignColumns: [location.tenantId, location.id], name: "student_organization_location_fkey" }), index("student_organization_tenant_archive_name_idx").on(table.tenantId, table.archived, table.normalizedName), check("student_organization_version_check", sql`${table.version} > 0`)]);
