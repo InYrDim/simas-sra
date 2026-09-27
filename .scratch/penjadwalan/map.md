@@ -45,7 +45,7 @@ di menu Penjadwalan, dengan kendali Provider per Tenant.
 
 ## Slice plan
 
-Tiket implementasi ada di `issues/` (01–07), siap dikerjakan dengan `/implement`:
+Tiket ada di `issues/` (01–07 implementasi selesai; 08–10 backlog siap di-wayfind):
 
 | Urut | Tiket | Slice | Bergantung pada |
 |---|---|---|---|
@@ -56,15 +56,16 @@ Tiket implementasi ada di `issues/` (01–07), siap dikerjakan dengan `/implemen
 | 5 | [05](./issues/05-sesi-per-pelajaran-backend.md) ✅ selesai | Sesi per pelajaran — backend (migrasi destruktif + worker) | 04 |
 | 6 | [06](./issues/06-sesi-per-pelajaran-ui.md) ✅ selesai | Sesi per pelajaran — UI per Guru + permission Guru | 05 |
 | 7 | [07](./issues/07-relokasi-jadwal-sekolah.md) ✅ selesai | Relokasi Jadwal Sekolah (independen; disarankan setelah 04) | — |
+| 8 | [08](./issues/08-events-scope.md) backlog | Keputusan cakupan submenu Events | — |
+| 9 | [09](./issues/09-rekap-notifikasi-per-pelajaran.md) backlog | Riwayat, rekap & notifikasi WhatsApp per pelajaran | 05, 06 |
+| 10 | [10](./issues/10-guru-pengganti-per-tanggal.md) backlog | Guru pengganti per tanggal pada Slot Jadwal | 03–06 |
 
 ## Not yet specified
 
-- Detail slice Penugasan Mengajar di Master Data (layout halaman, kolom list, UX riwayat
-  event) — keputusan besar sudah terkunci di tiket 05; sisanya dikerjakan saat implementasi.
-- Dampak ke Riwayat Absensi, rekap, dan notifikasi WhatsApp per pelajaran.
-- Cakupan submenu Events (`/jadwal/events`).
+- Detail UX tiket 08–10 (layout halaman, alur form) — keputusan besar diticketkan;
+  sisanya dikerjakan setelah wayfinding masing-masing.
 - Backlog (belum diticketkan, dari keputusan "tunda"): impor massal Penugasan Mengajar,
-  guru pengganti per tanggal, kolom ruang pada slot, rombel gabung pada cek konflik.
+  kolom ruang pada slot, rombel gabung pada cek konflik.
 
 ## Out of scope
 
