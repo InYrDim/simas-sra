@@ -4,35 +4,11 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { temporaryCredentialActivationStore } from "@/lib/tenancy/temporary-credential-activation-data";
 import { createRecordFirstAuthenticationCommand } from "@/lib/tenancy/temporary-credential-activation";
+import { resolveAuthCookiePolicy } from "@/lib/platform/auth-cookie-policy";
 
 const recordFirstAuthentication = createRecordFirstAuthenticationCommand({
   store: temporaryCredentialActivationStore,
 });
-
-/**
- * Derive the cross-subdomain cookie Domain from APP_DOMAIN.
- *
- * APP_DOMAIN can include a port in local dev (e.g. "localhost:3000"), but a
- * cookie Domain attribute may never contain a port — browsers reject the whole
- * Set-Cookie and the session never persists. Strip any explicit port.
- *
- * When the hostname is a single-label name like "localhost", browsers silently
- * reject cookies with a Domain attribute (it's treated as a TLD, and setting a
- * cookie for a TLD is not allowed). Return undefined so that cross-subdomain
- * cookies are disabled in local dev — the cookie is set without a Domain
- * attribute and the browser will send it to the exact origin. Tenant subdomain
- * flows still work because sign-in and /continue live on the same subdomain.
- *
- * For multi-label domains (e.g. "simas.biz.id"), the cookie domain is returned
- * without a leading dot — RFC 6265 §5.2.3 strips the leading dot anyway, so
- * `Domain=simas.biz.id` and `Domain=.simas.biz.id` are equivalent.
- */
-function computedAuthCookieDomain(appDomain?: string) {
-  if (!appDomain) return undefined;
-  const hostname = appDomain.split(":")[0].toLowerCase();
-  if (!hostname || !hostname.includes(".")) return undefined;
-  return hostname;
-}
 
 export const auth = betterAuth({
   trustedOrigins: [
@@ -71,14 +47,8 @@ export const auth = betterAuth({
       },
     },
   },
-  advanced: {
-    crossSubDomainCookies: {
-      // Only enable cross-subdomain cookies when APP_DOMAIN is a multi-label
-      // domain (e.g. "simas.biz.id"). Single-label domains like "localhost"
-      // cause browsers to silently reject the Set-Cookie, so the feature is
-      // disabled in local dev — the cookie is scoped to the exact origin.
-      enabled: !!computedAuthCookieDomain(process.env.APP_DOMAIN),
-      domain: computedAuthCookieDomain(process.env.APP_DOMAIN),
-    },
-  },
+  advanced: resolveAuthCookiePolicy({
+    nodeEnv: process.env.NODE_ENV,
+    appDomain: process.env.APP_DOMAIN,
+  }),
 });
