@@ -8,7 +8,7 @@ status alpa otomatis, dan notifikasi per pelajaran kepada wali.
 
 **Blocked by:** None (tiket 05 & 06 sudah resolved).
 
-**Status:** needs-triage
+**Status:** ready-for-agent (keputusan lengkap — lihat wayfinder 07)
 
 ## Konteks keputusan yang sudah ada
 
@@ -34,14 +34,46 @@ status alpa otomatis, dan notifikasi per pelajaran kepada wali.
 - Toleransi penutupan (dari Pengaturan Absensi) — tetap satu setelan global atau per
   lapisan?
 
+## Keputusan (wayfinder 07, 2026-09-28)
+
+- **Riwayat per sesi**: tiap sesi Kelas = satu baris dengan konteks slot (jam, Mapel,
+  Guru, Rombel); Gerbang tak berubah.
+- **Rekap**: konteks per pelajaran di semua tampilan record Kelas **+ agregat kehadiran
+  per mapel per semester** (bagian agregat menunggu/toleran terhadap atribusi guru dari
+  tiket 10).
+- **Notifikasi WA model C**: record manual kirim langsung; saat penutupan hanya siswa
+  belum-tercatat (alpa sistem) yang dikirim; placeholder baru `{mapel}` `{jam}` `{guru}`;
+  pesan Gerbang & Kelas tetap terpisah (dedup = tidak dobel kirim siswa yang sudah
+  tercatat).
+- **Badge "Otomatis"** pada alpa sistem (`recordedByUserId` NULL) di Riwayat & rekap,
+  hanya untuk Guru/Admin.
+- **Toleransi tetap global** per tenant (tidak per slot).
+
+Detail & implikasi teknis: `./.wayfinder/07-rekap-notifikasi-per-pelajaran.md`.
+
 ## Acceptance criteria
 
-- [ ] Keputusan diambil per pilihan di atas dan terekam di wayfinder/map.md.
-- [ ] Riwayat Absensi menampilkan sesi per pelajaran tanpa merusak tampilan lapisan
-      Gerbang.
-- [ ] Rekap konsisten dengan model per-slot (tidak ada status yang hilang/dobel hitung).
-- [ ] Notifikasi WhatsApp per pelajaran dirancang (pemicu, isi, penerima, dedup) —
-      implementasi bisa jadi tiket lanjutan terpisah.
-- [ ] Test untuk query riwayat/rekap baru + regresi lapisan Gerbang.
+- [x] Keputusan diambil per pilihan di atas dan terekam di wayfinder/map.md.
+- [x] Riwayat Absensi menampilkan sesi per pelajaran tanpa merusak tampilan lapisan
+      Gerbang (kolom Pelajaran: mapel + jam slot + guru; Gerbang tetap "—").
+- [x] Rekap konsisten dengan model per-slot + agregat per mapel per semester
+      (tabel di Riwayat + ringkasan di Absensi Saya; hanya sesi ber-slot, flag
+      semester slot = semester aktif, tanggal sesi dalam rentang semester).
+- [x] Notifikasi WhatsApp per pelajaran: pemicu model C (manual/QR kirim langsung
+      dengan `{mapel}` `{jam}` `{guru}`; saat close hanya siswa belum-tercatat yang
+      dikirim via `notifyKelasAutoAlpaOnClose`, worker + close manual).
+- [x] Badge alpa otomatis terlihat untuk Guru/Admin (`recordedByUserId` NULL → chip
+      "Otomatis" di detail sesi Riwayat).
+- [x] Test: notify 14/14, kelas-schedule + config 26/26 hijau; typecheck bersih
+      (baseline MySQL-test saja). Catatan: query rekap/konteks baru (Postgres) belum
+      punya test integrasi DB — tambahkan saat menyentuh area ini lagi (pola
+      celah slice 05).## Comments
 
-## Comments
+- 2026-09-28: runtime error saat render Riwayat di Postgres — sisa sintaks MySQL
+  (`year()`/`cast(... as char)` di filter Tahun Masuk, `cast(count(... ) as unsigned)`
+  di `listAttendanceSessions`). Keduanya dikonversi ke Postgres (`extract(year from …)`
+  + `::text`, `cast(... as int)`). Audit pola MySQL lain (`as unsigned/char/signed`,
+  `DATE_FORMAT`, `GROUP_CONCAT`, `IFNULL`, `ON DUPLICATE`, `INSERT IGNORE`, `year()`)
+  di `app/` + `lib/` aktif: bersih. Sisa MySQL yang masih ada sengaja dipertahankan:
+  mirror `db/schema.mysql.ts`, test `*.mysql.test.ts` + skrip `db:*:mysql` + backup
+  `drizzle.mysql.backup/` (arsip masa transisi; bukan jalur runtime).

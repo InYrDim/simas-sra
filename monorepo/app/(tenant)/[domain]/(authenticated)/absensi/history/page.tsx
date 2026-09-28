@@ -4,10 +4,16 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { createHttpTenantAuthorizationEvaluator, tenantAuthorizationStore } from "@/lib/authorization/tenant-authorization-data";
 import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
 import { getAbsensiConfig } from "@/lib/attendance/attendance-config-data";
+import { enforceTenantOperation } from "@/lib/features/tenant-feature-route-access";
 import {
     listAttendanceSessions,
     listSessionRecordsWithStudents,
 } from "@/lib/attendance/attendance-record-data";
+import {
+    getKelasLessonContextForSessions,
+    listKelasSubjectRecap,
+    type KelasSessionLessonContext,
+} from "@/lib/attendance/attendance-kelas-recap";
 import {
     ATTENDANCE_LAYER_LABELS,
     ATTENDANCE_LAYERS,
@@ -35,7 +41,7 @@ import { MasterDataDetailDialog } from "@/components/master-data/master-data-det
 import { PrintSessionButton } from "./print-session-button";
 import { DeleteHistoryButton } from "./delete-history-button";
 import { deleteHistorySessionAction, deleteHistoryRecordAction } from "../actions";
-import { Hand, QrCode, IdCard, LayoutGrid } from "lucide-react";
+import { Bot, Hand, QrCode, IdCard, LayoutGrid } from "lucide-react";
 
 type HistorySearchParams = {
     classGroupId?: string;
@@ -97,10 +103,11 @@ export default async function AbsensiHistoryPage({
             )
             .orderBy(classGroup.groupName),
         db
-            .selectDistinct({ year: sql<string>`cast(year(${studentProfile.entryDate}) as char)` })
+            // Postgres: extract(year from ...) + ::text (year()/cast(... as char) are MySQL-only).
+            .selectDistinct({ year: sql<string>`cast(extract(year from ${studentProfile.entryDate}) as int)::text` })
             .from(studentProfile)
             .where(eq(studentProfile.tenantId, tenant.id))
-            .orderBy(desc(sql`cast(year(${studentProfile.entryDate}) as char)`)),
+            .orderBy(desc(sql`cast(extract(year from ${studentProfile.entryDate}) as int)::text`)),
     ]);
 
     const sessions = await listAttendanceSessions(tenant.id, {
@@ -122,6 +129,19 @@ export default async function AbsensiHistoryPage({
     const sessionRecords = selectedSession
         ? await listSessionRecordsWithStudents(tenant.id, selectedSession.id)
         : [];
+
+    // Lesson context for Kelas sessions (wayfinder 07 decision 1): each session
+    // row carries its slot time, subject, and teacher; Gerbang rows show "—".
+    const kelasSessionIds = sessions.filter((s) => s.layer === "kelas").map((s) => s.id);
+    const lessonContext = await getKelasLessonContextForSessions(tenant.id, kelasSessionIds);
+    const lessonOf = (sessionId: string): KelasSessionLessonContext | null => lessonContext.get(sessionId) ?? null;
+
+    // The system-actor badge (wayfinder 07 decision 4) is admin-only.
+    const viewer = await enforceTenantOperation(domain, "absensi.history.load");
+    const canSeeSystemBadge = viewer.schoolAdmin;
+
+    // Per-subject semester recap (wayfinder 07 decision 2).
+    const recap = await listKelasSubjectRecap(tenant.id);
 
     const basePath = `/${domain}/absensi/history`;
     const filterAction = basePath; // GET form; drops `session` so filtering closes the modal
@@ -266,6 +286,7 @@ export default async function AbsensiHistoryPage({
                                 <TableHead>Lapisan</TableHead>
                                 <TableHead>Tanggal</TableHead>
                                 <TableHead>Jendela</TableHead>
+                                <TableHead>Pelajaran</TableHead>
                                 <TableHead>Status</TableHead>
                                 <TableHead>Catatan</TableHead>
                                 <TableHead className="text-right">Jumlah Rekam</TableHead>
@@ -281,6 +302,7 @@ export default async function AbsensiHistoryPage({
                                     ...(sp.to ? { to: sp.to } : {}),
                                     session: session.id,
                                 }).toString()}`;
+                                const lesson = session.layer === "kelas" ? lessonOf(session.id) : null;
                                 return (
                                     <TableRow key={session.id} className="cursor-pointer hover:bg-muted/50">
                                         <TableCell>
@@ -298,6 +320,21 @@ export default async function AbsensiHistoryPage({
                                         <TableCell>
                                             <Link href={href} className="block text-muted-foreground">
                                                 {session.plannedStart}–{session.plannedEnd}
+                                            </Link>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Link href={href} className="block">
+                                                {lesson ? (
+                                                    <span className="flex flex-col">
+                                                        <span className="font-medium">{lesson.subjectName ?? "—"}</span>
+                                                        <span className="text-xs text-muted-foreground">
+                                                            {lesson.slotStart ? `Jam ${lesson.slotStart} · ` : ""}
+                                                            {lesson.teacherName ?? ""}
+                                                        </span>
+                                                    </span>
+                                                ) : (
+                                                    <span className="text-muted-foreground">—</span>
+                                                )}
                                             </Link>
                                         </TableCell>
                                         <TableCell>
@@ -382,6 +419,12 @@ export default async function AbsensiHistoryPage({
                                                 {rec.outOfSession && (
                                                     <Badge variant="outline">Luar Sesi</Badge>
                                                 )}
+                                                {canSeeSystemBadge && rec.status === "alpa" && selectedSession?.layer === "kelas" && rec.recordedByUserId === null && (
+                                                    <Badge variant="secondary" className="gap-1">
+                                                        <Bot className="size-3" aria-hidden />
+                                                        Otomatis
+                                                    </Badge>
+                                                )}
                                             </div>
                                         </TableCell>
                                         <TableCell>{localHHMMInZone(rec.recordedAt, timezone)}</TableCell>
@@ -403,6 +446,46 @@ export default async function AbsensiHistoryPage({
                         </Table>
                     )}
                 </MasterDataDetailDialog>
+            )}
+
+            {recap.rows.length > 0 && (
+                <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
+                    <h2 className="text-lg font-semibold mb-1">Rekap per Mata Pelajaran</h2>
+                    <p className="text-sm text-muted-foreground mb-3">
+                        Semester {recap.semester?.kind === "even" ? "Genap" : "Ganjil"} {recap.semester?.yearLabel ?? ""} ·
+                        kehadiran per pelajaran dari sesi Kelas tercatat.
+                    </p>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead>Mapel</TableHead>
+                                <TableHead>Rombel</TableHead>
+                                <TableHead>Guru</TableHead>
+                                <TableHead className="text-right">Sesi</TableHead>
+                                <TableHead className="text-right">Hadir</TableHead>
+                                <TableHead className="text-right">Izin</TableHead>
+                                <TableHead className="text-right">Sakit</TableHead>
+                                <TableHead className="text-right">Alpa</TableHead>
+                                <TableHead className="text-right">% Hadir</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {recap.rows.map((row) => (
+                                <TableRow key={`${row.subjectName}-${row.className}`}>
+                                    <TableCell className="font-medium">{row.subjectName}</TableCell>
+                                    <TableCell>{row.className}</TableCell>
+                                    <TableCell className="text-muted-foreground">{row.teacherName}</TableCell>
+                                    <TableCell className="text-right">{row.sessionCount}</TableCell>
+                                    <TableCell className="text-right">{row.hadir}</TableCell>
+                                    <TableCell className="text-right">{row.izin}</TableCell>
+                                    <TableCell className="text-right">{row.sakit}</TableCell>
+                                    <TableCell className="text-right">{row.alpa}</TableCell>
+                                    <TableCell className="text-right">{Math.round(row.attendanceRate * 100)}%</TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
+                </div>
             )}
         </div>
     );

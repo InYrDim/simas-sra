@@ -6,7 +6,14 @@ permission `jadwal.events.view`, tetapi halamannya belum punya konten fungsional
 
 **Blocked by:** None (independen; halaman & RBAC menu sudah disiapkan tiket 01).
 
-**Status:** needs-triage
+**Status:** wontfix (ditunda user 2026-09-28 — bisa dibuka kembali nanti)
+
+## Keputusan 2026-09-28 (sebelum ditunda)
+
+- Q1 cakupan: user memilih **skip dulu** — submenu Events tetap placeholder, tidak
+  dikerjakan pada effort Penjadwalan ini. Rekomendasi cakupan minimal (event yang
+  mengubah hari efektif: libur non-resmi, upacara, ujian; bukan ekstrakurikuler/rapat)
+  tercatat di sini sebagai titik mulai bila nanti dibuka lagi.
 
 ## Konteks keputusan yang sudah ada
 

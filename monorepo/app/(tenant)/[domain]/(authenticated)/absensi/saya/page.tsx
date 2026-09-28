@@ -10,6 +10,7 @@ import { getAbsensiConfig } from "@/lib/attendance/attendance-config-data";
 import { readTenantTimezone } from "@/lib/attendance/attendance-config";
 import { buildStudentQrToken } from "@/lib/attendance/attendance-qr";
 import { listGerbangRecordsForDayWithStudents, listGerbangRecordsForStudent, listKelasRecordsForDayWithStudents, listKelasRecordsForStudent, resolveOpenSession } from "@/lib/attendance/attendance-record-data";
+import { listKelasRecordsForStudentWithContext, listKelasSubjectRecap } from "@/lib/attendance/attendance-kelas-recap";
 import { localHHMMInZone, civilDateInZone } from "@/lib/attendance/attendance-date";
 import { db } from "@/db";
 import { studentProfile, schoolPerson, classMembership, classGroup } from "@/db/schema";
@@ -98,11 +99,14 @@ export default async function AbsensiSayaPage({
     );
     const kelasToday = kelasEnabled ? await listKelasRecordsForDayWithStudents(tenant.id, new Date(), timezone) : [];
     const myKelasRecord = kelasToday.find((r) => r.studentId === profile.id);
-    const kelasHistory = kelasEnabled
-        ? (await listKelasRecordsForStudent(tenant.id, profile.id, 30, timezone)).filter(
-            (record) => civilDateInZone(record.recordedAt, timezone) !== todayCivil,
-        )
+    // Lesson-context history + per-subject semester recap (wayfinder 07).
+    const kelasHistoryWithContext = kelasEnabled
+        ? await listKelasRecordsForStudentWithContext(tenant.id, profile.id, 30, timezone)
         : [];
+    const kelasHistory = kelasEnabled
+        ? kelasHistoryWithContext.filter((record) => civilDateInZone(record.recordedAt, timezone) !== todayCivil)
+        : [];
+    const kelasRecap = kelasEnabled ? await listKelasSubjectRecap(tenant.id, { studentId: profile.id }) : { semester: null, rows: [] };
     const token = buildStudentQrToken(tenant.npsn, profile.nis);
     const kelasToken = buildStudentQrToken(tenant.npsn, profile.nis, "IN", "KELAS");
 
@@ -174,8 +178,15 @@ export default async function AbsensiSayaPage({
                         <ul className="mt-2 divide-y text-sm">
                             {kelasHistory.map((record) => (
                                 <li key={record.id} className="flex items-center justify-between gap-3 py-2">
-                                    <span className="font-medium">{civilDateInZone(record.recordedAt, timezone)}</span>
-                                    <span className="flex items-center gap-2 text-muted-foreground">
+                                    <span className="min-w-0">
+                                        <span className="font-medium">{civilDateInZone(record.recordedAt, timezone)}</span>
+                                        {record.subjectName ? (
+                                            <span className="ml-2 text-muted-foreground">
+                                                {record.slotStart ? `Jam ${record.slotStart} · ` : ""}{record.subjectName}
+                                            </span>
+                                        ) : null}
+                                    </span>
+                                    <span className="flex shrink-0 items-center gap-2 text-muted-foreground">
                                         <span className="rounded-full bg-muted px-2 py-0.5 text-xs capitalize">{record.status}</span>
                                         <span>{localHHMMInZone(record.recordedAt, timezone)}</span>
                                         {record.outOfSession ? <span className="text-xs">· di luar sesi</span> : null}
@@ -186,6 +197,27 @@ export default async function AbsensiSayaPage({
                     ) : (
                         <p className="mt-2 text-muted-foreground">Belum ada riwayat absensi.</p>
                     )}
+
+                    {kelasRecap.rows.length > 0 ? (
+                        <div className="mt-4">
+                            <h3 className="text-base font-semibold">
+                                Rekap per Mapel — Semester {kelasRecap.semester?.kind === "even" ? "Genap" : "Ganjil"} {kelasRecap.semester?.yearLabel ?? ""}
+                            </h3>
+                            <ul className="mt-2 divide-y text-sm">
+                                {kelasRecap.rows.map((row) => (
+                                    <li key={row.subjectName} className="flex items-center justify-between gap-3 py-2">
+                                        <span className="min-w-0">
+                                            <span className="font-medium">{row.subjectName}</span>
+                                            <span className="ml-2 text-xs text-muted-foreground">{row.teacherName}</span>
+                                        </span>
+                                        <span className="shrink-0 text-muted-foreground">
+                                            Hadir {row.hadir}/{row.hadir + row.izin + row.sakit + row.alpa} ({Math.round(row.attendanceRate * 100)}%)
+                                        </span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    ) : null}
                 </section>
             ) : null}
         </div>

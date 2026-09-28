@@ -9,7 +9,7 @@ import { OpenWaClient } from "@/lib/integrations/whatsapp-bot/openwa-client";
 import { resolveTenantOpenWaCredential } from "@/lib/integrations/whatsapp-bot/tenant-openwa-credential";
 import { readConnectionByTenantId, recordOutboundMessage } from "@/lib/integrations/whatsapp-bot/whatsapp-bot-data";
 import type { WhatsAppBotSendDependencies } from "@/lib/integrations/whatsapp-bot/whatsapp-bot-send";
-import { openKelasSlotSessionManually, closeKelasSessionById } from "@/lib/attendance/attendance-kelas-data";
+import { openKelasSlotSessionManually, closeKelasSessionById, getKelasSlotLessonInfo } from "@/lib/attendance/attendance-kelas-data";
 import { assertKelasSessionWriteAccess, buildKelasPrincipal } from "@/lib/attendance/attendance-kelas-access";
 import { resolveKelasSlotDecision } from "@/lib/attendance/attendance-kelas-schedule";
 import { civilDateInTimeZone } from "@/lib/attendance/attendance-schedule";
@@ -17,7 +17,7 @@ import { readKelasCloseToleranceMinutes } from "@/lib/attendance/attendance-conf
 import { tenantAuthorizationStore } from "@/lib/authorization/tenant-authorization-data";
 import { saveAbsensiConfig, saveKelasCloseTolerance, saveModeSettings } from "@/lib/attendance/attendance-config-data";
 import { recordAttendance, openSession, closeSession, deleteSession, deleteAttendanceRecord, getSessionById } from "@/lib/attendance/attendance-record-data";
-import { sendAttendanceNotification } from "@/lib/attendance/attendance-notify";
+import { sendAttendanceNotification, notifyKelasAutoAlpaOnClose } from "@/lib/attendance/attendance-notify";
 import { decodeQrToken } from "@/lib/attendance/attendance-qr";
 import { getSessionWindow, isKelasCloseToleranceMinutes, readAbsensiSettings, readTenantTimezone } from "@/lib/attendance/attendance-config";
 import {
@@ -32,7 +32,7 @@ import {
 import { isAttendanceRecordStatus, isStatusValidForLayer } from "@/lib/attendance/attendance-record";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { classMembership, teachingAssignment, teachingSlot } from "@/db/schema";
+import { attendanceSession, classMembership, teachingAssignment, teachingSlot } from "@/db/schema";
 
 export type SaveAbsensiConfigResult = {
     ok: boolean;
@@ -386,6 +386,35 @@ export async function recordKelasAction(
         return { ok: false, code: result.code === "student-not-found" ? "student-not-found" : result.code === "invalid-status" ? "invalid-status" : result.code === "duplicate" ? "duplicate" : "error" };
     }
 
+    // Lesson identity for the per-lesson template placeholders (wayfinder 07):
+    // resolve from the explicit per-slot session, falling back to the window
+    // lookup when the record attached without one.
+    let lesson: { subjectName: string; slotStart: string; teacherName: string } | undefined;
+    {
+        const [slotRow] = await db
+            .select({ slotId: attendanceSession.slotId })
+            .from(attendanceSession)
+            .where(
+                sessionId !== ""
+                    ? and(eq(attendanceSession.tenantId, tenant.id), eq(attendanceSession.id, sessionId))
+                    : and(
+                        eq(attendanceSession.tenantId, tenant.id),
+                        eq(attendanceSession.layer, "kelas"),
+                        eq(attendanceSession.sessionDate, civilDateInTimeZone(new Date(), readTenantTimezone(tenant.settings))),
+                        eq(attendanceSession.status, "open"),
+                    ),
+            )
+            .limit(1);
+        const slotLesson = slotRow?.slotId ? await getKelasSlotLessonInfo(tenant.id, slotRow.slotId) : null;
+        if (slotLesson) {
+            lesson = {
+                subjectName: slotLesson.subjectName,
+                slotStart: slotLesson.slotStart,
+                teacherName: slotLesson.teacherName,
+            };
+        }
+    }
+
     await sendAttendanceNotification(waSendDependencies(), {
         tenantId: tenant.id,
         tenantSettings: tenant.settings,
@@ -394,6 +423,7 @@ export async function recordKelasAction(
         mode: "manual",
         status,
         recordedAt: new Date(),
+        ...(lesson ? { lesson } : {}),
     }).catch(() => undefined);
 
     revalidatePath(`/${domain}/absensi/kelas`);
@@ -518,6 +548,32 @@ export async function closeKelasSessionAction(
 
     const result = await closeKelasSessionById(tenant.id, sessionId, new Date());
     if (!result.ok) return { ok: false, code: result.code };
+
+    // Wayfinder 07 model C: only students JUST filled with auto-alpa notify
+    // their guardians; students already recorded were notified at record time.
+    if (result.alpaStudentIds.length > 0) {
+        // closeKelasSessionById resolved the session's slot internally; reuse
+        // the same lookup for the lesson identity (mapel/jam/guru).
+        const [slotRow] = await db
+            .select({ slotId: attendanceSession.slotId })
+            .from(attendanceSession)
+            .where(and(eq(attendanceSession.tenantId, tenant.id), eq(attendanceSession.id, sessionId)))
+            .limit(1);
+        const lesson = slotRow?.slotId ? await getKelasSlotLessonInfo(tenant.id, slotRow.slotId) : null;
+        if (lesson) {
+            await notifyKelasAutoAlpaOnClose(waSendDependencies(), {
+                tenantId: tenant.id,
+                tenantSettings: tenant.settings,
+                students: result.alpaStudentIds.map((studentId) => ({ studentId })),
+                lesson: {
+                    subjectName: lesson.subjectName,
+                    slotStart: lesson.slotStart,
+                    teacherName: lesson.teacherName,
+                },
+                closedAt: new Date(),
+            }).catch(() => undefined);
+        }
+    }
 
     revalidatePath(`/${domain}/absensi/kelas`);
     return { ok: true };
@@ -659,6 +715,19 @@ export async function recordQrAction(
         return { ok: false, code: result.code === "student-not-found" ? "student-not-found" : result.code === "invalid-status" ? "invalid-status" : result.code === "duplicate" ? "duplicate" : "error" };
     }
 
+    // Per-lesson placeholders for Kelas QR scans (wayfinder 07).
+    let qrLesson: { subjectName: string; slotStart: string; teacherName: string } | undefined;
+    if (session.layer === "kelas" && session.slotId) {
+        const slotLesson = await getKelasSlotLessonInfo(tenant.id, session.slotId);
+        if (slotLesson) {
+            qrLesson = {
+                subjectName: slotLesson.subjectName,
+                slotStart: slotLesson.slotStart,
+                teacherName: slotLesson.teacherName,
+            };
+        }
+    }
+
     await sendAttendanceNotification(waSendDependencies(), {
         tenantId: tenant.id,
         tenantSettings: tenant.settings,
@@ -667,6 +736,7 @@ export async function recordQrAction(
         mode: "qr",
         status,
         recordedAt: new Date(),
+        ...(qrLesson ? { lesson: qrLesson } : {}),
     }).catch(() => undefined);
 
     revalidatePath(`/${domain}/absensi/${session.layer}`);

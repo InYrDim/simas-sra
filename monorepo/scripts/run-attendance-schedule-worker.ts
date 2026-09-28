@@ -17,6 +17,7 @@ import {
 } from "@/lib/attendance/attendance-schedule-data";
 import {
     closeKelasSlotSession,
+    getKelasSlotLessonInfo,
     listEffectiveKelasSlotsForDate,
     listKelasHolidays,
     listTenantIdsWithKelasSlots,
@@ -124,6 +125,7 @@ async function processTenantKelas(tenantId: string, now: Date): Promise<{ action
     let opened = 0;
     let closed = 0;
     let alpaFilled = 0;
+    let notified = 0;
     for (const slot of slots) {
         const decision = resolveKelasSlotDecision({
             slot,
@@ -151,11 +153,49 @@ async function processTenantKelas(tenantId: string, now: Date): Promise<{ action
             if (result.ok) {
                 closed += 1;
                 alpaFilled += result.alpaCount;
+                // Wayfinder 07 model C: notify guardians of students JUST
+                // filled with auto-alpa. Best-effort — never fails the pass.
+                if (result.alpaStudentIds.length > 0) {
+                    try {
+                        const [{ notifyKelasAutoAlpaOnClose }, { OpenWaClient }, { resolveTenantOpenWaCredential }, { readConnectionByTenantId, recordOutboundMessage }] = await Promise.all([
+                            import("@/lib/attendance/attendance-notify"),
+                            import("@/lib/integrations/whatsapp-bot/openwa-client"),
+                            import("@/lib/integrations/whatsapp-bot/tenant-openwa-credential"),
+                            import("@/lib/integrations/whatsapp-bot/whatsapp-bot-data"),
+                        ]);
+                        const lesson = await getKelasSlotLessonInfo(tenantId, slot.slotId);
+                        if (lesson) {
+                            const { notified: notifiedCount } = await notifyKelasAutoAlpaOnClose(
+                                {
+                                    resolveCredential: resolveTenantOpenWaCredential,
+                                    createClient: (config) => new OpenWaClient({ config }),
+                                    readConnectionByTenantId,
+                                    recordOutboundMessage,
+                                },
+                                {
+                                    tenantId,
+                                    tenantSettings: settings,
+                                    students: result.alpaStudentIds.map((studentId) => ({ studentId })),
+                                    lesson: {
+                                        subjectName: lesson.subjectName,
+                                        slotStart: lesson.slotStart,
+                                        teacherName: lesson.teacherName,
+                                    },
+                                    closedAt: now,
+                                },
+                            );
+                            notified += notifiedCount;
+                        }
+                    } catch (error) {
+                        console.error(`[${tenantId}] kelas close-notify failed`, error);
+                    }
+                }
             }
         }
     }
     const parts = [`opened ${opened}`, `closed ${closed}`];
     if (alpaFilled > 0) parts.push(`alpa ${alpaFilled}`);
+    if (notified > 0) parts.push(`notified ${notified}`);
     return { action: "kelas", detail: parts.join(", ") };
 }
 

@@ -40,8 +40,8 @@ di menu Penjadwalan, dengan kendali Provider per Tenant.
 - [Tetapkan kendali Provider atas Penjadwalan](./issues/.wayfinder/02-kendali-provider.md) — Penjadwalan digate Provider per Tenant lewat feature key baru; desain dan enforcement mengikuti `/tenant-feature-gating`.
 - [Tetapkan kontrak Slot Jadwal](./issues/.wayfinder/03-kontrak-slot-jadwal.md) — Slot simpan HH:MM + preset periode jam pelajaran; FK wajib ke Penugasan Mengajar aktif (repoint manual saat berakhir); ikatan Tahun Ajaran lewat penugasan + flag Semester; konflik Guru dan Rombel hard ditolak; guru pengganti dan ruang ditunda; langsung berlaku saat disimpan; hanya School Admin yang menyusun.
 - [Tetapkan perilaku sesi Absensi Kelas per pelajaran](./issues/.wayfinder/04-perilaku-sesi-absensi-kelas.md) — Sesi merujuk Slot Jadwal (unik per slot+tanggal); worker otomatis + koreksi manual; Guru pengampu mencatat + Admin koreksi; sesi/record immutable, hapus slot diblokir; sesi Kelas lama dihapus (belum ada data produksi); toleransi penutupan dari Pengaturan Absensi; alpa otomatis saat sesi ditutup; tampilan default per Guru.
-- [Tetapkan sumber Penugasan Mengajar](./issues/.wayfinder/05-sumber-penugasan-mengajar.md) — Dikelola di Master Data (submenu baru, tanpa feature gate, RBAC School Admin) dengan full lifecycle (planned→activate→end/cancel/replace); form slot memilih penugasan aktif + tautan ke Master Data; impor massal ditunda.
-- [Tetapkan relokasi pengaturan Jadwal Sekolah](./issues/.wayfinder/06-relokasi-jadwal-sekolah.md) — Pindah ke menu Penjadwalan sebagai submenu Jadwal Sekolah; rute lama dihapus tanpa redirect; tetap digate `absensiGerbang`; operasi + permission baru `jadwal.sekolah.*` dengan grant otomatis ke role terkait; istilah kanonik dicatat di `CONTEXT.md`.
+- [Tetapkan sumber Penugasan Mengajar](./issues/.wayfinder/05-sumber-penugasan-mengajar.md) — Dikelola di Master Data (submenu baru, tanpa feature gate, RBAC School Admin) dengan full lifecycle (planned→activate→end/cancel/replace); form slot memilih penugasan aktif + tautan ke Master Data; impor massal ditunda.- [Tetapkan relokasi pengaturan Jadwal Sekolah](./issues/.wayfinder/06-relokasi-jadwal-sekolah.md) — Pindah ke menu Penjadwalan sebagai submenu Jadwal Sekolah; rute lama dihapus tanpa redirect; tetap digate `absensiGerbang`; operasi + permission baru `jadwal.sekolah.*` dengan grant otomatis ke role terkait; istilah kanonik dicatat di `CONTEXT.md`.
+- [Tetapkan dampak ke Riwayat, rekap & notifikasi per pelajaran](./issues/.wayfinder/07-rekap-notifikasi-per-pelajaran.md) — Riwayat per sesi dengan konteks slot; rekap + agregat per mapel per semester (atribusi guru menunggu tiket 10); WA model C (manual langsung, close hanya untuk belum-tercatat, placeholder `{mapel}` `{jam}` `{guru}`); badge "Otomatis" untuk alpa sistem (Guru/Admin saja); toleransi tetap global.
 
 ## Slice plan
 
@@ -55,9 +55,7 @@ Tiket ada di `issues/` (01–07 implementasi selesai; 08–10 backlog siap di-wa
 | 4 | [04](./issues/04-crud-jadwal-mengajar.md) ✅ selesai | CRUD Jadwal Mengajar (membuat `penjadwalanWrite`) | 01, 02, 03 |
 | 5 | [05](./issues/05-sesi-per-pelajaran-backend.md) ✅ selesai | Sesi per pelajaran — backend (migrasi destruktif + worker) | 04 |
 | 6 | [06](./issues/06-sesi-per-pelajaran-ui.md) ✅ selesai | Sesi per pelajaran — UI per Guru + permission Guru | 05 |
-| 7 | [07](./issues/07-relokasi-jadwal-sekolah.md) ✅ selesai | Relokasi Jadwal Sekolah (independen; disarankan setelah 04) | — |
-| 8 | [08](./issues/08-events-scope.md) backlog | Keputusan cakupan submenu Events | — |
-| 9 | [09](./issues/09-rekap-notifikasi-per-pelajaran.md) backlog | Riwayat, rekap & notifikasi WhatsApp per pelajaran | 05, 06 |
+| 7 | [07](./issues/07-relokasi-jadwal-sekolah.md) ✅ selesai | Relokasi Jadwal Sekolah (independen; disarankan setelah 04) | — || 8 | [08](./issues/08-events-scope.md) ⏸ ditunda | Keputusan cakupan submenu Events (skip dulu — keputusan user 2026-09-28) | — || 9 | [09](./issues/09-rekap-notifikasi-per-pelajaran.md) ready | Riwayat, rekap & notifikasi WhatsApp per pelajaran (keputusan selesai, siap implementasi) | 05, 06 |
 | 10 | [10](./issues/10-guru-pengganti-per-tanggal.md) backlog | Guru pengganti per tanggal pada Slot Jadwal | 03–06 |
 
 ## Not yet specified

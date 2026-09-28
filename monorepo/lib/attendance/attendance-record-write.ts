@@ -210,7 +210,7 @@ export async function recordAttendance(
 
     // Always attach the record to the session so it surfaces in session history.
     // With an explicit per-slot session the window is owned by the caller, so no
-    // out-of-session flag is computed here. `outOfSession` only flags a time
+    // out-of-session flag is computed here. `outOfSession` only flags a time
     // outside the planned window (e.g. a late arrival). A record with no session
     // stays unlinked (sessionId = null).
     let sessionId: string | null = null;
@@ -784,7 +784,8 @@ export async function listAttendanceSessions(
             closedAt: attendanceSession.closedAt,
             status: attendanceSession.status,
             notes: attendanceSession.notes,
-            recordCount: sql<number>`cast(count(${attendanceRecord.id}) as unsigned)`.as("record_count"),
+            // Postgres: cast to int ("as unsigned" is MySQL-only syntax).
+            recordCount: sql<number>`cast(count(${attendanceRecord.id}) as int)`.as("record_count"),
         })
         .from(attendanceSession)
         .leftJoin(
@@ -829,6 +830,8 @@ export type SessionRecordView = {
     recordedAt: Date;
     outOfSession: boolean;
     notes: string | null;
+    /** System-written records (auto-alpa) have no human actor (wayfinder 07). */
+    recordedByUserId: string | null;
 };
 
 export async function listSessionRecordsWithStudents(
@@ -847,6 +850,7 @@ export async function listSessionRecordsWithStudents(
             recordedAt: attendanceRecord.recordedAt,
             outOfSession: attendanceRecord.outOfSession,
             notes: attendanceRecord.notes,
+            recordedByUserId: attendanceRecord.recordedByUserId,
         })
         .from(attendanceRecord)
         .innerJoin(studentProfile, eq(studentProfile.id, attendanceRecord.studentId))
@@ -879,6 +883,7 @@ export async function listSessionRecordsWithStudents(
         recordedAt: row.recordedAt,
         outOfSession: row.outOfSession,
         notes: row.notes,
+        recordedByUserId: row.recordedByUserId,
     }));
 }
 
@@ -979,6 +984,8 @@ export async function getSessionById(
     closedAt: Date | null;
     status: "open" | "closed";
     notes: string | null;
+    /** Teaching slot behind a Kelas session (null for Gerbang). */
+    slotId: string | null;
 } | null> {
     const [row] = await db
         .select({
@@ -991,6 +998,7 @@ export async function getSessionById(
             closedAt: attendanceSession.closedAt,
             status: attendanceSession.status,
             notes: attendanceSession.notes,
+            slotId: attendanceSession.slotId,
         })
         .from(attendanceSession)
         .where(and(eq(attendanceSession.tenantId, tenantId), eq(attendanceSession.id, sessionId)))

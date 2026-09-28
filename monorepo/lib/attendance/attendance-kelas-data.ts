@@ -132,6 +132,48 @@ export async function listTenantIdsWithKelasSlots(limit = 100, offset = 0): Prom
 }
 
 /**
+ * Lesson identity (mapel / jam / guru) of one slot for the close-time
+ * notification (wayfinder 07 model C). Null when the chain is gone.
+ */
+export async function getKelasSlotLessonInfo(
+    tenantId: string,
+    slotId: string,
+): Promise<{ subjectName: string; slotStart: string; teacherName: string } | null> {
+    const [row] = await db
+        .select({
+            subjectName: subject.name,
+            slotStart: teachingSlot.startTime,
+            teacherName: schoolPerson.fullName,
+        })
+        .from(teachingSlot)
+        .innerJoin(
+            teachingAssignment,
+            and(
+                eq(teachingAssignment.tenantId, teachingSlot.tenantId),
+                eq(teachingAssignment.id, teachingSlot.teachingAssignmentId),
+            ),
+        )
+        .innerJoin(
+            subject,
+            and(eq(subject.tenantId, teachingAssignment.tenantId), eq(subject.id, teachingAssignment.subjectId)),
+        )
+        .innerJoin(
+            teacherProfile,
+            and(
+                eq(teacherProfile.tenantId, teachingAssignment.tenantId),
+                eq(teacherProfile.id, teachingAssignment.teacherProfileId),
+            ),
+        )
+        .innerJoin(
+            schoolPerson,
+            and(eq(schoolPerson.tenantId, teacherProfile.tenantId), eq(schoolPerson.id, teacherProfile.personId)),
+        )
+        .where(and(eq(teachingSlot.tenantId, tenantId), eq(teachingSlot.id, slotId)))
+        .limit(1);
+    return row ?? null;
+}
+
+/**
  * The worker's Kelas gate: the `penjadwalan` feature must be enabled before a
  * session is opened (ticket 02 recheck), and the Kelas layer must be active.
  * Reads stay tolerant: an unset legacy flag keeps the placeholder access.
@@ -224,7 +266,8 @@ export async function openKelasSlotSession(input: {
 }
 
 export type CloseKelasSlotResult =
-    | { ok: true; alpaCount: number }
+    | { ok: true; alpaCount: number; /** Students just filled with alpa (for close-time notify, wayfinder 07). */
+        alpaStudentIds: string[] }
     | { ok: false; code: "not-found" | "error" };
 
 /**
@@ -292,6 +335,7 @@ export async function closeKelasSlotSession(input: {
             if (!session) return { ok: false as const, code: "not-found" as const };
 
             let alpaCount = 0;
+            let alpaStudentIds: string[] = [];
             if (session.status === "open") {
                 // Unrecorded = rombel members with no kelas record in this session.
                 const members = await tx
@@ -341,6 +385,7 @@ export async function closeKelasSlotSession(input: {
                         })),
                     );
                     alpaCount = missing.length;
+                    alpaStudentIds = [...missing];
                 }
 
                 await tx
@@ -355,7 +400,7 @@ export async function closeKelasSlotSession(input: {
                     );
             }
 
-            return { ok: true as const, alpaCount };
+            return { ok: true as const, alpaCount, alpaStudentIds };
         });
     } catch {
         return { ok: false, code: "error" };
