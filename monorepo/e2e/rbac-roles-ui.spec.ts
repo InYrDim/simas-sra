@@ -1,6 +1,6 @@
 import "dotenv/config";
 
-import mysql, { type Connection } from "mysql2/promise";
+import { Pool, type PoolClient } from "pg";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 
 import {
@@ -32,102 +32,79 @@ const ROLE_NAME = "Role Uji E2E";
 const ROLE_NORMALIZED_NAME = "role uji e2e";
 const ROLE_KEY = "academic-years.years.view";
 
-let connection: Connection | undefined;
+let pool: Pool | undefined;
+let connection: PoolClient | undefined;
 
 /** Full cleanup of the temporary role and its audit trail (idempotent). */
 async function cleanupTestRole(): Promise<void> {
   if (!connection) return;
-  const [roleRows] = await connection.execute(
-    "SELECT id FROM tenant_role WHERE tenant_id = ? AND normalized_name = ?",
+  const roleResult = await connection.query<{ id: string }>(
+    "SELECT id FROM tenant_role WHERE tenant_id = $1 AND normalized_name = $2",
     [TENANT_ID, ROLE_NORMALIZED_NAME],
   );
-  for (const row of roleRows as Array<{ id: string }>) {
-    const roleId = row.id;
-    const [eventRows] = await connection.execute(
-      "SELECT command_id FROM security_audit_event WHERE tenant_id = ? AND target_role_id = ?",
+  for (const roleRow of roleResult.rows) {
+    const roleId = roleRow.id;
+    const eventResult = await connection.query<{ command_id: string }>(
+      "SELECT command_id FROM security_audit_event WHERE tenant_id = $1 AND target_role_id = $2",
       [TENANT_ID, roleId],
     );
-    const commandIds = (eventRows as Array<{ command_id: string }>).map((item) => item.command_id);
+    const commandIds = eventResult.rows.map((item) => item.command_id);
     if (commandIds.length > 0) {
-      // mysql2 `execute` does NOT expand arrays for `IN (?)`; build explicit
-      // placeholders so the linked commands are actually removed.
-      const placeholders = commandIds.map(() => "?").join(", ");
-      await connection.execute(
-        `DELETE FROM security_outbox WHERE tenant_id = ? AND command_id IN (${placeholders})`,
-        [TENANT_ID, ...commandIds],
-      );
-      await connection.execute(
-        "DELETE FROM security_audit_event WHERE tenant_id = ? AND target_role_id = ?",
-        [TENANT_ID, roleId],
-      );
-      await connection.execute(
-        `DELETE FROM security_command WHERE tenant_id = ? AND id IN (${placeholders})`,
-        [TENANT_ID, ...commandIds],
-      );
+      await connection.query("DELETE FROM security_outbox WHERE tenant_id = $1 AND command_id = ANY($2::text[])", [TENANT_ID, commandIds]);
+      await connection.query("DELETE FROM security_audit_event WHERE tenant_id = $1 AND target_role_id = $2", [TENANT_ID, roleId]);
+      await connection.query("DELETE FROM security_command WHERE tenant_id = $1 AND id = ANY($2::text[])", [TENANT_ID, commandIds]);
     } else {
-      await connection.execute(
-        "DELETE FROM security_audit_event WHERE tenant_id = ? AND target_role_id = ?",
-        [TENANT_ID, roleId],
-      );
+      await connection.query("DELETE FROM security_audit_event WHERE tenant_id = $1 AND target_role_id = $2", [TENANT_ID, roleId]);
     }
-    await connection.execute(
-      "DELETE FROM tenant_role_permission WHERE tenant_id = ? AND role_id = ?",
-      [TENANT_ID, roleId],
-    );
-    await connection.execute(
-      "DELETE FROM tenant_role WHERE tenant_id = ? AND id = ?",
-      [TENANT_ID, roleId],
-    );
+    await connection.query("DELETE FROM tenant_role_permission WHERE tenant_id = $1 AND role_id = $2", [TENANT_ID, roleId]);
+    await connection.query("DELETE FROM tenant_role WHERE tenant_id = $1 AND id = $2", [TENANT_ID, roleId]);
   }
 
   // Sweep orphaned role-lifecycle commands left behind by a previous crashed
   // run whose audit events were already removed (no FK target to find them).
-  const [orphanRows] = await connection.execute(
+  const orphanResult = await connection.query<{ id: string }>(
     `SELECT c.id FROM security_command c
      LEFT JOIN security_audit_event e
        ON e.security_context_kind = c.security_context_kind
       AND e.context_id = c.context_id
       AND e.command_id = c.id
-     WHERE c.tenant_id = ?
+     WHERE c.tenant_id = $1
        AND c.command_name IN ('tenant-role.create', 'tenant-role.archive')
        AND e.id IS NULL`,
     [TENANT_ID],
   );
-  const orphanIds = (orphanRows as Array<{ id: string }>).map((item) => item.id);
+  const orphanIds = orphanResult.rows.map((item) => item.id);
   if (orphanIds.length > 0) {
-    const placeholders = orphanIds.map(() => "?").join(", ");
-    await connection.execute(
-      `DELETE FROM security_outbox WHERE tenant_id = ? AND command_id IN (${placeholders})`,
-      [TENANT_ID, ...orphanIds],
-    );
-    await connection.execute(
-      `DELETE FROM security_command WHERE tenant_id = ? AND id IN (${placeholders})`,
-      [TENANT_ID, ...orphanIds],
-    );
+    await connection.query("DELETE FROM security_outbox WHERE tenant_id = $1 AND command_id = ANY($2::text[])", [TENANT_ID, orphanIds]);
+    await connection.query("DELETE FROM security_command WHERE tenant_id = $1 AND id = ANY($2::text[])", [TENANT_ID, orphanIds]);
   }
 }
 
 test.beforeAll(async () => {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl?.trim()) throw new Error("DATABASE_URL is required");
-  connection = await mysql.createConnection({ uri: databaseUrl });
+  pool = new Pool({ connectionString: databaseUrl, max: 1 });
+  connection = await pool.connect();
   try {
     // Remove leftovers from a previously crashed run so createRole never hits
     // the normalized-name uniqueness constraint.
     await cleanupTestRole();
   } catch (error) {
-    await connection.end();
+    connection.release();
+    await pool.end();
     connection = undefined;
+    pool = undefined;
     throw error;
   }
 });
 
 test.afterAll(async () => {
-  if (!connection) return;
+  if (!connection || !pool) return;
   try {
     await cleanupTestRole();
   } finally {
-    await connection.end();
+    connection.release();
+    await pool.end();
   }
 });
 
@@ -247,24 +224,23 @@ test("VAL-ROLES-003/004: create a role with one valid key, archive stays archive
   await expect(createdRow).toBeVisible({ timeout: 30_000 });
   await expect(createdRow.getByRole("cell", { name: "draft", exact: true })).toBeVisible();
 
-  const [permissionRows] = await connection!.execute(
-    "SELECT permission_key FROM tenant_role_permission WHERE tenant_id = ? AND role_id = (SELECT id FROM tenant_role WHERE tenant_id = ? AND normalized_name = ?)",
-    [TENANT_ID, TENANT_ID, ROLE_NORMALIZED_NAME],
+  const permissionResult = await connection!.query<{ permission_key: string }>(
+    "SELECT permission_key FROM tenant_role_permission WHERE tenant_id = $1 AND role_id = (SELECT id FROM tenant_role WHERE tenant_id = $1 AND normalized_name = $2)",
+    [TENANT_ID, ROLE_NORMALIZED_NAME],
   );
-  expect((permissionRows as Array<{ permission_key: string }>).map((row) => row.permission_key)).toContain(ROLE_KEY);
+  expect(permissionResult.rows.map((row) => row.permission_key)).toContain(ROLE_KEY);
 
   // --- Archive the userCount==0 role: it must STAY in the list as archived. ---
   await createdRow.getByRole("button", { name: "Open menu" }).click();
   await page.getByRole("menuitem", { name: "Archive", exact: true }).click();
   await expect(createdRow.getByRole("cell", { name: "archived", exact: true })).toBeVisible({ timeout: 20_000 });
 
-  const [archivedRows] = await connection!.execute(
-    "SELECT lifecycle FROM tenant_role WHERE tenant_id = ? AND normalized_name = ?",
+  const archivedResult = await connection!.query<{ lifecycle: string }>(
+    "SELECT lifecycle FROM tenant_role WHERE tenant_id = $1 AND normalized_name = $2",
     [TENANT_ID, ROLE_NORMALIZED_NAME],
   );
-  const archived = archivedRows as Array<{ lifecycle: string }>;
-  expect(archived.length).toBe(1);
-  expect(archived[0].lifecycle).toBe("archived");
+  expect(archivedResult.rows.length).toBe(1);
+  expect(archivedResult.rows[0].lifecycle).toBe("archived");
   // Not deleted: the row and the DB row both still exist.
 
   // --- The in-use Guru role (userCount > 0) must refuse to archive. ---
@@ -274,11 +250,11 @@ test("VAL-ROLES-003/004: create a role with one valid key, archive stays archive
   await guruRow.getByRole("button", { name: "Open menu" }).click();
   await expect(page.getByRole("menuitem", { name: "Archive", exact: true })).toBeDisabled();
 
-  const [guruRows] = await connection!.execute(
-    "SELECT lifecycle FROM tenant_role WHERE tenant_id = ? AND normalized_name = 'guru'",
+  const guruResult = await connection!.query<{ lifecycle: string }>(
+    "SELECT lifecycle FROM tenant_role WHERE tenant_id = $1 AND normalized_name = 'guru'",
     [TENANT_ID],
   );
-  expect((guruRows as Array<{ lifecycle: string }>)[0].lifecycle).toBe("active");
+  expect(guruResult.rows[0].lifecycle).toBe("active");
 });
 
 test("VAL-ROLES-001: guru and siswa do not see Roles and direct /settings/roles denies without content", async ({ page }) => {
@@ -303,24 +279,24 @@ test("cleanup restores SDN 191 to exactly 2 roles and 2 assignments", async ({ p
   void page;
   await cleanupTestRole();
 
-  const [roleRows] = await connection!.execute(
-    "SELECT name, lifecycle FROM tenant_role WHERE tenant_id = ? ORDER BY name",
+  const roleResult = await connection!.query<{ name: string; lifecycle: string }>(
+    "SELECT name, lifecycle FROM tenant_role WHERE tenant_id = $1 ORDER BY name",
     [TENANT_ID],
   );
-  const roles = roleRows as Array<{ name: string; lifecycle: string }>;
+  const roles = roleResult.rows;
   expect(roles.length).toBe(2);
   expect(roles.map((role) => role.name)).toEqual(["Guru", "Siswa"]);
   expect(roles.every((role) => role.lifecycle === "active")).toBe(true);
 
-  const [assignRows] = await connection!.execute(
-    "SELECT COUNT(*) AS n FROM tenant_role_assignment WHERE tenant_id = ? AND state = 'active'",
+  const assignResult = await connection!.query<{ n: string }>(
+    "SELECT COUNT(*)::text AS n FROM tenant_role_assignment WHERE tenant_id = $1 AND state = 'active'",
     [TENANT_ID],
   );
-  expect((assignRows as Array<{ n: number }>)[0].n).toBe(2);
+  expect(Number(assignResult.rows[0].n)).toBe(2);
 
-  const [leftover] = await connection!.execute(
-    "SELECT COUNT(*) AS n FROM tenant_role WHERE tenant_id = ? AND normalized_name = ?",
+  const leftoverResult = await connection!.query<{ n: string }>(
+    "SELECT COUNT(*)::text AS n FROM tenant_role WHERE tenant_id = $1 AND normalized_name = $2",
     [TENANT_ID, ROLE_NORMALIZED_NAME],
   );
-  expect((leftover as Array<{ n: number }>)[0].n).toBe(0);
+  expect(Number(leftoverResult.rows[0].n)).toBe(0);
 });

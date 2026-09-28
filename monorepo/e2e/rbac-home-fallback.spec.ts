@@ -1,6 +1,6 @@
 import "dotenv/config";
 
-import mysql, { type Connection } from "mysql2/promise";
+import { Pool, type PoolClient } from "pg";
 import { expect, test, type Page, type Response } from "@playwright/test";
 import { hashPassword } from "better-auth/crypto";
 
@@ -44,35 +44,32 @@ function requireEnv(name: string): string {
   return value;
 }
 
-let connection: Connection | undefined;
+let pool: Pool | undefined;
+let connection: PoolClient | undefined;
 
 async function cleanup(): Promise<void> {
   // No-op when beforeAll failed before the connection was created (e.g. env
   // DB credentials missing): there is nothing to remove and no handle to use.
   if (!connection) return;
-  await connection.execute("DELETE FROM session WHERE user_id IN (?, ?)", [USER_ABSENSI_ONLY_ID, USER_NO_PERM_ID]);
-  await connection.execute("DELETE FROM tenant_role_assignment WHERE tenant_id = ? AND user_id IN (?, ?)", [
+  await connection.query("DELETE FROM session WHERE user_id = ANY($1::text[])", [[USER_ABSENSI_ONLY_ID, USER_NO_PERM_ID]]);
+  await connection.query("DELETE FROM tenant_role_assignment WHERE tenant_id = $1 AND user_id = ANY($2::text[])", [
     TENANT_ID,
-    USER_ABSENSI_ONLY_ID,
-    USER_NO_PERM_ID,
+    [USER_ABSENSI_ONLY_ID, USER_NO_PERM_ID],
   ]);
-  await connection.execute("DELETE FROM tenant_role_permission WHERE tenant_id = ? AND role_id IN (?, ?)", [
+  await connection.query("DELETE FROM tenant_role_permission WHERE tenant_id = $1 AND role_id = ANY($2::text[])", [
     TENANT_ID,
-    ROLE_ABSENSI_ONLY_ID,
-    ROLE_NO_PERM_ID,
+    [ROLE_ABSENSI_ONLY_ID, ROLE_NO_PERM_ID],
   ]);
-  await connection.execute("DELETE FROM tenant_account_security WHERE tenant_id = ? AND user_id IN (?, ?)", [
+  await connection.query("DELETE FROM tenant_account_security WHERE tenant_id = $1 AND user_id = ANY($2::text[])", [
     TENANT_ID,
-    USER_ABSENSI_ONLY_ID,
-    USER_NO_PERM_ID,
+    [USER_ABSENSI_ONLY_ID, USER_NO_PERM_ID],
   ]);
-  await connection.execute("DELETE FROM account WHERE user_id IN (?, ?)", [USER_ABSENSI_ONLY_ID, USER_NO_PERM_ID]);
-  await connection.execute("DELETE FROM tenant_role WHERE tenant_id = ? AND id IN (?, ?)", [
+  await connection.query("DELETE FROM account WHERE user_id = ANY($1::text[])", [[USER_ABSENSI_ONLY_ID, USER_NO_PERM_ID]]);
+  await connection.query("DELETE FROM tenant_role WHERE tenant_id = $1 AND id = ANY($2::text[])", [
     TENANT_ID,
-    ROLE_ABSENSI_ONLY_ID,
-    ROLE_NO_PERM_ID,
+    [ROLE_ABSENSI_ONLY_ID, ROLE_NO_PERM_ID],
   ]);
-  await connection.execute("DELETE FROM user WHERE id IN (?, ?)", [USER_ABSENSI_ONLY_ID, USER_NO_PERM_ID]);
+  await connection.query('DELETE FROM "user" WHERE id = ANY($1::text[])', [[USER_ABSENSI_ONLY_ID, USER_NO_PERM_ID]]);
 }
 
 test.beforeAll(async () => {
@@ -80,61 +77,63 @@ test.beforeAll(async () => {
   if (!databaseUrl?.trim()) throw new Error("DATABASE_URL is required");
 
   const passwordHash = await hashPassword(requireEnv("SDN191_GURU_PASSWORD"));
-  connection = await mysql.createConnection({ uri: databaseUrl });
+  pool = new Pool({ connectionString: databaseUrl, max: 1 });
+  connection = await pool.connect();
   try {
     // Idempotent: remove leftovers from a crashed previous run first.
     await cleanup();
 
-    const now = new Date();
-    await connection.execute(
-      "INSERT INTO tenant_role (id, tenant_id, name, normalized_name, lifecycle, origin, version, created_at, updated_at) VALUES (?, ?, ?, ?, 'active', 'scratch', 1, ?, ?)",
-      [ROLE_ABSENSI_ONLY_ID, TENANT_ID, "Fallback Absensi", "fallback absensi", now, now],
+    await connection.query(
+      "INSERT INTO tenant_role (id, tenant_id, name, normalized_name, lifecycle, origin, version, created_at, updated_at) VALUES ($1, $2, $3, $4, 'active', 'scratch', 1, now(), now())",
+      [ROLE_ABSENSI_ONLY_ID, TENANT_ID, "Fallback Absensi", "fallback absensi"],
     );
-    await connection.execute(
-      "INSERT INTO tenant_role (id, tenant_id, name, normalized_name, lifecycle, origin, version, created_at, updated_at) VALUES (?, ?, ?, ?, 'active', 'scratch', 1, ?, ?)",
-      [ROLE_NO_PERM_ID, TENANT_ID, "Fallback Tanpa Izin", "fallback tanpa izin", now, now],
+    await connection.query(
+      "INSERT INTO tenant_role (id, tenant_id, name, normalized_name, lifecycle, origin, version, created_at, updated_at) VALUES ($1, $2, $3, $4, 'active', 'scratch', 1, now(), now())",
+      [ROLE_NO_PERM_ID, TENANT_ID, "Fallback Tanpa Izin", "fallback tanpa izin"],
     );
     // The no-dashboard role holds ONLY absensi.attendance.view.
-    await connection.execute(
-      "INSERT INTO tenant_role_permission (tenant_id, role_id, permission_key, created_at) VALUES (?, ?, 'absensi.attendance.view', ?)",
-      [TENANT_ID, ROLE_ABSENSI_ONLY_ID, now],
+    await connection.query(
+      "INSERT INTO tenant_role_permission (tenant_id, role_id, permission_key, created_at) VALUES ($1, $2, 'absensi.attendance.view', now())",
+      [TENANT_ID, ROLE_ABSENSI_ONLY_ID],
     );
     // Synthetic users attached to SDN 191 (tenant_role NULL: authorization
     // comes exclusively from the RBAC assignment).
-    await connection.execute(
-      "INSERT INTO user (id, tenant_id, tenant_role, name, email, email_verified, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, true, ?, ?)",
-      [USER_ABSENSI_ONLY_ID, TENANT_ID, "Fallback Absensi User", USER_ABSENSI_ONLY_EMAIL, now, now],
+    await connection.query(
+      'INSERT INTO "user" (id, tenant_id, tenant_role, name, email, email_verified, created_at, updated_at) VALUES ($1, $2, NULL, $3, $4, true, now(), now())',
+      [USER_ABSENSI_ONLY_ID, TENANT_ID, "Fallback Absensi User", USER_ABSENSI_ONLY_EMAIL],
     );
-    await connection.execute(
-      "INSERT INTO user (id, tenant_id, tenant_role, name, email, email_verified, created_at, updated_at) VALUES (?, ?, NULL, ?, ?, true, ?, ?)",
-      [USER_NO_PERM_ID, TENANT_ID, "Fallback Tanpa Izin User", USER_NO_PERM_EMAIL, now, now],
+    await connection.query(
+      'INSERT INTO "user" (id, tenant_id, tenant_role, name, email, email_verified, created_at, updated_at) VALUES ($1, $2, NULL, $3, $4, true, now(), now())',
+      [USER_NO_PERM_ID, TENANT_ID, "Fallback Tanpa Izin User", USER_NO_PERM_EMAIL],
     );
     for (const userId of [USER_ABSENSI_ONLY_ID, USER_NO_PERM_ID]) {
       // better-auth credential convention: account_id = user id (see
       // tenant-account-lifecycle-data / provision-sdn-191.ts).
-      await connection.execute(
-        "INSERT INTO account (id, account_id, provider_id, user_id, password, created_at, updated_at) VALUES (?, ?, 'credential', ?, ?, ?, ?)",
-        [userId, userId, userId, passwordHash, now, now],
+      await connection.query(
+        "INSERT INTO account (id, account_id, provider_id, user_id, password, created_at, updated_at) VALUES ($1, $2, 'credential', $3, $4, now(), now())",
+        [userId, userId, userId, passwordHash],
       );
-      await connection.execute(
-        "INSERT INTO tenant_account_security (tenant_id, user_id, lifecycle, version, assignment_version, activated_at, created_at, updated_at) VALUES (?, ?, 'active', 1, 1, ?, ?, ?)",
-        [TENANT_ID, userId, now, now, now],
+      await connection.query(
+        "INSERT INTO tenant_account_security (tenant_id, user_id, lifecycle, version, assignment_version, activated_at, created_at, updated_at) VALUES ($1, $2, 'active', 1, 1, now(), now(), now())",
+        [TENANT_ID, userId],
       );
     }
-    await connection.execute(
-      "INSERT INTO tenant_role_assignment (id, tenant_id, user_id, role_id, state, version, assigned_at, updated_at) VALUES (?, ?, ?, ?, 'active', 1, ?, ?)",
-      [ASSIGNMENT_ABSENSI_ONLY_ID, TENANT_ID, USER_ABSENSI_ONLY_ID, ROLE_ABSENSI_ONLY_ID, now, now],
+    await connection.query(
+      "INSERT INTO tenant_role_assignment (id, tenant_id, user_id, role_id, state, version, assigned_at, updated_at) VALUES ($1, $2, $3, $4, 'active', 1, now(), now())",
+      [ASSIGNMENT_ABSENSI_ONLY_ID, TENANT_ID, USER_ABSENSI_ONLY_ID, ROLE_ABSENSI_ONLY_ID],
     );
-    await connection.execute(
-      "INSERT INTO tenant_role_assignment (id, tenant_id, user_id, role_id, state, version, assigned_at, updated_at) VALUES (?, ?, ?, ?, 'active', 1, ?, ?)",
-      [ASSIGNMENT_NO_PERM_ID, TENANT_ID, USER_NO_PERM_ID, ROLE_NO_PERM_ID, now, now],
+    await connection.query(
+      "INSERT INTO tenant_role_assignment (id, tenant_id, user_id, role_id, state, version, assigned_at, updated_at) VALUES ($1, $2, $3, $4, 'active', 1, now(), now())",
+      [ASSIGNMENT_NO_PERM_ID, TENANT_ID, USER_NO_PERM_ID, ROLE_NO_PERM_ID],
     );
   } catch (error) {
     await cleanup();
-    await connection.end();
+    connection.release();
+    await pool.end();
     // Forget the (now closed) handle so a subsequent afterAll does not run
     // cleanup/end again and mask the original error with a secondary one.
     connection = undefined;
+    pool = undefined;
     throw error;
   }
 });
@@ -143,11 +142,12 @@ test.afterAll(async () => {
   // beforeAll may have failed before creating the connection (e.g. env DB
   // credentials missing). Playwright still runs afterAll in that case; return
   // so the real beforeAll error is the only error reported.
-  if (!connection) return;
+  if (!connection || !pool) return;
   try {
     await cleanup();
   } finally {
-    await connection.end();
+    connection.release();
+    await pool.end();
   }
 });
 
