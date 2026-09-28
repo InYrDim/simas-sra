@@ -7,7 +7,14 @@ absensi sesi Kelas di tanggal tersebut, tanpa mengubah Penugasan Mengajar induk.
 
 **Blocked by:** None (tiket 03, 04, 05, 06 sudah resolved).
 
-**Status:** needs-triage
+**Status:** wontfix (ditunda user 2026-09-28 — bisa dibuka kembali nanti)
+
+## Keputusan 2026-09-28 (sebelum ditunda)
+
+- User memilih **skip dulu** — guru pengganti per tanggal tidak dikerjakan pada effort
+  Penjadwalan ini. Konsekuensi yang tertulis di wayfinder 07: atribusi guru pada rekap
+  per mapel memakai **pengampu slot** (dari Penugasan Mengajar induk) tanpa override;
+  kalau nanti tiket ini dibuka lagi, rekap tinggal diwarnai override per tanggal.
 
 ## Konteks keputusan yang sudah ada
 

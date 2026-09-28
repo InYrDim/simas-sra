@@ -55,8 +55,7 @@ Tiket ada di `issues/` (01–07 implementasi selesai; 08–10 backlog siap di-wa
 | 4 | [04](./issues/04-crud-jadwal-mengajar.md) ✅ selesai | CRUD Jadwal Mengajar (membuat `penjadwalanWrite`) | 01, 02, 03 |
 | 5 | [05](./issues/05-sesi-per-pelajaran-backend.md) ✅ selesai | Sesi per pelajaran — backend (migrasi destruktif + worker) | 04 |
 | 6 | [06](./issues/06-sesi-per-pelajaran-ui.md) ✅ selesai | Sesi per pelajaran — UI per Guru + permission Guru | 05 |
-| 7 | [07](./issues/07-relokasi-jadwal-sekolah.md) ✅ selesai | Relokasi Jadwal Sekolah (independen; disarankan setelah 04) | — || 8 | [08](./issues/08-events-scope.md) ⏸ ditunda | Keputusan cakupan submenu Events (skip dulu — keputusan user 2026-09-28) | — || 9 | [09](./issues/09-rekap-notifikasi-per-pelajaran.md) ready | Riwayat, rekap & notifikasi WhatsApp per pelajaran (keputusan selesai, siap implementasi) | 05, 06 |
-| 10 | [10](./issues/10-guru-pengganti-per-tanggal.md) backlog | Guru pengganti per tanggal pada Slot Jadwal | 03–06 |
+| 7 | [07](./issues/07-relokasi-jadwal-sekolah.md) ✅ selesai | Relokasi Jadwal Sekolah (independen; disarankan setelah 04) | — || 8 | [08](./issues/08-events-scope.md) ⏸ ditunda | Keputusan cakupan submenu Events (skip dulu — keputusan user 2026-09-28) | — || 9 | [09](./issues/09-rekap-notifikasi-per-pelajaran.md) ready | Riwayat, rekap & notifikasi WhatsApp per pelajaran (keputusan selesai, siap implementasi) | 05, 06 || 10 | [10](./issues/10-guru-pengganti-per-tanggal.md) ⏸ ditunda | Guru pengganti per tanggal pada Slot Jadwal (skip dulu — keputusan user 2026-09-28) | 03–06 |
 
 ## Not yet specified
 
