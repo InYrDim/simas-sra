@@ -45,7 +45,7 @@ function isNavigationItemLeafAuthorized(item: TenantNavItem, permissions: Readon
   return isNavigationItemAuthorized(item, permissions)
 }
 
-function TenantNavCollapsibleItem({ item, permissions, pathname, domain, disabled, hiddenKeys }: { item: TenantNavItem, permissions: ReadonlySet<string>, pathname: string, domain: string, disabled: boolean, hiddenKeys: Set<string> | null }) {
+function TenantNavCollapsibleItem({ item, permissions, pathname, domain, disabled, hiddenKeys, features }: { item: TenantNavItem, permissions: ReadonlySet<string>, pathname: string, domain: string, disabled: boolean, hiddenKeys: Set<string> | null, features: TenantFeatureSelection }) {
   const filteredSubItems = item.items!.filter((subItem) => !hiddenKeys?.has(subItem.key) && isNavigationItemLeafAuthorized(subItem, permissions))
   const isActive = filteredSubItems.some((subItem) => pathname === tenantNavigationHref(domain, subItem.url))
 
@@ -94,16 +94,25 @@ function TenantNavCollapsibleItem({ item, permissions, pathname, domain, disable
         } />
         <CollapsibleContent>
           <SidebarMenuSub>
-            {filteredSubItems.map((subItem) => (
-              <SidebarMenuSubItem key={subItem.title}>
-                <SidebarMenuSubButton
-                  render={<Link href={tenantNavigationHref(domain, subItem.url)} aria-current={pathname === tenantNavigationHref(domain, subItem.url) ? "page" : undefined} />}
-                  isActive={pathname === tenantNavigationHref(domain, subItem.url)}
-                >
-                  <span>{subItem.title}</span>
-                </SidebarMenuSubButton>
-              </SidebarMenuSubItem>
-            ))}
+            {filteredSubItems.map((subItem) => {
+              // Per-item Provider feature gate (ticket 07): a sub-item may live
+              // under a different feature than its parent (e.g. Jadwal Sekolah
+              // under Penjadwalan, gated by absensiGerbang). Disabled items stay
+              // visible with the lock tooltip, matching top-level behavior.
+              const subDisabled = Boolean(subItem.feature && !features[subItem.feature])
+              return (
+                <SidebarMenuSubItem key={subItem.title}>
+                  <SidebarMenuSubButton
+                    className={subDisabled ? "cursor-not-allowed opacity-45" : undefined}
+                    render={subDisabled ? <span aria-disabled title={`${subItem.title} dinonaktifkan oleh Provider`} /> : <Link href={tenantNavigationHref(domain, subItem.url)} aria-current={pathname === tenantNavigationHref(domain, subItem.url) ? "page" : undefined} />}
+                    isActive={!subDisabled && pathname === tenantNavigationHref(domain, subItem.url)}
+                  >
+                    <span>{subItem.title}</span>
+                    {subDisabled ? <LockKeyhole className="ml-auto" /> : null}
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              )
+            })}
           </SidebarMenuSub>
         </CollapsibleContent>
       </Collapsible>
@@ -157,7 +166,7 @@ export function TenantNavMenu({
 
               // Nested item scenario
               if (item.items && item.items.length > 0) {
-                return <TenantNavCollapsibleItem key={item.title} item={item} permissions={permissionSet} pathname={pathname} domain={domain} disabled={disabled} hiddenKeys={hiddenKeys} />
+                return <TenantNavCollapsibleItem key={item.title} item={item} permissions={permissionSet} pathname={pathname} domain={domain} disabled={disabled} hiddenKeys={hiddenKeys} features={features} />
               }
 
               // Normal item scenario

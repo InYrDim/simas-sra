@@ -18,6 +18,7 @@ export const tenantMenuItems: TenantNavItem[] = [
     feature: "absensi",
     items: [
       { key: "absensi-overview", title: "Ikhtisar", url: "/absensi", requiredPermissions: ["absensi.attendance.view"] },
+      { key: "absensi-kelas", title: "Kelas", url: "/absensi/kelas", requiredPermissions: ["absensi.attendance.view"] },
       { key: "absensi-history", title: "Riwayat", url: "/absensi/history", requiredPermissions: ["absensi.attendance.view"] },
       { key: "absensi-settings", title: "Pengaturan", url: "/absensi/settings", requiredPermissions: ["absensi.settings.update"] },
       { key: "absensi-saya", title: "Absensi Saya", url: "/absensi/saya", requiredPermissions: ["absensi.self.view"] },
@@ -72,9 +73,13 @@ export const tenantMenuItems: TenantNavItem[] = [
     key: "penjadwalan",
     title: "Penjadwalan",
     icon: Calendar,
+    feature: "penjadwalanRead",
+    requiredPermissions: ["jadwal.mengajar.view", "jadwal.events.view"],
+    permissionMode: "any",
     items: [
-      { key: "jadwal-mengajar", title: "Jadwal Mengajar", url: "/jadwal/mengajar", requiredPermissions: ["tenant.authorization-audit.view"] },
-      { key: "jadwal-events", title: "Events", url: "/jadwal/events", requiredPermissions: ["tenant.authorization-audit.view"] }
+      { key: "jadwal-mengajar", title: "Jadwal Mengajar", url: "/jadwal/mengajar", requiredPermissions: ["jadwal.mengajar.view"] },
+      { key: "jadwal-sekolah", title: "Jadwal Sekolah", url: "/jadwal/sekolah", requiredPermissions: ["jadwal.sekolah.view"], feature: "absensiGerbang" },
+      { key: "jadwal-events", title: "Events", url: "/jadwal/events", requiredPermissions: ["jadwal.events.view"] }
     ]
   },
   {
@@ -110,6 +115,7 @@ export const tenantMenuItems: TenantNavItem[] = [
       { key: "master-staf", title: "Staf", url: "/master/staf", requiredPermissions: ["staff.staff.view"] },
       { key: "master-mapel", title: "Mata Pelajaran", url: "/master/mapel", requiredPermissions: ["subjects.subjects.view"] },
       { key: "master-rombel", title: "Rombongan Belajar", url: "/master/rombel", requiredPermissions: ["class-groups.groups.view"] },
+      { key: "master-penugasan", title: "Penugasan Mengajar", url: "/master/penugasan", requiredPermissions: ["teaching-assignments.teaching.view"] },
       { key: "master-sarpras", title: "Sarana & Prasarana", url: "/master/sarpras", requiredPermissions: ["facilities.locations.view"] },
       { key: "master-aset", title: "Aset/Barang", url: "/master/sarpras/aset", requiredPermissions: ["assets.assets.view"] },
       { key: "master-organisasi", title: "Organisasi", url: "/master/organisasi", requiredPermissions: ["student-organizations.organizations.view"] },

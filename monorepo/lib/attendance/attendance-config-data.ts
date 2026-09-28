@@ -12,6 +12,7 @@ import {
     ATTENDANCE_MODES,
     ATTENDANCE_MODE_FEATURE,
     filterAllowedActiveLayers,
+    isKelasCloseToleranceMinutes,
     mergeAbsensiSettings,
     readAbsensiSettings,
     type AbsensiConfig,
@@ -119,6 +120,38 @@ export async function saveModeSettings(
     });
 }
 
+/**
+ * Persists the Kelas closing tolerance — the number of minutes after a slot's
+ * endTime the session window stays open (wayfinder ticket 04). Returns false
+ * when the tenant does not exist or the value is out of bounds.
+ */
+export async function saveKelasCloseTolerance(tenantId: string, minutes: number): Promise<boolean> {
+    if (!isKelasCloseToleranceMinutes(minutes)) return false;
+    return db.transaction(async (tx) => {
+        const [row] = await tx
+            .select({ settings: tenant.settings })
+            .from(tenant)
+            .where(eq(tenant.id, tenantId))
+            .limit(1)
+            .for("update");
+        if (!row) return false;
+
+        const base = readAbsensiSettings(row.settings);
+        await tx
+            .update(tenant)
+            .set({
+                settings: mergeAbsensiSettingsIntoSettings(row.settings, {
+                    activeLayers: base.activeLayers,
+                    sessionWindow: base.sessionWindow,
+                    modeSettings: base.modeSettings,
+                    kelasCloseToleranceMinutes: minutes,
+                }),
+            })
+            .where(eq(tenant.id, tenantId));
+        return true;
+    });
+}
+
 /** Writes the absensi block into the tenant settings object without mutating input. */
 function mergeAbsensiSettingsIntoSettings(
     settings: unknown,
@@ -126,14 +159,17 @@ function mergeAbsensiSettingsIntoSettings(
         activeLayers: Partial<Record<AttendanceLayer, AttendanceModeList>>;
         sessionWindow?: Partial<Record<AttendanceLayer, SessionWindow>>;
         modeSettings?: Partial<Record<AttendanceMode, ModeSettings>>;
+        kelasCloseToleranceMinutes?: number;
     },
 ): Record<string, unknown> {
     const base = settings && typeof settings === "object" ? { ...(settings as Record<string, unknown>) } : {};
     const prev = readAbsensiSettings(settings);
+    const tolerance = next.kelasCloseToleranceMinutes ?? prev.kelasCloseToleranceMinutes;
     base.absensi = {
         activeLayers: { ...next.activeLayers },
         sessionWindow: { ...prev.sessionWindow, ...next.sessionWindow },
         modeSettings: { ...prev.modeSettings, ...next.modeSettings },
+        ...(tolerance !== undefined ? { kelasCloseToleranceMinutes: tolerance } : {}),
     };
     return base;
 }

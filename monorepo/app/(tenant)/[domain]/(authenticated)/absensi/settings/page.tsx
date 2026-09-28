@@ -3,7 +3,7 @@ import Link from "next/link";
 import { createHttpTenantAuthorizationEvaluator, tenantAuthorizationStore } from "@/lib/authorization/tenant-authorization-data";
 import { enforceAuthorizedTenantOperation } from "@/lib/authorization/tenant-operation-route-access";
 import { getAbsensiConfig } from "@/lib/attendance/attendance-config-data";
-import { Layers, QrCode, CreditCard, PenLine } from "lucide-react";
+import { CalendarClock, Layers, QrCode, CreditCard, PenLine, Timer } from "lucide-react";
 import {
     ATTENDANCE_MODE_LABELS,
     ATTENDANCE_LAYERS,
@@ -94,6 +94,25 @@ export default async function AbsensiSettingsPage({
                             })}
                         </div>
                     </section>
+
+                    {activeLayers.includes("kelas") ? (
+                        <section className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
+                            <div className="flex items-center gap-2">
+                                <Timer className="size-5" aria-hidden />
+                                <h2 className="text-lg font-semibold">Toleransi Penutupan Kelas</h2>
+                            </div>
+                            <p className="mt-2 text-sm text-muted-foreground">
+                                Atur berapa menit sesi Absensi Kelas tetap terbuka setelah jam selesai pelajaran
+                                (Slot Jadwal).
+                            </p>
+                            <Link
+                                href={`/${domain}/absensi/settings/kelas`}
+                                className="mt-4 inline-flex items-center rounded-md border px-3 py-1.5 text-sm font-medium hover:bg-muted"
+                            >
+                                Atur toleransi
+                            </Link>
+                        </section>
+                    ) : null}
                 </div>
             )}
 

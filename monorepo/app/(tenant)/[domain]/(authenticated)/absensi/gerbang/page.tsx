@@ -6,6 +6,9 @@ import { enforceTenantFeatureEnabled } from "@/lib/features/tenant-feature-route
 import { getAbsensiConfig } from "@/lib/attendance/attendance-config-data";
 import { readTenantTimezone } from "@/lib/attendance/attendance-config";
 import { listGerbangRecordsForDayWithStudents, resolveOpenSession, resolveTodaysSession } from "@/lib/attendance/attendance-record-data";
+import { listSchoolScheduleDays, listSchoolHolidays } from "@/lib/attendance/attendance-schedule-data";
+import { resolveGerbangScheduleDecision } from "@/lib/attendance/attendance-schedule";
+import { civilDateInZone, localHHMMInZone } from "@/lib/attendance/attendance-date";
 import { tenantAuthorizationStore } from "@/lib/authorization/tenant-authorization-data";
 import { ATTENDANCE_MODE_LABELS } from "@/lib/attendance/attendance-config";
 import { isTenantFeatureEnabled } from "@/lib/features/tenant-feature-policy";
@@ -65,6 +68,17 @@ export default async function AbsensiGerbangPage({
     const timezone = readTenantTimezone(tenant.settings);
     const today = await listGerbangRecordsForDayWithStudents(tenant.id, new Date(), timezone);
     const openSession = await resolveOpenSession(tenant.id, "gerbang", new Date(), timezone);
+    const scheduleDays = await listSchoolScheduleDays(tenant.id);
+    const holidays = await listSchoolHolidays(tenant.id);
+    const now = new Date();
+    const scheduleDecision = scheduleDays.length > 0
+        ? resolveGerbangScheduleDecision({
+            civilDate: civilDateInZone(now, timezone),
+            nowHHMM: localHHMMInZone(now, timezone),
+            scheduleDays,
+            holidays,
+        })
+        : null;
     // Any session for today (open or closed) blocks creating a new one, so the
     // panel must reflect it instead of offering "Buat Sesi".
     const todaysSession = await resolveTodaysSession(tenant.id, "gerbang", new Date(), timezone);
@@ -83,6 +97,15 @@ export default async function AbsensiGerbangPage({
             <p className="text-muted-foreground">
                 Mode: {modes.map((m) => ATTENDANCE_MODE_LABELS[m]).join(", ")}. Pilih siswa lalu catat Masuk atau Keluar.
             </p>
+
+            {scheduleDecision?.kind === "session" ? (
+                <p className="text-sm text-muted-foreground">
+                    Jadwal hari ini: {scheduleDecision.startTime}–{scheduleDecision.endTime}
+                    (sesi dibuka/ditutup otomatis oleh sistem).
+                </p>
+            ) : scheduleDecision?.kind === "none" && scheduleDecision.reason === "holiday" ? (
+                <p className="text-sm text-muted-foreground">Hari ini tanggal libur — tidak ada sesi terjadwal.</p>
+            ) : null}
 
             <GerbangSessionPanel
                 domain={domain}

@@ -11,6 +11,7 @@ import {
     attendanceSession,
 } from "@/db/schema";
 import { civilDateInZone, localHHMMInZone, zonedWallClockToUtc } from "@/lib/attendance/attendance-date";
+import { pickKelasSessionByWindow } from "@/lib/attendance/attendance-kelas-schedule";
 import {
     isAttendanceRecordStatus,
     isStatusValidForLayer,
@@ -42,6 +43,12 @@ export type RecordAttendanceInput = {
     status: AttendanceRecordStatus;
     /** Who performed the write. Manual = operator login; QR/Kartu = gate service. */
     actorUserId: string;
+    /**
+     * Explicit per-slot Kelas session (the operator works inside one session).
+     * When omitted the open-session lookup applies: window-based for Kelas,
+     * the day's session for Gerbang.
+     */
+    sessionId?: string;
     recordedAt?: Date;
     /** Tenant IANA timezone (e.g. "Asia/Jakarta"); defaults to WIB. */
     timezone?: string;
@@ -98,7 +105,7 @@ export async function resolveOpenSession(
     timezone: string = "Asia/Jakarta",
 ): Promise<{ id: string; plannedStart: string; plannedEnd: string; openedAt: Date } | null> {
     const dateStr = civilDateInZone(day, timezone);
-    const [row] = await db
+    const rows = await db
         .select({
             id: attendanceSession.id,
             plannedStart: attendanceSession.plannedStart,
@@ -113,9 +120,14 @@ export async function resolveOpenSession(
                 eq(attendanceSession.sessionDate, dateStr),
                 eq(attendanceSession.status, "open"),
             ),
-        )
-        .limit(1);
-    return row ?? null;
+        );
+    // Kelas is per-slot: many open sessions can exist per day, so "the" open
+    // session is the one whose planned window contains the local time. Gerbang
+    // keeps one session per day (partial unique), so the filter is a no-op.
+    if (layer === "kelas") {
+        return pickKelasSessionByWindow(rows, localHHMMInZone(day, timezone));
+    }
+    return rows[0] ?? null;
 }
 
 /**
@@ -147,6 +159,9 @@ export async function resolveTodaysSession(
                 eq(attendanceSession.sessionDate, dateStr),
             ),
         )
+        // Per-slot Kelas sessions make "today's session" ambiguous; the page
+        // groups by session, so surface the earliest of the day.
+        .orderBy(attendanceSession.plannedStart)
         .limit(1);
     return row ?? null;
 }
@@ -174,18 +189,40 @@ export async function recordAttendance(
 
     const now = input.recordedAt ?? new Date();
     const timezone = input.timezone ?? "Asia/Jakarta";
-    const session = await resolveOpenSession(input.tenantId, input.layer, now, timezone);
+    // Explicit per-slot session: validated tenant- AND layer-scoped before use
+    // (fail closed to unlinked when the id is foreign or mismatched).
+    let explicitSession: { id: string; plannedStart: string; plannedEnd: string } | null = null;
+    if (input.sessionId) {
+        const [row] = await db
+            .select({ id: attendanceSession.id, plannedStart: attendanceSession.plannedStart, plannedEnd: attendanceSession.plannedEnd })
+            .from(attendanceSession)
+            .where(
+                and(
+                    eq(attendanceSession.tenantId, input.tenantId),
+                    eq(attendanceSession.id, input.sessionId),
+                    eq(attendanceSession.layer, input.layer),
+                ),
+            )
+            .limit(1);
+        explicitSession = row ?? null;
+    }
+    const session = explicitSession ?? (input.sessionId ? null : await resolveOpenSession(input.tenantId, input.layer, now, timezone));
 
-    // Always attach the record to the open session for the day so it surfaces in
-    // session history. `outOfSession` only flags a time outside the planned
-    // window (e.g. a late arrival) — it no longer orphans the record. A record
-    // with no open session at all stays unlinked (sessionId = null).
+    // Always attach the record to the session so it surfaces in session history.
+    // With an explicit per-slot session the window is owned by the caller, so no
+    // out-of-session flag is computed here. `outOfSession` only flags a time
+    // outside the planned window (e.g. a late arrival). A record with no session
+    // stays unlinked (sessionId = null).
     let sessionId: string | null = null;
     let outOfSession = true;
     if (session) {
         sessionId = session.id;
-        const hhmm = localHHMMInZone(now, timezone);
-        outOfSession = !(hhmm >= session.plannedStart && hhmm <= session.plannedEnd);
+        if (!input.sessionId) {
+            const hhmm = localHHMMInZone(now, timezone);
+            outOfSession = !(hhmm >= session.plannedStart && hhmm <= session.plannedEnd);
+        } else {
+            outOfSession = false;
+        }
     }
 
     const id = randomUUID();
@@ -242,7 +279,8 @@ export async function listGerbangRecordsForDay(
         studentId: string;
         status: AttendanceRecordStatus;
         recordedAt: Date;
-        recordedByUserId: string;
+        /** System-written records (auto-alpa) have no human actor. */
+        recordedByUserId: string | null;
         notes: string | null;
         outOfSession: boolean;
         sessionId: string | null;
@@ -518,7 +556,8 @@ export async function listGerbangRecordsBySession(
         studentId: string;
         status: AttendanceRecordStatus;
         recordedAt: Date;
-        recordedByUserId: string;
+        /** System-written records (auto-alpa) have no human actor. */
+        recordedByUserId: string | null;
         notes: string | null;
         outOfSession: boolean;
     }>
@@ -745,7 +784,8 @@ export async function listAttendanceSessions(
             closedAt: attendanceSession.closedAt,
             status: attendanceSession.status,
             notes: attendanceSession.notes,
-            recordCount: sql<number>`cast(count(${attendanceRecord.id}) as unsigned)`.as("record_count"),
+            // Postgres: cast to int ("as unsigned" is MySQL-only syntax).
+            recordCount: sql<number>`cast(count(${attendanceRecord.id}) as int)`.as("record_count"),
         })
         .from(attendanceSession)
         .leftJoin(
@@ -790,6 +830,8 @@ export type SessionRecordView = {
     recordedAt: Date;
     outOfSession: boolean;
     notes: string | null;
+    /** System-written records (auto-alpa) have no human actor (wayfinder 07). */
+    recordedByUserId: string | null;
 };
 
 export async function listSessionRecordsWithStudents(
@@ -808,6 +850,7 @@ export async function listSessionRecordsWithStudents(
             recordedAt: attendanceRecord.recordedAt,
             outOfSession: attendanceRecord.outOfSession,
             notes: attendanceRecord.notes,
+            recordedByUserId: attendanceRecord.recordedByUserId,
         })
         .from(attendanceRecord)
         .innerJoin(studentProfile, eq(studentProfile.id, attendanceRecord.studentId))
@@ -840,6 +883,7 @@ export async function listSessionRecordsWithStudents(
         recordedAt: row.recordedAt,
         outOfSession: row.outOfSession,
         notes: row.notes,
+        recordedByUserId: row.recordedByUserId,
     }));
 }
 
@@ -940,6 +984,8 @@ export async function getSessionById(
     closedAt: Date | null;
     status: "open" | "closed";
     notes: string | null;
+    /** Teaching slot behind a Kelas session (null for Gerbang). */
+    slotId: string | null;
 } | null> {
     const [row] = await db
         .select({
@@ -952,6 +998,7 @@ export async function getSessionById(
             closedAt: attendanceSession.closedAt,
             status: attendanceSession.status,
             notes: attendanceSession.notes,
+            slotId: attendanceSession.slotId,
         })
         .from(attendanceSession)
         .where(and(eq(attendanceSession.tenantId, tenantId), eq(attendanceSession.id, sessionId)))

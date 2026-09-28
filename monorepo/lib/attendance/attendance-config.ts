@@ -87,6 +87,8 @@ export type AbsensiSettings = {
     activeLayers: Partial<Record<AttendanceLayer, AttendanceModeList>>;
     sessionWindow?: Partial<Record<AttendanceLayer, SessionWindow>>;
     modeSettings?: Partial<Record<AttendanceMode, ModeSettings>>;
+    /** Raw stored Kelas closing tolerance; undefined = not configured. */
+    kelasCloseToleranceMinutes?: number;
 };
 
 /** Matches "HH:MM" with hours 00–23 and minutes 00–59. */
@@ -180,7 +182,37 @@ export function readAbsensiSettings(settings: unknown): AbsensiSettings {
             }
         }
     }
-    return { activeLayers, sessionWindow, modeSettings };
+    const storedTolerance = (source as Record<string, unknown>).kelasCloseToleranceMinutes;
+    const kelasCloseToleranceMinutes =
+        typeof storedTolerance === "number" && Number.isInteger(storedTolerance) && storedTolerance >= 0 && storedTolerance <= 120
+            ? storedTolerance
+            : undefined;
+    return { activeLayers, sessionWindow, modeSettings, ...(kelasCloseToleranceMinutes !== undefined ? { kelasCloseToleranceMinutes } : {}) };
+}
+
+/** Bounds and default for the Kelas session closing tolerance (wayfinder 04). */
+export const KELAS_CLOSE_TOLERANCE_MIN_MINUTES = 0;
+export const KELAS_CLOSE_TOLERANCE_MAX_MINUTES = 120;
+export const DEFAULT_KELAS_CLOSE_TOLERANCE_MINUTES = 10;
+
+/**
+ * Effective Kelas closing tolerance in minutes: how long after a slot's endTime
+ * the session window stays open (plannedEnd = slot end + tolerance). Defaults
+ * to 10 minutes when the tenant never saved a value.
+ */
+export function readKelasCloseToleranceMinutes(settings: unknown): number {
+    const stored = readAbsensiSettings(settings).kelasCloseToleranceMinutes;
+    return stored ?? DEFAULT_KELAS_CLOSE_TOLERANCE_MINUTES;
+}
+
+/** Validates a candidate tolerance value (integer minutes within bounds). */
+export function isKelasCloseToleranceMinutes(value: unknown): value is number {
+    return (
+        typeof value === "number" &&
+        Number.isInteger(value) &&
+        value >= KELAS_CLOSE_TOLERANCE_MIN_MINUTES &&
+        value <= KELAS_CLOSE_TOLERANCE_MAX_MINUTES
+    );
 }
 
 /**

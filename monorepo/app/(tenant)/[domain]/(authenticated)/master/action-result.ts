@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 
 export function finishMasterDataAction(
   domain: string,
-  section: "guru" | "siswa" | "staf",
+  section: "guru" | "siswa" | "staf" | "penugasan",
   resultCode: string,
   selectedId?: string,
 ): never {

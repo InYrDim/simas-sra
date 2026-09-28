@@ -16,6 +16,7 @@ import {
   time,
   timestamp,
   unique,
+  uniqueIndex,
   varchar,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
@@ -139,6 +140,21 @@ export const AttendanceRecordStatusEnum = pgEnum("attendanceRecord_status", [
   "izin",
   "sakit",
   "alpa",
+]);
+
+export const SchoolScheduleDayOfWeekEnum = pgEnum("schoolSchedule_day_of_week", [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+]);
+
+export const AttendanceSessionSourceEnum = pgEnum("attendanceSession_source", [
+  "manual",
+  "schedule",
 ]);
 
 export const StudentAuditOperationEnum = pgEnum("studentAudit_operation", [
@@ -899,23 +915,90 @@ export const attendanceSession = pgTable(
     tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
     layer: AttendanceSessionLayerEnum().notNull(),
     sessionDate: date("session_date").notNull(),
+    /**
+     * Owning Teaching Slot for Kelas-layer sessions (NULL for Gerbang).
+     * Identity for Kelas: unique per (tenant, slotId, sessionDate).
+     */
+    slotId: varchar("slot_id", { length: 36 }),
     plannedStart: time("planned_start", { precision: 0 }).notNull(),
     plannedEnd: time("planned_end", { precision: 0 }).notNull(),
     openedAt: timestamp("opened_at", { precision: 3 }).notNull(),
     closedAt: timestamp("closed_at", { precision: 3 }),
-    openedByUserId: varchar("opened_by_user_id", { length: 36 }).notNull(),
+    /** Actor who opened the session; NULL when opened automatically by the schedule worker. */
+    openedByUserId: varchar("opened_by_user_id", { length: 36 }),
     status: AttendanceSessionStatusEnum().notNull(),
+    /** How the session was created: by the school schedule (worker) or manually by an operator. */
+    source: AttendanceSessionSourceEnum().notNull().default("manual"),
     notes: varchar("notes", { length: 500 }),
     version: integer("version").default(1).notNull(),
     createdAt: timestamp("created_at", { precision: 3 }).notNull(),
     updatedAt: timestamp("updated_at", { precision: 3 }).notNull(),
   },
   (table) => [
-    unique("attendance_session_tenant_layer_date_unique").on(table.tenantId, table.layer, table.sessionDate),
+    // Kelas sessions are per-slot: one session per (tenant, slot, date).
+    // Gerbang stays one session per day — enforced by the partial unique below
+    // (uniqueIndex(...).where) since the multi-column unique cannot filter rows.
+    unique("attendance_session_tenant_slot_date_unique").on(table.tenantId, table.slotId, table.sessionDate),
+    uniqueIndex("attendance_session_tenant_gerbang_date_unique").on(table.tenantId, table.sessionDate).where(sql`${table.layer} = 'gerbang'`),
     unique("attendance_session_tenant_id_id_unique").on(table.tenantId, table.id),
+    foreignKey({ columns: [table.tenantId, table.slotId], foreignColumns: [teachingSlot.tenantId, teachingSlot.id], name: "attendance_session_tenant_slot_fkey" }),
     foreignKey({ columns: [table.tenantId, table.openedByUserId], foreignColumns: [user.tenantId, user.id], name: "attendance_session_tenant_actor_fkey" }),
     check("attendance_session_version_check", sql`${table.version} > 0`),
     check("attendance_session_window_check", sql`${table.plannedEnd} > ${table.plannedStart}`),
+    check(
+      "attendance_session_slot_layer_check",
+      sql`(${table.layer} = 'kelas' AND ${table.slotId} IS NOT NULL) OR (${table.layer} = 'gerbang' AND ${table.slotId} IS NULL)`,
+    ),
+    index("attendance_session_tenant_date_layer_idx").on(table.tenantId, table.sessionDate, table.layer),
+  ],
+);
+
+/**
+ * School-level daily schedule (Gerbang layer): the effective civil days with
+ * their planned arrival and departure times. One row per weekday; the worker
+ * uses it to auto-open/close the daily Gerbang session.
+ */
+export const schoolScheduleDay = pgTable(
+  "school_schedule_day",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    dayOfWeek: SchoolScheduleDayOfWeekEnum().notNull(),
+    /** "HH:MM" planned arrival (masuk) time in the tenant timezone. */
+    startTime: varchar("start_time", { length: 5 }).notNull(),
+    /** "HH:MM" planned departure (pulang) time in the tenant timezone. */
+    endTime: varchar("end_time", { length: 5 }).notNull(),
+    /** When false, the day is non-effective (no Gerbang session that weekday). */
+    effective: boolean("effective").default(true).notNull(),
+    version: integer("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { precision: 3 }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("school_schedule_day_tenant_dow_unique").on(table.tenantId, table.dayOfWeek),
+    check("school_schedule_day_window_check", sql`${table.endTime} > ${table.startTime}`),
+  ],
+);
+
+/**
+ * Non-effective (holiday) dates for the Gerbang schedule: no auto session is
+ * opened on these civil dates even when the weekday is otherwise effective.
+ */
+export const schoolHoliday = pgTable(
+  "school_holiday",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    name: varchar("name", { length: 255 }).notNull(),
+    startDate: date("start_date").notNull(),
+    endDate: date("end_date").notNull(),
+    version: integer("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { precision: 3 }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("school_holiday_tenant_id_id_unique").on(table.tenantId, table.id),
+    check("school_holiday_range_check", sql`${table.endDate} >= ${table.startDate}`),
   ],
 );
 
@@ -930,7 +1013,12 @@ export const attendanceRecord = pgTable(
     mode: AttendanceRecordModeEnum().notNull(),
     recordedAt: timestamp("recorded_at", { precision: 3 }).notNull(),
     status: AttendanceRecordStatusEnum().notNull(),
-    recordedByUserId: varchar("recorded_by_user_id", { length: 36 }).notNull(),
+    /**
+     * Actor who wrote the record; NULL when written automatically by the system
+     * (auto-alpa fill at Kelas session close, wayfinder 04) — mirrors the
+     * `openedByUserId NULL` pattern on attendance_session.
+     */
+    recordedByUserId: varchar("recorded_by_user_id", { length: 36 }),
     outOfSession: boolean("out_of_session").default(false).notNull(),
     notes: varchar("notes", { length: 500 }),
     version: integer("version").default(1).notNull(),
@@ -1028,6 +1116,66 @@ export const teachingAssignment = pgTable("teaching_assignment", {
 export const teachingAssignmentEvent = pgTable("teaching_assignment_event", {
   id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), teachingAssignmentId: varchar("teaching_assignment_id", { length: 36 }).notNull(), replacementAssignmentId: varchar("replacement_assignment_id", { length: 36 }), actorUserId: varchar("actor_user_id", { length: 36 }).notNull(), operation: TeachingAssignmentEventOperationEnum().notNull(), fromVersion: integer("from_version").notNull(), toVersion: integer("to_version").notNull(), effectiveOn: date("effective_on").notNull(), reason: varchar("reason", { length: 1000 }).notNull(), occurredAt: timestamp("occurred_at", { precision: 3 }).notNull(),
 }, (table) => [foreignKey({ columns: [table.tenantId, table.teachingAssignmentId], foreignColumns: [teachingAssignment.tenantId, teachingAssignment.id], name: "teaching_assignment_event_assignment_fkey" }), foreignKey({ columns: [table.tenantId, table.replacementAssignmentId], foreignColumns: [teachingAssignment.tenantId, teachingAssignment.id], name: "teaching_assignment_event_replacement_fkey" }), foreignKey({ columns: [table.tenantId, table.actorUserId], foreignColumns: [user.tenantId, user.id], name: "teaching_assignment_event_actor_fkey" }), index("teaching_assignment_event_scope_idx").on(table.tenantId, table.teachingAssignmentId, table.occurredAt), check("teaching_assignment_event_version_check", sql`${table.fromVersion} >= 0 AND ${table.toVersion} = ${table.fromVersion} + 1`)]);
+
+/**
+ * Weekly lesson slot (Jadwal Mengajar layer): one recurring meeting per class
+ * group, bound to an active Teaching Assignment. Explicit "HH:MM" times like
+ * school_schedule_day. Applies on date d only while the assignment is active
+ * and covers d. No room column (deferred); no draft/published lifecycle —
+ * slots take effect immediately.
+ */
+export const teachingSlot = pgTable(
+  "teaching_slot",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull(),
+    teachingAssignmentId: varchar("teaching_assignment_id", { length: 36 }).notNull(),
+    dayOfWeek: SchoolScheduleDayOfWeekEnum().notNull(),
+    /** "HH:MM" lesson start time in the tenant timezone. */
+    startTime: varchar("start_time", { length: 5 }).notNull(),
+    /** "HH:MM" lesson end time in the tenant timezone. */
+    endTime: varchar("end_time", { length: 5 }).notNull(),
+    /** odd = ganjil, even = genap — aligned with academic_semester.kind. */
+    semester: AcademicSemesterKindEnum().notNull(),
+    version: integer("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { precision: 3 }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("teaching_slot_tenant_id_unique").on(table.tenantId, table.id),
+    foreignKey({ columns: [table.tenantId, table.teachingAssignmentId], foreignColumns: [teachingAssignment.tenantId, teachingAssignment.id], name: "teaching_slot_assignment_fkey" }),
+    index("teaching_slot_scope_idx").on(table.tenantId, table.dayOfWeek, table.semester, table.startTime),
+    check("teaching_slot_window_check", sql`${table.endTime} > ${table.startTime}`),
+    check("teaching_slot_version_check", sql`${table.version} > 0`),
+  ],
+);
+
+/**
+ * Lesson-period presets per tenant: labels with default "HH:MM" windows used
+ * as form-filler helpers when composing slots. Not a runtime dependency —
+ * teaching_slot stores explicit times and holds no FK to this table.
+ */
+export const teachingPeriod = pgTable(
+  "teaching_period",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    tenantId: varchar("tenant_id", { length: 36 }).notNull().references(() => tenant.id),
+    label: varchar("label", { length: 100 }).notNull(),
+    startTime: varchar("start_time", { length: 5 }).notNull(),
+    endTime: varchar("end_time", { length: 5 }).notNull(),
+    sortOrder: integer("sort_order").notNull(),
+    version: integer("version").default(1).notNull(),
+    createdAt: timestamp("created_at", { precision: 3 }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { precision: 3 }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("teaching_period_tenant_id_unique").on(table.tenantId, table.id),
+    unique("teaching_period_tenant_label_unique").on(table.tenantId, table.label),
+    unique("teaching_period_tenant_order_unique").on(table.tenantId, table.sortOrder),
+    check("teaching_period_window_check", sql`${table.endTime} > ${table.startTime}`),
+    check("teaching_period_order_check", sql`${table.sortOrder} > 0`),
+  ],
+);
 
 export const classRelationshipEvent = pgTable("class_relationship_event", { id: varchar("id", { length: 36 }).primaryKey(), tenantId: varchar("tenant_id", { length: 36 }).notNull(), kind: ClassRelationshipEventKindEnum().notNull(), relationshipId: varchar("relationship_id", { length: 36 }).notNull(), actorUserId: varchar("actor_user_id", { length: 36 }).notNull(), operation: ClassRelationshipEventOperationEnum().notNull(), effectiveDate: date("effective_date").notNull(), reason: varchar("reason", { length: 1000 }).notNull(), occurredAt: timestamp("occurred_at", { precision: 3 }).notNull() }, (table) => [foreignKey({ columns: [table.tenantId, table.actorUserId], foreignColumns: [user.tenantId, user.id], name: "class_relationship_event_tenant_actor_fkey" }), index("class_relationship_event_tenant_relationship_idx").on(table.tenantId, table.kind, table.relationshipId, table.occurredAt)]);
 
@@ -2474,7 +2622,10 @@ export const schemaRelations = defineRelations(
     classGroupHistory,
     classGroupRelationship,
     studentProfile,
+    attendanceSession,
     attendanceRecord,
+    schoolScheduleDay,
+    schoolHoliday,
     subject,
     subjectHistory,
     user,

@@ -26,8 +26,39 @@ const legacyMinimum = [
 
 test("the approved registry and operation map form a valid executable contract", () => {
   assert.equal(PERMISSION_REGISTRY_VERSION, "tenant-permissions@2");
-  assert.equal(OPERATION_MAP_VERSION, "tenant-operations@4");
-  assert.equal(permissionRegistry.length, 166);
+  assert.equal(OPERATION_MAP_VERSION, "tenant-operations@7");
+  assert.equal(permissionRegistry.length, 173);
+
+  // Entry points uncovered before the rbac:coverage sweep must stay mapped.
+  const mappedEntryPoints = new Set(
+    tenantOperationMap.flatMap((operation) => [...operation.entryPoints]),
+  );
+  for (const entryPoint of [
+      "action:app/(tenant)/[domain]/(authenticated)/absensi/actions.ts#saveModeSettingsAction",
+      "action:app/(tenant)/[domain]/(authenticated)/jadwal/sekolah/actions.ts#saveGerbangScheduleAction",
+      "action:app/(tenant)/[domain]/(authenticated)/jadwal/sekolah/actions.ts#loadGerbangScheduleAction",
+      "action:app/(tenant)/[domain]/(authenticated)/jadwal/sekolah/actions.ts#importGerbangScheduleAction",
+      "action:app/(tenant)/[domain]/(authenticated)/integrasi/whatsapp/actions.ts#submitWhatsAppBotRequestAction",
+      "action:app/(tenant)/[domain]/(authenticated)/integrasi/whatsapp/actions.ts#startWhatsAppBotSelfServiceAction",
+      "action:app/(tenant)/[domain]/(authenticated)/integrasi/whatsapp/actions.ts#refreshWhatsAppBotSelfServiceQrAction",
+      "action:app/(tenant)/[domain]/(authenticated)/integrasi/whatsapp/actions.ts#readWhatsAppBotSelfServiceStatusAction",
+      "action:app/(tenant)/[domain]/(authenticated)/integrasi/whatsapp/actions.ts#readWhatsAppBotSessionStatusAction",
+      "action:app/(tenant)/[domain]/(authenticated)/integrasi/whatsapp/actions.ts#completeWhatsAppBotSelfServiceAction",
+      "action:app/(tenant)/[domain]/(authenticated)/master/import/actions.ts#cleanDemoMasterDataAction",
+      "action:app/(tenant)/[domain]/(authenticated)/master/siswa/actions.ts#saveStudentGuardianAction",
+      "action:app/(tenant)/[domain]/(authenticated)/master/siswa/actions.ts#deleteStudentGuardianAction",
+      "action:app/(tenant)/[domain]/(authenticated)/settings/roles/actions.ts#createRoleFromTemplate",
+      "action:app/(tenant)/[domain]/(authenticated)/settings/roles/actions.ts#updateRoleFromTemplate",
+      "page:app/(tenant)/[domain]/(authenticated)/absensi/settings/layers/page.tsx",
+      "page:app/(tenant)/[domain]/(authenticated)/absensi/settings/modes/[mode]/page.tsx",
+      "page:app/(tenant)/[domain]/(authenticated)/absensi/settings/modes/page.tsx",
+      "page:app/(tenant)/[domain]/(authenticated)/jadwal/sekolah/page.tsx",
+      "page:app/(tenant)/[domain]/(authenticated)/kelas/page.tsx",
+      "page:app/(tenant)/[domain]/(authenticated)/scan/absensi/[sessionId]/page.tsx",
+      "page:app/(tenant)/[domain]/(authenticated)/settings/roles/templates/page.tsx",
+    ]) {
+      assert.ok(mappedEntryPoints.has(entryPoint), entryPoint);
+    }
   assert.match(permissionRegistryDigest, /^[a-f0-9]{64}$/);
   assert.match(tenantOperationMapDigest, /^[a-f0-9]{64}$/);
   assert.deepEqual(validateTenantRbacContract(), []);
@@ -87,7 +118,7 @@ test("absensi module wires a real operation and excluded placeholders become ten
   assert.deepEqual(absensiSave.requiredPermissions, ["absensi.settings.update"]);
   assert.ok(absensiSave.entryPoints.some((entry) => entry === "action:app/(tenant)/[domain]/(authenticated)/absensi/actions.ts#saveAbsensiConfigAction"));
 
-  for (const id of ["e-library.load", "jadwal.mengajar.load", "jadwal.events.load", "persuratan.load", "settings.backup-restore.load", "integrasi.load", "integrasi.whatsapp-bot.load", "integrasi.whatsapp-bot.update", "integrasi.whatsapp-bot.send", "integrasi.whatsapp-bot.history.load"]) {
+  for (const id of ["e-library.load", "persuratan.load", "settings.backup-restore.load", "integrasi.load", "integrasi.whatsapp-bot.load", "integrasi.whatsapp-bot.update", "integrasi.whatsapp-bot.send", "integrasi.whatsapp-bot.history.load"]) {
     const operation = tenantOperationMap.find((candidate) => candidate.id === id);
     assert.ok(operation, id);
     assert.equal(operation.classification, "tenant-rbac", id);
@@ -204,6 +235,23 @@ test("academic operations use exact operation permissions and independent write 
       assert.equal(operation.operationalGate, "write", id);
     }
   }
+});
+
+test("Penjadwalan Jadwal Mengajar operations enforce write gating and School Admin context", () => {
+  const load = tenantOperationMap.find((candidate) => candidate.id === "jadwal.mengajar.load");
+  assert.ok(load, "jadwal.mengajar.load");
+  assert.deepEqual(load.requiredPermissions, ["jadwal.mengajar.view"]);
+  assert.equal(load.operationalGate, "read");
+  // Ticket 06: teachers read their own schedule; admins keep full access.
+  assert.equal(load.contextualPolicy, "assigned-or-self");
+
+  const write = tenantOperationMap.find((candidate) => candidate.id === "jadwal.mengajar.write");
+  assert.ok(write, "jadwal.mengajar.write");
+  assert.deepEqual(write.requiredPermissions, ["jadwal.mengajar.update"]);
+  assert.equal(write.operationalGate, "write");
+  assert.equal(write.contextualPolicy, "school-admin-only");
+  // Every slot/period mutation entry point is registered on the write operation.
+  assert.ok(write.entryPoints.length >= 5, "write entry points");
 });
 
 test("custom roles reject privileged keys and incomplete dependency selections", () => {

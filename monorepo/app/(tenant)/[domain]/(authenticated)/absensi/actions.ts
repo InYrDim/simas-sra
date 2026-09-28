@@ -4,16 +4,22 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { enforceTenantOperation } from "@/lib/features/tenant-feature-route-access";
+import { enforceAbsensiQrFeature } from "@/lib/attendance/absensi-qr-feature";
 import { OpenWaClient } from "@/lib/integrations/whatsapp-bot/openwa-client";
 import { resolveTenantOpenWaCredential } from "@/lib/integrations/whatsapp-bot/tenant-openwa-credential";
 import { readConnectionByTenantId, recordOutboundMessage } from "@/lib/integrations/whatsapp-bot/whatsapp-bot-data";
 import type { WhatsAppBotSendDependencies } from "@/lib/integrations/whatsapp-bot/whatsapp-bot-send";
+import { openKelasSlotSessionManually, closeKelasSessionById, getKelasSlotLessonInfo } from "@/lib/attendance/attendance-kelas-data";
+import { assertKelasSessionWriteAccess, buildKelasPrincipal } from "@/lib/attendance/attendance-kelas-access";
+import { resolveKelasSlotDecision } from "@/lib/attendance/attendance-kelas-schedule";
+import { civilDateInTimeZone } from "@/lib/attendance/attendance-schedule";
+import { readKelasCloseToleranceMinutes } from "@/lib/attendance/attendance-config";
 import { tenantAuthorizationStore } from "@/lib/authorization/tenant-authorization-data";
-import { saveAbsensiConfig, saveModeSettings } from "@/lib/attendance/attendance-config-data";
+import { saveAbsensiConfig, saveKelasCloseTolerance, saveModeSettings } from "@/lib/attendance/attendance-config-data";
 import { recordAttendance, openSession, closeSession, deleteSession, deleteAttendanceRecord, getSessionById } from "@/lib/attendance/attendance-record-data";
-import { sendAttendanceNotification } from "@/lib/attendance/attendance-notify";
+import { sendAttendanceNotification, notifyKelasAutoAlpaOnClose } from "@/lib/attendance/attendance-notify";
 import { decodeQrToken } from "@/lib/attendance/attendance-qr";
-import { getSessionWindow, readAbsensiSettings, readTenantTimezone } from "@/lib/attendance/attendance-config";
+import { getSessionWindow, isKelasCloseToleranceMinutes, readAbsensiSettings, readTenantTimezone } from "@/lib/attendance/attendance-config";
 import {
     ATTENDANCE_LAYERS,
     ATTENDANCE_MODES,
@@ -26,7 +32,7 @@ import {
 import { isAttendanceRecordStatus, isStatusValidForLayer } from "@/lib/attendance/attendance-record";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { classMembership } from "@/db/schema";
+import { attendanceSession, classMembership, teachingAssignment, teachingSlot } from "@/db/schema";
 
 export type SaveAbsensiConfigResult = {
     ok: boolean;
@@ -95,6 +101,35 @@ export async function saveAbsensiConfigAction(
     revalidatePath(`/${domain}/absensi`);
     revalidatePath(`/${domain}/absensi/settings`);
     redirect(`/${domain}/absensi/settings?result=saved`);
+}
+
+export type SaveKelasToleranceResult = {
+    ok: boolean;
+    code?: "invalid-input" | "not-found";
+};
+
+/**
+ * Persists the Kelas closing tolerance (minutes after a slot's endTime the
+ * session stays open). Server-side bounds check; per Tenant.
+ */
+export async function saveKelasCloseToleranceAction(
+    domain: string,
+    formData: FormData,
+): Promise<SaveKelasToleranceResult> {
+    await enforceTenantOperation(domain, "absensi.settings.save");
+
+    const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
+    if (!tenant) return { ok: false, code: "not-found" };
+
+    const raw = String(formData.get("kelasCloseToleranceMinutes") ?? "").trim();
+    const minutes = Number(raw);
+    if (!isKelasCloseToleranceMinutes(minutes)) return { ok: false, code: "invalid-input" };
+
+    const saved = await saveKelasCloseTolerance(tenant.id, minutes);
+    if (!saved) return { ok: false, code: "not-found" };
+
+    revalidatePath(`/${domain}/absensi/settings`);
+    return { ok: true };
 }
 
 export type SaveModeSettingsResult = {
@@ -300,6 +335,9 @@ export async function recordKelasAction(
     const studentId = String(formData.get("studentId") ?? "").trim();
     const status = String(formData.get("status") ?? "").trim();
     const notes = String(formData.get("notes") ?? "").trim() || undefined;
+    // Per-slot session (wayfinder 04): records attach to the session the
+    // operator is working in; empty falls back to the window-based lookup.
+    const sessionId = String(formData.get("sessionId") ?? "").trim();
 
     if (studentId === "" || !isAttendanceRecordStatus(status) || !isStatusValidForLayer("kelas", status)) {
         return { ok: false, code: "invalid-input" };
@@ -307,6 +345,15 @@ export async function recordKelasAction(
 
     const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
     if (!tenant) return { ok: false, code: "not-found" };
+
+    // Row-level guard (ticket 06): a non-admin may only write into their own
+    // lesson's session (pengampu check); School Admin passes for corrections.
+    if (sessionId !== "") {
+        const kelasPrincipal = await buildKelasPrincipal(tenant.id, principal.userId, principal.schoolAdmin);
+        if (!(await assertKelasSessionWriteAccess(kelasPrincipal, sessionId))) {
+            return { ok: false, code: "not-found" };
+        }
+    }
 
     // Kelas attendance requires an active rombel membership (endedAt IS NULL).
     const membership = await db
@@ -331,10 +378,41 @@ export async function recordKelasAction(
         actorUserId: principal.userId,
         timezone: readTenantTimezone(tenant.settings),
         notes,
+        // Explicit per-slot session (from the page); window lookup when absent.
+        ...(sessionId !== "" ? { sessionId } : {}),
     });
 
     if (!result.ok) {
         return { ok: false, code: result.code === "student-not-found" ? "student-not-found" : result.code === "invalid-status" ? "invalid-status" : result.code === "duplicate" ? "duplicate" : "error" };
+    }
+
+    // Lesson identity for the per-lesson template placeholders (wayfinder 07):
+    // resolve from the explicit per-slot session, falling back to the window
+    // lookup when the record attached without one.
+    let lesson: { subjectName: string; slotStart: string; teacherName: string } | undefined;
+    {
+        const [slotRow] = await db
+            .select({ slotId: attendanceSession.slotId })
+            .from(attendanceSession)
+            .where(
+                sessionId !== ""
+                    ? and(eq(attendanceSession.tenantId, tenant.id), eq(attendanceSession.id, sessionId))
+                    : and(
+                        eq(attendanceSession.tenantId, tenant.id),
+                        eq(attendanceSession.layer, "kelas"),
+                        eq(attendanceSession.sessionDate, civilDateInTimeZone(new Date(), readTenantTimezone(tenant.settings))),
+                        eq(attendanceSession.status, "open"),
+                    ),
+            )
+            .limit(1);
+        const slotLesson = slotRow?.slotId ? await getKelasSlotLessonInfo(tenant.id, slotRow.slotId) : null;
+        if (slotLesson) {
+            lesson = {
+                subjectName: slotLesson.subjectName,
+                slotStart: slotLesson.slotStart,
+                teacherName: slotLesson.teacherName,
+            };
+        }
     }
 
     await sendAttendanceNotification(waSendDependencies(), {
@@ -345,6 +423,7 @@ export async function recordKelasAction(
         mode: "manual",
         status,
         recordedAt: new Date(),
+        ...(lesson ? { lesson } : {}),
     }).catch(() => undefined);
 
     revalidatePath(`/${domain}/absensi/kelas`);
@@ -357,37 +436,89 @@ export type OpenKelasSessionResult = {
 };
 
 /**
- * Opens a Kelas attendance session for today. The planned window defaults to
- * the tenant's configured `sessionWindow.kelas`, falling back to the default
- * Kelas window when unset or invalid.
+ * Opens a Kelas session MANUALLY for a slot (wayfinder 04: automatic is the
+ * default via the worker; manual is the correction path). The planned window
+ * comes from the slot: start = slot start, end = slot end + tolerance. The
+ * assignment must be active and cover today (same rule as the worker).
  */
 export async function openKelasSessionAction(
     domain: string,
-    formData?: FormData,
+    slotId: string,
 ): Promise<OpenKelasSessionResult> {
     const principal = await enforceTenantOperation(domain, "absensi.kelas.manage");
 
     const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
     if (!tenant) return { ok: false, code: "not-found" };
 
-    const settings = readAbsensiSettings(tenant.settings);
-    const fallback = getSessionWindow(settings, "kelas");
+    const timezone = readTenantTimezone(tenant.settings);
+    const civilDate = civilDateInTimeZone(new Date(), timezone);
 
-    const rawStart = formData ? String(formData.get("plannedStart") ?? "").trim() : "";
-    const rawEnd = formData ? String(formData.get("plannedEnd") ?? "").trim() : "";
-    const window = isSessionWindow({ start: rawStart, end: rawEnd }) ? { start: rawStart, end: rawEnd } : fallback;
+    // Load the slot with its assignment and validate applicability for today.
+    const [slotRow] = await db
+        .select({
+            slotId: teachingSlot.id,
+            dayOfWeek: teachingSlot.dayOfWeek,
+            startTime: teachingSlot.startTime,
+            endTime: teachingSlot.endTime,
+            semester: teachingSlot.semester,
+            assignmentStatus: teachingAssignment.status,
+            startsOn: teachingAssignment.startsOn,
+            endsOn: teachingAssignment.endsOn,
+        })
+        .from(teachingSlot)
+        .innerJoin(
+            teachingAssignment,
+            and(
+                eq(teachingAssignment.tenantId, teachingSlot.tenantId),
+                eq(teachingAssignment.id, teachingSlot.teachingAssignmentId),
+            ),
+        )
+        .where(and(eq(teachingSlot.tenantId, tenant.id), eq(teachingSlot.id, slotId)))
+        .limit(1);
+    if (!slotRow) return { ok: false, code: "not-found" };
 
-    const result = await openSession({
+    // Row-level guard (ticket 06): non-admin may only open their own lesson's
+    // slot (the slot's assignment must be theirs); School Admin may open any.
+    if (!principal.schoolAdmin) {
+        const kelasPrincipal = await buildKelasPrincipal(tenant.id, principal.userId, principal.schoolAdmin);
+        const [ownerRow] = await db
+            .select({ teacherProfileId: teachingAssignment.teacherProfileId })
+            .from(teachingSlot)
+            .innerJoin(
+                teachingAssignment,
+                and(
+                    eq(teachingAssignment.tenantId, teachingSlot.tenantId),
+                    eq(teachingAssignment.id, teachingSlot.teachingAssignmentId),
+                ),
+            )
+            .where(and(eq(teachingSlot.tenantId, tenant.id), eq(teachingSlot.id, slotId)))
+            .limit(1);
+        if (!ownerRow || !kelasPrincipal.teacherProfileId || ownerRow.teacherProfileId !== kelasPrincipal.teacherProfileId) {
+            return { ok: false, code: "not-found" };
+        }
+    }
+
+    const decision = resolveKelasSlotDecision({
+        slot: slotRow,
+        civilDate,
+        // Manual opens bypass the phase check but still need "now" for it to be
+        // a session at all; any in-window time works since we only persist the
+        // decision's window. We pass now so "after" slots still open (manual).
+        nowHHMM: slotRow.startTime,
+        toleranceMinutes: readKelasCloseToleranceMinutes(tenant.settings),
+    });
+    if (decision.kind !== "session") return { ok: false, code: "invalid-window" };
+
+    const result = await openKelasSlotSessionManually({
         tenantId: tenant.id,
-        layer: "kelas",
-        openedByUserId: principal.userId,
-        plannedStart: window.start,
-        plannedEnd: window.end,
-        timezone: readTenantTimezone(tenant.settings),
-        notes: formData ? String(formData.get("notes") ?? "").trim() || undefined : undefined,
+        slot: slotRow,
+        sessionDate: civilDate,
+        toleranceMinutes: readKelasCloseToleranceMinutes(tenant.settings),
+        openedAt: new Date(),
+        actorUserId: principal.userId,
     });
 
-    if (!result.ok) return { ok: false, code: result.code };
+    if (!result.created) return { ok: false, code: "already-open" };
     revalidatePath(`/${domain}/absensi/kelas`);
     return { ok: true };
 }
@@ -397,18 +528,52 @@ export type CloseKelasSessionResult = {
     code?: "not-found" | "error";
 };
 
-/** Closes an open Kelas session. */
+/**
+ * Closes an open Kelas session. Manual close runs the same auto-alpa fill as
+ * the worker (unrecorded rombel members get `alpa` by the system actor).
+ */
 export async function closeKelasSessionAction(
     domain: string,
     sessionId: string,
 ): Promise<CloseKelasSessionResult> {
-    await enforceTenantOperation(domain, "absensi.kelas.manage");
+    const principal = await enforceTenantOperation(domain, "absensi.kelas.manage");
 
     const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
     if (!tenant) return { ok: false, code: "not-found" };
 
-    const result = await closeSession(tenant.id, sessionId);
+    const kelasPrincipal = await buildKelasPrincipal(tenant.id, principal.userId, principal.schoolAdmin);
+    if (!(await assertKelasSessionWriteAccess(kelasPrincipal, sessionId))) {
+        return { ok: false, code: "not-found" };
+    }
+
+    const result = await closeKelasSessionById(tenant.id, sessionId, new Date());
     if (!result.ok) return { ok: false, code: result.code };
+
+    // Wayfinder 07 model C: only students JUST filled with auto-alpa notify
+    // their guardians; students already recorded were notified at record time.
+    if (result.alpaStudentIds.length > 0) {
+        // closeKelasSessionById resolved the session's slot internally; reuse
+        // the same lookup for the lesson identity (mapel/jam/guru).
+        const [slotRow] = await db
+            .select({ slotId: attendanceSession.slotId })
+            .from(attendanceSession)
+            .where(and(eq(attendanceSession.tenantId, tenant.id), eq(attendanceSession.id, sessionId)))
+            .limit(1);
+        const lesson = slotRow?.slotId ? await getKelasSlotLessonInfo(tenant.id, slotRow.slotId) : null;
+        if (lesson) {
+            await notifyKelasAutoAlpaOnClose(waSendDependencies(), {
+                tenantId: tenant.id,
+                tenantSettings: tenant.settings,
+                students: result.alpaStudentIds.map((studentId) => ({ studentId })),
+                lesson: {
+                    subjectName: lesson.subjectName,
+                    slotStart: lesson.slotStart,
+                    teacherName: lesson.teacherName,
+                },
+                closedAt: new Date(),
+            }).catch(() => undefined);
+        }
+    }
 
     revalidatePath(`/${domain}/absensi/kelas`);
     return { ok: true };
@@ -424,10 +589,15 @@ export async function deleteKelasSessionAction(
     domain: string,
     sessionId: string,
 ): Promise<DeleteKelasSessionResult> {
-    await enforceTenantOperation(domain, "absensi.kelas.manage");
+    const principal = await enforceTenantOperation(domain, "absensi.kelas.manage");
 
     const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
     if (!tenant) return { ok: false, code: "not-found" };
+
+    const kelasPrincipal = await buildKelasPrincipal(tenant.id, principal.userId, principal.schoolAdmin);
+    if (!(await assertKelasSessionWriteAccess(kelasPrincipal, sessionId))) {
+        return { ok: false, code: "not-found" };
+    }
 
     const result = await deleteSession(tenant.id, sessionId, { deleteRecords: true });
     if (!result.ok) return { ok: false, code: result.code };
@@ -501,6 +671,9 @@ export async function recordQrAction(
     sessionId: string,
     token: string,
 ): Promise<RecordQrResult> {
+    // The scan page checks the `absensiQr` feature flag; the server action must
+    // recheck it so the entitlement decision is not page-only.
+    await enforceAbsensiQrFeature(domain);
     const principal = await enforceTenantOperation(domain, "absensi.qr.record");
 
     const tenant = await tenantAuthorizationStore.loadTenantByDomain(domain);
@@ -542,6 +715,19 @@ export async function recordQrAction(
         return { ok: false, code: result.code === "student-not-found" ? "student-not-found" : result.code === "invalid-status" ? "invalid-status" : result.code === "duplicate" ? "duplicate" : "error" };
     }
 
+    // Per-lesson placeholders for Kelas QR scans (wayfinder 07).
+    let qrLesson: { subjectName: string; slotStart: string; teacherName: string } | undefined;
+    if (session.layer === "kelas" && session.slotId) {
+        const slotLesson = await getKelasSlotLessonInfo(tenant.id, session.slotId);
+        if (slotLesson) {
+            qrLesson = {
+                subjectName: slotLesson.subjectName,
+                slotStart: slotLesson.slotStart,
+                teacherName: slotLesson.teacherName,
+            };
+        }
+    }
+
     await sendAttendanceNotification(waSendDependencies(), {
         tenantId: tenant.id,
         tenantSettings: tenant.settings,
@@ -550,6 +736,7 @@ export async function recordQrAction(
         mode: "qr",
         status,
         recordedAt: new Date(),
+        ...(qrLesson ? { lesson: qrLesson } : {}),
     }).catch(() => undefined);
 
     revalidatePath(`/${domain}/absensi/${session.layer}`);

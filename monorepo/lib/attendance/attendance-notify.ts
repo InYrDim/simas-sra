@@ -21,6 +21,13 @@ export type SendAttendanceNotificationInput = {
   mode: AttendanceMode;
   status: string;
   recordedAt: Date;
+  /** Lesson context of the Kelas session (wayfinder 07: {mapel} {jam} {guru}). */
+  lesson?: {
+    subjectName: string;
+    /** Slot start "HH:MM". */
+    slotStart: string;
+    teacherName: string;
+  };
 };
 
 export type SendAttendanceNotificationResult =
@@ -182,6 +189,11 @@ export async function sendAttendanceNotification(
     waktu: `${dateStr} ${timeStr}`,
     layer: layer === "gerbang" ? "gerbang" : "kelas",
     terlambat: outOfSession ? "Ya" : "Tidak",
+    // Per-lesson context (wayfinder 07 model C); empty when unknown so the
+    // placeholder collapses instead of leaking {mapel} into the message.
+    mapel: input.lesson?.subjectName ?? "",
+    jam: input.lesson?.slotStart ?? "",
+    guru: input.lesson?.teacherName ?? "",
   };
 
   const text = renderTemplate(resolveMessageTemplate(template, layer, status, outOfSession), vars);
@@ -198,4 +210,56 @@ export async function sendAttendanceNotification(
   }
 
   return { ok: true, skipped: false, results };
+}
+
+export type KelasCloseNotifyStudent = {
+  studentId: string;
+};
+
+export type NotifyKelasAutoAlpaInput = {
+  tenantId: string;
+  tenantSettings: unknown;
+  /** Students that were just filled with auto-alpa at close time. */
+  students: readonly KelasCloseNotifyStudent[];
+  lesson: {
+    subjectName: string;
+    slotStart: string;
+    teacherName: string;
+  };
+  closedAt: Date;
+};
+
+/**
+ * Wayfinder 07 decision 3 (model C): when a Kelas session closes, only the
+ * students that were JUST filled with auto-alpa (never recorded by the Guru)
+ * notify their guardians. Students already recorded stay silent — the manual
+ * record path already sent their notification, so this dedups double sends.
+ * Failures never break the close path: every error is caught and logged.
+ */
+export async function notifyKelasAutoAlpaOnClose(
+  dependencies: AttendanceNotificationDependencies,
+  input: NotifyKelasAutoAlpaInput,
+): Promise<{ notified: number }> {
+  if (input.students.length === 0) return { notified: 0 };
+
+  let notified = 0;
+  for (const { studentId } of input.students) {
+    const result = await sendAttendanceNotification(dependencies, {
+      tenantId: input.tenantId,
+      tenantSettings: input.tenantSettings,
+      studentId,
+      layer: "kelas",
+      // The system fill writes mode "manual" (actor NULL); the notification
+      // reads the manual template so tenants configure one surface.
+      mode: "manual",
+      status: "alpa",
+      recordedAt: input.closedAt,
+      lesson: input.lesson,
+    }).catch((error) => {
+      console.error("[attendance-notify] close-notify error", { tenantId: input.tenantId, studentId, error });
+      return null;
+    });
+    if (result?.ok && !result.skipped) notified += 1;
+  }
+  return { notified };
 }
